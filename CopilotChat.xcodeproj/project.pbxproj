@@ -1,0 +1,399 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		1642E88F49621293AC8EC307 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F8C8F50D0B29A8A7443C454 /* SettingsStore.swift */; };
+		17E6FDC95EBBCC13F2106A07 /* MCPSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAEE40518E4F65DA4E50E674 /* MCPSettingsView.swift */; };
+		1D92D9F9B34EBFEE478B0A29 /* CopilotChatApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A877976EB8149831636E8E06 /* CopilotChatApp.swift */; };
+		245E035ACB480E48764C62A4 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73E1C308EAC55AC71B9FE65D /* ContentView.swift */; };
+		366FB1F9BC38A7EECD186BA1 /* ModelPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5552AFC87E5FCBAE9ACE1C4A /* ModelPickerView.swift */; };
+		618203C783472CF073B70DBA /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDE8D6B39D4CE3CC02F64DC5 /* ChatView.swift */; };
+		667A6D684FF61468C6F0903C /* AuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB3BB21C2425B2EC03EF63DA /* AuthManager.swift */; };
+		780C1E6B6A3D696CB6882F87 /* CopilotService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4D6D250CD46F217D156DA5E /* CopilotService.swift */; };
+		7ABC55784E0EBBF9AFFB150B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A7B782DFE064DC7FD97C4A83 /* Assets.xcassets */; };
+		82EA680B0A0A23D8DCE40446 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F9FAE980CC6C7D80EA66144 /* KeychainHelper.swift */; };
+		B9ABB2CF6F8B94253655D35C /* MessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B96E5A9BE12959957495FCCA /* MessageView.swift */; };
+		CE39153358114C150B561007 /* MarkdownView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209BCAEE6572124412782E61 /* MarkdownView.swift */; };
+		D1E9BB44D1210C75CD6D0AF9 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2B7AC6BD497F71C56B82001 /* SettingsView.swift */; };
+		DEB7B83E6DC8A93E721EC21A /* MCPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0360B8A2EA009CB9636C0D4D /* MCPClient.swift */; };
+		F5BCCA22632FE40F5BE33602 /* ChatModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16DB1EC5909ACF0B5B392F63 /* ChatModels.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0360B8A2EA009CB9636C0D4D /* MCPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPClient.swift; sourceTree = "<group>"; };
+		16DB1EC5909ACF0B5B392F63 /* ChatModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatModels.swift; sourceTree = "<group>"; };
+		209BCAEE6572124412782E61 /* MarkdownView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownView.swift; sourceTree = "<group>"; };
+		3F8C8F50D0B29A8A7443C454 /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
+		5552AFC87E5FCBAE9ACE1C4A /* ModelPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelPickerView.swift; sourceTree = "<group>"; };
+		6F9FAE980CC6C7D80EA66144 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
+		73E1C308EAC55AC71B9FE65D /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		A7B782DFE064DC7FD97C4A83 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A877976EB8149831636E8E06 /* CopilotChatApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CopilotChatApp.swift; sourceTree = "<group>"; };
+		B2ABD5318D1C1FEAD11AFD93 /* CopilotChat.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = CopilotChat.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B96E5A9BE12959957495FCCA /* MessageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageView.swift; sourceTree = "<group>"; };
+		BB3BB21C2425B2EC03EF63DA /* AuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthManager.swift; sourceTree = "<group>"; };
+		C2B7AC6BD497F71C56B82001 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		D4D6D250CD46F217D156DA5E /* CopilotService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CopilotService.swift; sourceTree = "<group>"; };
+		DAEE40518E4F65DA4E50E674 /* MCPSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPSettingsView.swift; sourceTree = "<group>"; };
+		EDE8D6B39D4CE3CC02F64DC5 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		12F4A27B9A5B53598863A0FA /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				BB3BB21C2425B2EC03EF63DA /* AuthManager.swift */,
+				16DB1EC5909ACF0B5B392F63 /* ChatModels.swift */,
+				D4D6D250CD46F217D156DA5E /* CopilotService.swift */,
+				0360B8A2EA009CB9636C0D4D /* MCPClient.swift */,
+				3F8C8F50D0B29A8A7443C454 /* SettingsStore.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		33350B4628AD5990F3764401 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B2ABD5318D1C1FEAD11AFD93 /* CopilotChat.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		7B4B25C6920E9B9B6EA6A8BF /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				6F9FAE980CC6C7D80EA66144 /* KeychainHelper.swift */,
+			);
+			path = Utilities;
+			sourceTree = "<group>";
+		};
+		CFBEBB76DC310AB75CC33130 /* CopilotChat */ = {
+			isa = PBXGroup;
+			children = (
+				A7B782DFE064DC7FD97C4A83 /* Assets.xcassets */,
+				73E1C308EAC55AC71B9FE65D /* ContentView.swift */,
+				A877976EB8149831636E8E06 /* CopilotChatApp.swift */,
+				12F4A27B9A5B53598863A0FA /* Models */,
+				7B4B25C6920E9B9B6EA6A8BF /* Utilities */,
+				E99E2D1BA21056BF6E532C09 /* Views */,
+			);
+			path = CopilotChat;
+			sourceTree = "<group>";
+		};
+		E99E2D1BA21056BF6E532C09 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				EDE8D6B39D4CE3CC02F64DC5 /* ChatView.swift */,
+				209BCAEE6572124412782E61 /* MarkdownView.swift */,
+				DAEE40518E4F65DA4E50E674 /* MCPSettingsView.swift */,
+				B96E5A9BE12959957495FCCA /* MessageView.swift */,
+				5552AFC87E5FCBAE9ACE1C4A /* ModelPickerView.swift */,
+				C2B7AC6BD497F71C56B82001 /* SettingsView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		FDC7BAA69FF0273BD4A68BEF = {
+			isa = PBXGroup;
+			children = (
+				CFBEBB76DC310AB75CC33130 /* CopilotChat */,
+				33350B4628AD5990F3764401 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		725090D1D39FE54630979995 /* CopilotChat */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 92B1E8432B436359366BED3C /* Build configuration list for PBXNativeTarget "CopilotChat" */;
+			buildPhases = (
+				D8A1E965BD57A8D31403D5A4 /* Sources */,
+				589925B7AD802BB9D59A7AAB /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = CopilotChat;
+			packageProductDependencies = (
+			);
+			productName = CopilotChat;
+			productReference = B2ABD5318D1C1FEAD11AFD93 /* CopilotChat.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		DB271B040BE3207C810189B0 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 2600;
+				TargetAttributes = {
+					725090D1D39FE54630979995 = {
+						DevelopmentTeam = MW4GWYGX56;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 5F0C1426AA7025ECCF57A75B /* Build configuration list for PBXProject "CopilotChat" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = FDC7BAA69FF0273BD4A68BEF;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 33350B4628AD5990F3764401 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				725090D1D39FE54630979995 /* CopilotChat */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		589925B7AD802BB9D59A7AAB /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7ABC55784E0EBBF9AFFB150B /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		D8A1E965BD57A8D31403D5A4 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				667A6D684FF61468C6F0903C /* AuthManager.swift in Sources */,
+				F5BCCA22632FE40F5BE33602 /* ChatModels.swift in Sources */,
+				618203C783472CF073B70DBA /* ChatView.swift in Sources */,
+				245E035ACB480E48764C62A4 /* ContentView.swift in Sources */,
+				1D92D9F9B34EBFEE478B0A29 /* CopilotChatApp.swift in Sources */,
+				780C1E6B6A3D696CB6882F87 /* CopilotService.swift in Sources */,
+				82EA680B0A0A23D8DCE40446 /* KeychainHelper.swift in Sources */,
+				DEB7B83E6DC8A93E721EC21A /* MCPClient.swift in Sources */,
+				17E6FDC95EBBCC13F2106A07 /* MCPSettingsView.swift in Sources */,
+				CE39153358114C150B561007 /* MarkdownView.swift in Sources */,
+				B9ABB2CF6F8B94253655D35C /* MessageView.swift in Sources */,
+				366FB1F9BC38A7EECD186BA1 /* ModelPickerView.swift in Sources */,
+				1642E88F49621293AC8EC307 /* SettingsStore.swift in Sources */,
+				D1E9BB44D1210C75CD6D0AF9 /* SettingsView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		67B5BB3019C60C56EC1078A5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = MW4GWYGX56;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.copilotchat.app;
+				SDKROOT = iphoneos;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		6AA0F91AC925B84271E673C2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Copilot Chat";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		A1969B09835E495252833933 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Copilot Chat";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		AD0CFC9ABD5F11F8AD0FFB26 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = MW4GWYGX56;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.copilotchat.app;
+				SDKROOT = iphoneos;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		5F0C1426AA7025ECCF57A75B /* Build configuration list for PBXProject "CopilotChat" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6AA0F91AC925B84271E673C2 /* Debug */,
+				A1969B09835E495252833933 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		92B1E8432B436359366BED3C /* Build configuration list for PBXNativeTarget "CopilotChat" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AD0CFC9ABD5F11F8AD0FFB26 /* Debug */,
+				67B5BB3019C60C56EC1078A5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = DB271B040BE3207C810189B0 /* Project object */;
+}

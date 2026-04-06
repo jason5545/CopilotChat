@@ -1,0 +1,32 @@
+name: CopilotChat
+options:
+  bundleIdPrefix: com.copilotchat
+  deploymentTarget:
+    iOS: "26.0"
+  xcodeVersion: "26"
+  defaultConfig: Release
+settings:
+  SWIFT_VERSION: "6.0"
+  SWIFT_STRICT_CONCURRENCY: complete
+  GENERATE_INFOPLIST_FILE: YES
+  INFOPLIST_KEY_CFBundleDisplayName: "Copilot Chat"
+  INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.developer-tools"
+  MARKETING_VERSION: "1.0.0"
+  CURRENT_PROJECT_VERSION: "1"
+targets:
+  CopilotChat:
+    type: application
+    platform: iOS
+    sources:
+      - CopilotChat
+    settings:
+      ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+      ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+      INFOPLIST_KEY_UILaunchScreen_Generation: YES
+      INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+      INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+      CODE_SIGN_STYLE: Automatic
+      DEVELOPMENT_TEAM: MW4GWYGX56
+      PRODUCT_BUNDLE_IDENTIFIER: com.copilotchat.app
+      TARGETED_DEVICE_FAMILY: "1,2"
+      SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: YES

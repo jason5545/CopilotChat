@@ -1,0 +1,298 @@
+import Foundation
+
+// MARK: - Chat Message
+
+struct ChatMessage: Identifiable, Equatable {
+    let id: UUID
+    let role: Role
+    var content: String
+    var toolCalls: [ToolCall]?
+    var toolCallId: String?
+    var toolName: String?
+    let timestamp: Date
+
+    enum Role: String, Codable {
+        case system
+        case user
+        case assistant
+        case tool
+    }
+
+    init(
+        id: UUID = UUID(),
+        role: Role,
+        content: String,
+        toolCalls: [ToolCall]? = nil,
+        toolCallId: String? = nil,
+        toolName: String? = nil,
+        timestamp: Date = Date()
+    ) {
+        self.id = id
+        self.role = role
+        self.content = content
+        self.toolCalls = toolCalls
+        self.toolCallId = toolCallId
+        self.toolName = toolName
+        self.timestamp = timestamp
+    }
+
+    static func == (lhs: ChatMessage, rhs: ChatMessage) -> Bool {
+        lhs.id == rhs.id && lhs.content == rhs.content
+    }
+}
+
+struct ToolCall: Identifiable, Equatable, Codable {
+    let id: String
+    let function: FunctionCall
+
+    struct FunctionCall: Equatable, Codable {
+        let name: String
+        let arguments: String
+    }
+}
+
+// MARK: - API Request Types
+
+struct ChatCompletionRequest: Encodable {
+    let model: String
+    let messages: [APIMessage]
+    let stream: Bool
+    let maxTokens: Int?
+    let temperature: Double?
+    let tools: [APITool]?
+    let toolChoice: String?
+
+    enum CodingKeys: String, CodingKey {
+        case model, messages, stream, temperature, tools
+        case maxTokens = "max_tokens"
+        case toolChoice = "tool_choice"
+    }
+}
+
+struct APIMessage: Encodable {
+    let role: String
+    let content: String?
+    let toolCalls: [APIToolCall]?
+    let toolCallId: String?
+
+    enum CodingKeys: String, CodingKey {
+        case role, content
+        case toolCalls = "tool_calls"
+        case toolCallId = "tool_call_id"
+    }
+
+    init(role: String, content: String?, toolCalls: [APIToolCall]? = nil, toolCallId: String? = nil) {
+        self.role = role
+        self.content = content
+        self.toolCalls = toolCalls
+        self.toolCallId = toolCallId
+    }
+}
+
+struct APIToolCall: Encodable {
+    let id: String
+    let type: String
+    let function: APIFunctionCall
+
+    struct APIFunctionCall: Encodable {
+        let name: String
+        let arguments: String
+    }
+}
+
+struct APITool: Encodable {
+    let type: String
+    let function: APIToolFunction
+
+    struct APIToolFunction: Encodable {
+        let name: String
+        let description: String
+        let parameters: [String: AnyCodable]?
+
+        enum CodingKeys: String, CodingKey {
+            case name, description, parameters
+        }
+    }
+}
+
+// MARK: - API Response Types (Streaming)
+
+struct StreamChunk: Decodable {
+    let id: String?
+    let choices: [StreamChoice]?
+
+    struct StreamChoice: Decodable {
+        let index: Int
+        let delta: StreamDelta
+        let finishReason: String?
+
+        enum CodingKeys: String, CodingKey {
+            case index, delta
+            case finishReason = "finish_reason"
+        }
+    }
+
+    struct StreamDelta: Decodable {
+        let role: String?
+        let content: String?
+        let toolCalls: [StreamToolCall]?
+
+        enum CodingKeys: String, CodingKey {
+            case role, content
+            case toolCalls = "tool_calls"
+        }
+    }
+
+    struct StreamToolCall: Decodable {
+        let index: Int
+        let id: String?
+        let type: String?
+        let function: StreamFunction?
+
+        struct StreamFunction: Decodable {
+            let name: String?
+            let arguments: String?
+        }
+    }
+}
+
+// MARK: - Models List Response
+
+struct ModelsResponse: Decodable {
+    let data: [ModelInfo]
+
+    struct ModelInfo: Decodable, Identifiable {
+        let id: String
+        let name: String?
+        let version: String?
+
+        var displayName: String {
+            name ?? id
+        }
+    }
+}
+
+// MARK: - Device Flow Types
+
+struct DeviceCodeResponse: Decodable {
+    let deviceCode: String
+    let userCode: String
+    let verificationUri: String
+    let expiresIn: Int
+    let interval: Int
+
+    enum CodingKeys: String, CodingKey {
+        case deviceCode = "device_code"
+        case userCode = "user_code"
+        case verificationUri = "verification_uri"
+        case expiresIn = "expires_in"
+        case interval
+    }
+}
+
+struct OAuthTokenResponse: Decodable {
+    let accessToken: String?
+    let tokenType: String?
+    let scope: String?
+    let error: String?
+
+    enum CodingKeys: String, CodingKey {
+        case accessToken = "access_token"
+        case tokenType = "token_type"
+        case scope
+        case error
+    }
+}
+
+struct GitHubUser: Decodable {
+    let login: String
+    let avatarUrl: String?
+
+    enum CodingKeys: String, CodingKey {
+        case login
+        case avatarUrl = "avatar_url"
+    }
+}
+
+// MARK: - MCP Types
+
+struct MCPServerConfig: Identifiable, Codable, Equatable, Sendable {
+    let id: UUID
+    var name: String
+    var url: String
+    var headers: [String: String]
+    var isEnabled: Bool
+
+    init(id: UUID = UUID(), name: String, url: String, headers: [String: String] = [:], isEnabled: Bool = true) {
+        self.id = id
+        self.name = name
+        self.url = url
+        self.headers = headers
+        self.isEnabled = isEnabled
+    }
+}
+
+struct MCPTool: Identifiable, Equatable, Sendable {
+    var id: String { name }
+    let name: String
+    let description: String
+    let inputSchema: [String: AnyCodable]?
+    let serverName: String
+}
+
+// MARK: - AnyCodable helper
+
+struct AnyCodable: Codable, Equatable, @unchecked Sendable {
+    let value: Any
+
+    init(_ value: Any) {
+        self.value = value
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if container.decodeNil() {
+            value = NSNull()
+        } else if let bool = try? container.decode(Bool.self) {
+            value = bool
+        } else if let int = try? container.decode(Int.self) {
+            value = int
+        } else if let double = try? container.decode(Double.self) {
+            value = double
+        } else if let string = try? container.decode(String.self) {
+            value = string
+        } else if let array = try? container.decode([AnyCodable].self) {
+            value = array.map(\.value)
+        } else if let dict = try? container.decode([String: AnyCodable].self) {
+            value = dict.mapValues(\.value)
+        } else {
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unsupported type")
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch value {
+        case is NSNull:
+            try container.encodeNil()
+        case let bool as Bool:
+            try container.encode(bool)
+        case let int as Int:
+            try container.encode(int)
+        case let double as Double:
+            try container.encode(double)
+        case let string as String:
+            try container.encode(string)
+        case let array as [Any]:
+            try container.encode(array.map { AnyCodable($0) })
+        case let dict as [String: Any]:
+            try container.encode(dict.mapValues { AnyCodable($0) })
+        default:
+            throw EncodingError.invalidValue(value, .init(codingPath: encoder.codingPath, debugDescription: "Unsupported type"))
+        }
+    }
+
+    static func == (lhs: AnyCodable, rhs: AnyCodable) -> Bool {
+        String(describing: lhs.value) == String(describing: rhs.value)
+    }
+}
