@@ -17,7 +17,7 @@ enum WebFetchService {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue(
-            "Mozilla/5.0 (compatible; CopilotChat/1.0)",
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1",
             forHTTPHeaderField: "User-Agent"
         )
         request.setValue("text/html, application/json, text/plain;q=0.9, */*;q=0.5",
