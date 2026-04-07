@@ -16,6 +16,31 @@ CopilotChat gets lower `max_context_window_tokens` from `api.githubcopilot.com/m
 5. **Rollback to app identity + OpenCode headers** — Restored the app OAuth client ID `Ov23li8tweQw6odWQebz` and reverted request headers to OpenCode-style values while keeping the display-only token interpretation change.
 6. **Display-only context interpretation change** — After changing the app UI to prefer `max_prompt_tokens + max_output_tokens`, `claude-opus-4.6` now shows `160K` on-device instead of `144K`.
 
+## Resolution (2026-04-07 evening)
+
+The model list issue (claude-opus-4.6 disappearing) has been **resolved**. Root cause was **iOS URLSession caching a stale GET `/models` response**.
+
+### Root Cause
+1. `fetchModels()` uses GET to hit `/models` — iOS URLSession caches GET responses by default
+2. At some point, GitHub API temporarily did not return `claude-opus-4.6` in the response
+3. iOS cached that incomplete response
+4. Subsequent calls to `fetchModels()` returned the cached version without hitting the API
+5. Even after GitHub restored 4.6, iOS kept serving the cached version
+
+### Fix (commit 62f5893)
+- Added `request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData` to the `/models` URLRequest
+- Added model deduplication (API returns duplicates like `gpt-4` appearing twice)
+
+### Verification
+- Same token tested from Mac (curl) returned 33 models including `claude-opus-4.6`
+- Same token from iPhone app returned only 28 models (cached response)
+- After adding cache policy bypass + ephemeral URLSession test, iPhone returned full 33 models
+- `claude-opus-4.6` now correctly shows **192K** context window on device
+
+---
+
+## Original Investigation (historical)
+
 ## Current Conclusions
 1. **The iPhone app currently uses a raw GitHub OAuth token directly against Copilot API.**
    - `AuthManager.swift` stores a GitHub OAuth token from device flow.
@@ -158,8 +183,10 @@ This matches the strongest currently observed VS Code behavior while avoiding an
 - `ChatModels.swift`: `ModelsResponse.ModelInfo.Limits` struct decodes `max_context_window_tokens`, `max_prompt_tokens`, `max_output_tokens`; display metadata now derives a VS Code-style display context size separately from runtime prompt limits
 
 ## Current App State
-- OAuth client identity is back to the app's own client ID: `Ov23li8tweQw6odWQebz`
-- Copilot request headers are back to OpenCode-style values
-- Model picker/settings UI now displays a VS Code-style context size derived from `max_prompt_tokens + max_output_tokens` when both values are available
-- Current observed on-device display for `claude-opus-4.6` is `160K`
+- OAuth client identity: `Ov23li8tweQw6odWQebz`
+- Copilot request headers: OpenCode-style values
+- Model picker/settings UI displays VS Code-style context size (`max_prompt_tokens + max_output_tokens`)
+- `fetchModels()` uses `reloadIgnoringLocalAndRemoteCacheData` to prevent stale cache
+- Model list deduplicates by ID
+- `claude-opus-4.6` displays **192K** context window on device (resolved)
 - Runtime compaction logic still uses `max_prompt_tokens`
