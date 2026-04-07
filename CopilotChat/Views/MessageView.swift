@@ -3,19 +3,25 @@ import SwiftUI
 struct MessageView: View {
     let message: ChatMessage
     let toolCallStatuses: [String: ToolCallStatus]
+    let toolCallServerNames: [String: String]
     let isStreaming: Bool
     let onRetryToolCall: ((ToolCall) -> Void)?
+    let onPermissionDecision: ((PermissionDecision) -> Void)?
 
     init(
         message: ChatMessage,
         toolCallStatuses: [String: ToolCallStatus] = [:],
+        toolCallServerNames: [String: String] = [:],
         isStreaming: Bool = false,
-        onRetryToolCall: ((ToolCall) -> Void)? = nil
+        onRetryToolCall: ((ToolCall) -> Void)? = nil,
+        onPermissionDecision: ((PermissionDecision) -> Void)? = nil
     ) {
         self.message = message
         self.toolCallStatuses = toolCallStatuses
+        self.toolCallServerNames = toolCallServerNames
         self.isStreaming = isStreaming
         self.onRetryToolCall = onRetryToolCall
+        self.onPermissionDecision = onPermissionDecision
     }
 
     var body: some View {
@@ -93,10 +99,19 @@ struct MessageView: View {
 
     // MARK: - Tool Call Card
 
+    @ViewBuilder
     private func toolCallCard(_ call: ToolCall) -> some View {
         let status = toolCallStatuses[call.id] ?? .pending
 
-        return HStack(spacing: 10) {
+        if status == .awaitingPermission {
+            permissionCard(call)
+        } else {
+            standardToolCallCard(call, status: status)
+        }
+    }
+
+    private func standardToolCallCard(_ call: ToolCall, status: ToolCallStatus) -> some View {
+        HStack(spacing: 10) {
             toolCallStatusIcon(status)
             VStack(alignment: .leading, spacing: 2) {
                 Text(call.function.name)
@@ -138,9 +153,142 @@ struct MessageView: View {
         )
     }
 
+    // MARK: - Permission Card
+
+    private func permissionCard(_ call: ToolCall) -> some View {
+        let serverName = toolCallServerNames[call.id] ?? "Unknown"
+
+        return VStack(spacing: 0) {
+            // Header stripe
+            HStack(spacing: 8) {
+                Image(systemName: "shield.lefthalf.filled.badge.checkmark")
+                    .font(.caption)
+                    .foregroundStyle(Color.carbonAccent)
+                Text(serverName.uppercased())
+                    .font(.carbonMono(.caption2, weight: .bold))
+                    .kerning(0.8)
+                    .foregroundStyle(Color.carbonAccent)
+                Spacer()
+                Text("PERMISSION")
+                    .font(.carbonMono(.caption2, weight: .semibold))
+                    .kerning(1.0)
+                    .foregroundStyle(Color.carbonTextTertiary)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(Color.carbonAccent.opacity(0.08))
+
+            // Divider
+            Rectangle()
+                .fill(Color.carbonAccent.opacity(0.15))
+                .frame(height: 0.5)
+
+            // Tool info
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Wants to run")
+                    .font(.carbonSans(.caption))
+                    .foregroundStyle(Color.carbonTextTertiary)
+                Text(call.function.name)
+                    .font(.carbonMono(.subheadline, weight: .bold))
+                    .foregroundStyle(Color.carbonText)
+                if let args = parseArgsSummary(call.function.arguments) {
+                    Text(args)
+                        .font(.carbonMono(.caption2))
+                        .foregroundStyle(Color.carbonTextTertiary)
+                        .lineLimit(3)
+                        .padding(.top, 2)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+
+            // Divider
+            Rectangle()
+                .fill(Color.carbonBorder.opacity(0.3))
+                .frame(height: 0.5)
+
+            // Actions
+            VStack(spacing: 10) {
+                // Primary: Allow for this chat
+                Button {
+                    onPermissionDecision?(.allowForChat)
+                } label: {
+                    Text("Allow for this chat")
+                        .font(.carbonMono(.caption, weight: .bold))
+                        .foregroundStyle(Color.carbonBlack)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 11)
+                        .background(Color.carbonAccent)
+                        .clipShape(RoundedRectangle(cornerRadius: Carbon.radiusSmall))
+                }
+                .buttonStyle(.plain)
+
+                // Secondary row
+                HStack(spacing: 0) {
+                    Button {
+                        onPermissionDecision?(.allowOnce)
+                    } label: {
+                        Text("Allow once")
+                            .font(.carbonMono(.caption2, weight: .medium))
+                            .foregroundStyle(Color.carbonTextSecondary)
+                            .padding(.vertical, 6)
+                            .padding(.horizontal, 12)
+                    }
+                    .buttonStyle(.plain)
+
+                    Spacer()
+
+                    Button {
+                        onPermissionDecision?(.allowAlways)
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark.shield")
+                                .font(.caption2)
+                            Text("Always allow")
+                                .font(.carbonMono(.caption2, weight: .medium))
+                        }
+                        .foregroundStyle(Color.carbonAccent.opacity(0.7))
+                        .padding(.vertical, 6)
+                        .padding(.horizontal, 12)
+                    }
+                    .buttonStyle(.plain)
+
+                    Spacer()
+
+                    Button {
+                        onPermissionDecision?(.deny)
+                    } label: {
+                        Text("Deny")
+                            .font(.carbonMono(.caption2, weight: .semibold))
+                            .foregroundStyle(Color.carbonError)
+                            .padding(.vertical, 6)
+                            .padding(.horizontal, 12)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+        }
+        .background(Color.carbonSurface)
+        .clipShape(RoundedRectangle(cornerRadius: Carbon.radiusMedium))
+        .overlay(
+            RoundedRectangle(cornerRadius: Carbon.radiusMedium)
+                .stroke(Color.carbonAccent.opacity(0.35), lineWidth: 1)
+        )
+        .shadow(color: Color.carbonAccent.opacity(0.06), radius: 12, y: 4)
+        .transition(.scale(scale: 0.96).combined(with: .opacity))
+        .animation(.easeOut(duration: 0.25), value: toolCallStatuses[call.id])
+    }
+
     @ViewBuilder
     private func toolCallStatusIcon(_ status: ToolCallStatus) -> some View {
         switch status {
+        case .awaitingPermission:
+            Image(systemName: "shield.lefthalf.filled")
+                .font(.caption)
+                .foregroundStyle(Color.carbonAccent)
         case .pending:
             Image(systemName: "clock")
                 .font(.caption)
@@ -168,6 +316,7 @@ struct MessageView: View {
 
     private func toolCallBorderColor(_ status: ToolCallStatus) -> Color {
         switch status {
+        case .awaitingPermission: Color.carbonAccent.opacity(0.35)
         case .pending: Color.carbonBorder.opacity(0.4)
         case .executing: Color.carbonAccent.opacity(0.3)
         case .completed: Color.carbonSuccess.opacity(0.3)

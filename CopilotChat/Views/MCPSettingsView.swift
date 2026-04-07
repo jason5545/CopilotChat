@@ -66,6 +66,7 @@ struct MCPSettingsView: View {
             } header: {
                 CarbonSectionHeader(title: "Connected Tools")
             }
+
         }
         .scrollContentBackground(.hidden)
         .background(Color.carbonBlack)

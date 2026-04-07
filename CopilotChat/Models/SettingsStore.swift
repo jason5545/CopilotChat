@@ -6,6 +6,8 @@ import Observation
 final class SettingsStore {
     private static let modelsKey = "selectedModel"
     private static let mcpServersKey = "mcpServers"
+    private static let alwaysAllowedKey = "mcpAlwaysAllowedServers"
+    private static let toolOverridesKey = "mcpToolPermissionOverrides"
     private static let defaultModel = "claude-sonnet-4-6"
 
     var selectedModel: String {
@@ -21,9 +23,76 @@ final class SettingsStore {
     var mcpTools: [MCPTool] = []
     var mcpConnectionErrors: [UUID: String] = [:]
 
+    // MCP Permission state
+    var alwaysAllowedServers: Set<String> {
+        didSet { saveAlwaysAllowedServers() }
+    }
+    var toolPermissionOverrides: [String: ToolPermissionOverride] {
+        didSet { saveToolOverrides() }
+    }
+    var sessionAllowedServers: Set<String> = []
+
     init() {
         self.selectedModel = UserDefaults.standard.string(forKey: Self.modelsKey) ?? Self.defaultModel
         self.mcpServers = Self.loadMCPServers()
+        self.alwaysAllowedServers = Self.loadAlwaysAllowedServers()
+        self.toolPermissionOverrides = Self.loadToolOverrides()
+    }
+
+    // MARK: - MCP Permissions
+
+    /// Unified permission check: tool override > server level > session level > ask
+    enum PermissionCheckResult {
+        case allowed
+        case denied
+        case ask
+    }
+
+    func checkPermission(toolName: String, serverName: String) -> PermissionCheckResult {
+        // 1. Tool-level override takes priority
+        if let toolOverride = toolPermissionOverrides[toolName] {
+            return toolOverride == .alwaysAllow ? .allowed : .denied
+        }
+        // 2. Server-level persistent or session permission
+        if alwaysAllowedServers.contains(serverName) || sessionAllowedServers.contains(serverName) {
+            return .allowed
+        }
+        // 3. Need to ask
+        return .ask
+    }
+
+    func allowServerAlways(_ serverName: String) {
+        alwaysAllowedServers.insert(serverName)
+    }
+
+    func allowServerForSession(_ serverName: String) {
+        sessionAllowedServers.insert(serverName)
+    }
+
+    func clearSessionPermissions() {
+        sessionAllowedServers.removeAll()
+    }
+
+    func revokeAlwaysAllow(_ serverName: String) {
+        alwaysAllowedServers.remove(serverName)
+    }
+
+    func setToolOverride(_ toolName: String, _ override: ToolPermissionOverride?) {
+        toolPermissionOverrides[toolName] = override
+    }
+
+    func resetAllPermissions() {
+        alwaysAllowedServers.removeAll()
+        toolPermissionOverrides.removeAll()
+        sessionAllowedServers.removeAll()
+    }
+
+    func serverNameForTool(_ toolName: String) -> String? {
+        mcpTools.first(where: { $0.name == toolName })?.serverName
+    }
+
+    func toolsForServer(_ serverName: String) -> [MCPTool] {
+        mcpTools.filter { $0.serverName == serverName }
     }
 
     // MARK: - MCP Server Management
@@ -117,5 +186,31 @@ final class SettingsStore {
             return []
         }
         return servers
+    }
+
+    private func saveAlwaysAllowedServers() {
+        let array = Array(alwaysAllowedServers)
+        UserDefaults.standard.set(array, forKey: Self.alwaysAllowedKey)
+    }
+
+    private static func loadAlwaysAllowedServers() -> Set<String> {
+        guard let array = UserDefaults.standard.stringArray(forKey: alwaysAllowedKey) else {
+            return []
+        }
+        return Set(array)
+    }
+
+    private func saveToolOverrides() {
+        if let data = try? JSONEncoder().encode(toolPermissionOverrides) {
+            UserDefaults.standard.set(data, forKey: Self.toolOverridesKey)
+        }
+    }
+
+    private static func loadToolOverrides() -> [String: ToolPermissionOverride] {
+        guard let data = UserDefaults.standard.data(forKey: toolOverridesKey),
+              let overrides = try? JSONDecoder().decode([String: ToolPermissionOverride].self, from: data) else {
+            return [:]
+        }
+        return overrides
     }
 }

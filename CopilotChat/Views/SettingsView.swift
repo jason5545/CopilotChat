@@ -14,6 +14,7 @@ struct SettingsView: View {
                 accountSection
                 modelSection
                 mcpSection
+                mcpPermissionsSection
                 aboutSection
             }
             .scrollContentBackground(.hidden)
@@ -260,12 +261,79 @@ struct SettingsView: View {
         } header: {
             CarbonSectionHeader(title: "MCP Servers")
         } footer: {
-            if !settingsStore.mcpTools.isEmpty {
-                Text("\(settingsStore.mcpTools.count) tools available")
-                    .font(.carbonMono(.caption2))
-                    .foregroundStyle(Color.carbonTextTertiary)
+            VStack(alignment: .leading, spacing: 3) {
+                if !settingsStore.mcpTools.isEmpty {
+                    Text("\(settingsStore.mcpTools.count) tools available")
+                        .font(.carbonMono(.caption2))
+                        .foregroundStyle(Color.carbonTextTertiary)
+                }
+                if !settingsStore.alwaysAllowedServers.isEmpty {
+                    Text("\(settingsStore.alwaysAllowedServers.count) server(s) always allowed")
+                        .font(.carbonMono(.caption2))
+                        .foregroundStyle(Color.carbonSuccess.opacity(0.7))
+                }
             }
         }
+    }
+
+    // MARK: - MCP Permissions Section
+
+    private var mcpPermissionsSection: some View {
+        Section {
+            if settingsStore.mcpServers.isEmpty {
+                HStack(spacing: 8) {
+                    Image(systemName: "shield.lefthalf.filled")
+                        .font(.caption)
+                        .foregroundStyle(Color.carbonTextTertiary)
+                    Text("No MCP servers configured")
+                        .font(.carbonSans(.caption))
+                        .foregroundStyle(Color.carbonTextTertiary)
+                }
+                .listRowBackground(Color.carbonSurface)
+            } else {
+                ForEach(settingsStore.mcpServers) { server in
+                    let summary = permissionSummary(for: server.name)
+                    NavigationLink {
+                        MCPPermissionDetailView(serverName: server.name)
+                    } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(server.name)
+                                    .font(.carbonSans(.subheadline, weight: .medium))
+                                    .foregroundStyle(Color.carbonText)
+                                Text(summary.label)
+                                    .font(.carbonMono(.caption2))
+                                    .foregroundStyle(summary.color)
+                            }
+                            Spacer()
+                        }
+                    }
+                    .listRowBackground(Color.carbonSurface)
+                }
+            }
+        } header: {
+            CarbonSectionHeader(title: "Tool Permissions")
+        } footer: {
+            Text("Tap a server to configure per-tool permissions.")
+                .font(.carbonMono(.caption2))
+                .foregroundStyle(Color.carbonTextTertiary)
+        }
+    }
+
+    private func permissionSummary(for serverName: String) -> (label: String, color: Color) {
+        let tools = settingsStore.toolsForServer(serverName)
+        let overrides = tools.compactMap { settingsStore.toolPermissionOverrides[$0.name] }
+        let hasDenied = overrides.contains(.alwaysDeny)
+        let hasAllowed = overrides.contains(.alwaysAllow)
+
+        if settingsStore.alwaysAllowedServers.contains(serverName) {
+            if hasDenied { return ("Allowed · some tools blocked", .carbonWarning) }
+            return ("Always allowed", .carbonSuccess)
+        }
+        if hasAllowed && hasDenied { return ("Mixed", .carbonWarning) }
+        if hasAllowed { return ("Some tools allowed", .carbonAccent) }
+        if hasDenied { return ("Some tools blocked", .carbonWarning) }
+        return ("Ask every time", .carbonTextTertiary)
     }
 
     private func serverStatusIndicator(for server: MCPServerConfig) -> some View {
@@ -307,6 +375,129 @@ struct SettingsView: View {
         } header: {
             CarbonSectionHeader(title: "About")
         }
+    }
+}
+
+// MARK: - MCP Permission Detail View
+
+struct MCPPermissionDetailView: View {
+    @Environment(SettingsStore.self) private var settingsStore
+
+    let serverName: String
+
+    private var isServerAllowed: Bool {
+        settingsStore.alwaysAllowedServers.contains(serverName)
+    }
+
+    private var tools: [MCPTool] {
+        settingsStore.toolsForServer(serverName)
+    }
+
+    var body: some View {
+        List {
+            // Server-level permission
+            Section {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Allow all tools")
+                            .font(.carbonSans(.subheadline, weight: .medium))
+                            .foregroundStyle(Color.carbonText)
+                        Text("Skip permission prompts for this server")
+                            .font(.carbonMono(.caption2))
+                            .foregroundStyle(Color.carbonTextTertiary)
+                    }
+                    Spacer()
+                    Toggle("", isOn: Binding(
+                        get: { isServerAllowed },
+                        set: { newValue in
+                            if newValue {
+                                settingsStore.allowServerAlways(serverName)
+                            } else {
+                                settingsStore.revokeAlwaysAllow(serverName)
+                            }
+                        }
+                    ))
+                    .tint(Color.carbonAccent)
+                    .labelsHidden()
+                }
+                .listRowBackground(Color.carbonSurface)
+            } header: {
+                CarbonSectionHeader(title: "Server")
+            }
+
+            // Per-tool permissions
+            Section {
+                if tools.isEmpty {
+                    Text("No tools connected")
+                        .font(.carbonSans(.caption))
+                        .foregroundStyle(Color.carbonTextTertiary)
+                        .listRowBackground(Color.carbonSurface)
+                } else {
+                    ForEach(tools) { tool in
+                        toolPermissionRow(tool)
+                            .listRowBackground(Color.carbonSurface)
+                    }
+                }
+            } header: {
+                CarbonSectionHeader(title: "Tools")
+            } footer: {
+                Text("Per-tool overrides take priority over the server setting.")
+                    .font(.carbonMono(.caption2))
+                    .foregroundStyle(Color.carbonTextTertiary)
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .background(Color.carbonBlack)
+        .navigationTitle(serverName)
+        .toolbarColorScheme(.dark, for: .navigationBar)
+    }
+
+    private func toolPermissionRow(_ tool: MCPTool) -> some View {
+        let override = settingsStore.toolPermissionOverrides[tool.name]
+
+        return VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(tool.name)
+                    .font(.carbonMono(.caption, weight: .semibold))
+                    .foregroundStyle(Color.carbonText)
+                Text(tool.description)
+                    .font(.carbonSans(.caption))
+                    .foregroundStyle(Color.carbonTextSecondary)
+                    .lineLimit(2)
+            }
+
+            HStack(spacing: 6) {
+                permissionChip("Default", isSelected: override == nil) {
+                    settingsStore.setToolOverride(tool.name, nil)
+                }
+                permissionChip("Allow", isSelected: override == .alwaysAllow, color: .carbonSuccess) {
+                    settingsStore.setToolOverride(tool.name, .alwaysAllow)
+                }
+                permissionChip("Block", isSelected: override == .alwaysDeny, color: .carbonError) {
+                    settingsStore.setToolOverride(tool.name, .alwaysDeny)
+                }
+                Spacer()
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func permissionChip(
+        _ label: String,
+        isSelected: Bool,
+        color: Color = .carbonAccent,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.carbonMono(.caption2, weight: isSelected ? .bold : .medium))
+                .foregroundStyle(isSelected ? Color.carbonBlack : Color.carbonTextSecondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(isSelected ? color : Color.carbonElevated)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
     }
 }
 

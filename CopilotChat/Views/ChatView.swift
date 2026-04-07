@@ -100,10 +100,15 @@ struct ChatView: View {
                         MessageView(
                             message: message,
                             toolCallStatuses: copilotService.toolCallStatuses,
-                            isStreaming: isLast && copilotService.isStreaming
-                        ) { toolCall in
-                            copilotService.retryToolCall(toolCall, tools: settingsStore.mcpTools)
-                        }
+                            toolCallServerNames: copilotService.toolCallServerNames,
+                            isStreaming: isLast && copilotService.isStreaming,
+                            onRetryToolCall: { toolCall in
+                                copilotService.retryToolCall(toolCall, tools: settingsStore.mcpTools)
+                            },
+                            onPermissionDecision: { decision in
+                                copilotService.resolvePermission(decision)
+                            }
+                        )
                         .id(message.id)
                         .transition(.opacity.combined(with: .move(edge: .bottom)))
                     }

@@ -54,10 +54,23 @@ struct ToolCall: Identifiable, Equatable, Codable {
 // MARK: - Tool Call Status
 
 enum ToolCallStatus: Equatable {
+    case awaitingPermission
     case pending
     case executing
     case completed
     case failed(String)
+}
+
+enum PermissionDecision: Sendable {
+    case allowOnce
+    case allowForChat
+    case allowAlways
+    case deny
+}
+
+enum ToolPermissionOverride: String, Codable, Sendable {
+    case alwaysAllow
+    case alwaysDeny
 }
 
 // MARK: - API Request Types

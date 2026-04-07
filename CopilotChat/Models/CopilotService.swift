@@ -21,9 +21,13 @@ final class CopilotService {
     var streamingError: String?
     var availableModels: [ModelsResponse.ModelInfo] = []
     var toolCallStatuses: [String: ToolCallStatus] = [:]
+    var toolCallServerNames: [String: String] = [:]
     var tokenUsage: TokenUsage?
     var isCompacting = false
     var summaryMessageId: UUID?
+
+    // Permission flow
+    private var permissionContinuation: CheckedContinuation<PermissionDecision, Never>?
 
     // MARK: - Context Window
 
@@ -68,10 +72,20 @@ final class CopilotService {
 
     func newConversation() {
         stopStreaming()
+        // Resume any pending permission prompt so the continuation isn't leaked
+        permissionContinuation?.resume(returning: .deny)
+        permissionContinuation = nil
         messages.removeAll()
         toolCallStatuses.removeAll()
+        toolCallServerNames.removeAll()
         tokenUsage = nil
         summaryMessageId = nil
+        settingsStore.clearSessionPermissions()
+    }
+
+    func resolvePermission(_ decision: PermissionDecision) {
+        permissionContinuation?.resume(returning: decision)
+        permissionContinuation = nil
     }
 
     /// Load messages from a saved conversation (for resuming).
@@ -80,6 +94,7 @@ final class CopilotService {
         messages = saved
         self.summaryMessageId = summaryMessageId
         toolCallStatuses.removeAll()
+        toolCallServerNames.removeAll()
         // Restore tool call statuses — mark all as completed since they're from a saved session
         for msg in saved where msg.role == .assistant {
             if let calls = msg.toolCalls {
@@ -155,11 +170,53 @@ final class CopilotService {
 
     private func executeToolCalls(_ calls: [ToolCall]) async {
         for call in calls {
-            toolCallStatuses[call.id] = .pending
+            let serverName = settingsStore.serverNameForTool(call.function.name) ?? "Unknown"
+            toolCallServerNames[call.id] = serverName
         }
         for call in calls {
-            await executeSingleToolCall(call)
+            await checkAndExecuteToolCall(call)
         }
+    }
+
+    private func checkAndExecuteToolCall(_ call: ToolCall) async {
+        let serverName = toolCallServerNames[call.id] ?? "Unknown"
+        let check = settingsStore.checkPermission(toolName: call.function.name, serverName: serverName)
+
+        switch check {
+        case .allowed:
+            toolCallStatuses[call.id] = .pending
+            await executeSingleToolCall(call)
+            return
+        case .denied:
+            toolCallStatuses[call.id] = .failed("Blocked by tool permission")
+            messages.append(ChatMessage(
+                role: .tool, content: "Tool call blocked by permission settings.",
+                toolCallId: call.id, toolName: call.function.name
+            ))
+            return
+        case .ask:
+            break
+        }
+
+        toolCallStatuses[call.id] = .awaitingPermission
+        assert(permissionContinuation == nil, "Permission continuation overwrite — previous prompt was not resolved")
+        let decision = await withCheckedContinuation { (continuation: CheckedContinuation<PermissionDecision, Never>) in
+            permissionContinuation = continuation
+        }
+
+        if case .deny = decision {
+            toolCallStatuses[call.id] = .failed("Permission denied")
+            messages.append(ChatMessage(
+                role: .tool, content: "Tool call denied by user.",
+                toolCallId: call.id, toolName: call.function.name
+            ))
+            return
+        }
+
+        if case .allowForChat = decision { settingsStore.allowServerForSession(serverName) }
+        if case .allowAlways = decision { settingsStore.allowServerAlways(serverName) }
+        toolCallStatuses[call.id] = .pending
+        await executeSingleToolCall(call)
     }
 
     private func executeSingleToolCall(_ call: ToolCall) async {
