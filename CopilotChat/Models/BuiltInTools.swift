@@ -5,6 +5,17 @@ enum BuiltInTools {
 
     static let serverName = "Built-in"
 
+    /// Result from a built-in tool execution. May include image data for vision models.
+    struct ToolResult {
+        let text: String
+        let imageData: Data?
+
+        init(text: String, imageData: Data? = nil) {
+            self.text = text
+            self.imageData = imageData
+        }
+    }
+
     // MARK: - Tool Definitions
 
     /// All built-in tools exposed to the LLM.
@@ -24,6 +35,21 @@ enum BuiltInTools {
             ],
             serverName: serverName
         ),
+        MCPTool(
+            name: "web_screenshot",
+            description: "Take a visual screenshot of a web page. Returns an image of the rendered page as seen in a mobile browser. Useful for seeing page layout, visual design, charts, or any content that requires visual inspection.",
+            inputSchema: [
+                "type": AnyCodable("object"),
+                "properties": AnyCodable([
+                    "url": [
+                        "type": "string",
+                        "description": "The URL of the web page to screenshot (must start with http:// or https://)",
+                    ] as [String: Any],
+                ] as [String: Any]),
+                "required": AnyCodable(["url"]),
+            ],
+            serverName: serverName
+        ),
     ]
 
     /// Names of all built-in tools for quick lookup.
@@ -36,23 +62,30 @@ enum BuiltInTools {
 
     // MARK: - Execution
 
-    /// Execute a built-in tool by name. Returns the tool result as a string.
-    static func execute(name: String, argumentsJSON: String) async throws -> String {
+    /// Execute a built-in tool by name. Returns a ToolResult with text and optional image data.
+    static func execute(name: String, argumentsJSON: String) async throws -> ToolResult {
+        guard let url = parseURLArgument(from: argumentsJSON) else {
+            throw BuiltInToolError.invalidArguments("\(name) requires a 'url' string argument")
+        }
         switch name {
         case "web_fetch":
-            return try await executeWebFetch(argumentsJSON: argumentsJSON)
+            let text = try await WebFetchService.fetch(url: url)
+            return ToolResult(text: text)
+        case "web_screenshot":
+            let (desc, imageData) = try await WebFetchService.screenshot(url: url)
+            return ToolResult(text: desc, imageData: imageData)
         default:
             throw BuiltInToolError.unknownTool(name)
         }
     }
 
-    private static func executeWebFetch(argumentsJSON: String) async throws -> String {
+    private static func parseURLArgument(from argumentsJSON: String) -> String? {
         guard let data = argumentsJSON.data(using: .utf8),
               let args = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let url = args["url"] as? String else {
-            throw BuiltInToolError.invalidArguments("web_fetch requires a 'url' string argument")
+            return nil
         }
-        return try await WebFetchService.fetch(url: url)
+        return url
     }
 
     // MARK: - Errors

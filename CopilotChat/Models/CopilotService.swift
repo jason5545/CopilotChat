@@ -230,22 +230,26 @@ final class CopilotService {
     private func executeSingleToolCall(_ call: ToolCall) async {
         toolCallStatuses[call.id] = .executing
         do {
-            let result: String
+            let text: String
+            var imageData: Data?
             if BuiltInTools.isBuiltIn(call.function.name) {
-                result = try await BuiltInTools.execute(
+                let result = try await BuiltInTools.execute(
                     name: call.function.name,
                     argumentsJSON: call.function.arguments
                 )
+                text = result.text
+                imageData = result.imageData
             } else {
-                result = try await settingsStore.callTool(
+                text = try await settingsStore.callTool(
                     name: call.function.name,
                     argumentsJSON: call.function.arguments
                 )
             }
             toolCallStatuses[call.id] = .completed
             messages.append(ChatMessage(
-                role: .tool, content: result,
-                toolCallId: call.id, toolName: call.function.name
+                role: .tool, content: text,
+                toolCallId: call.id, toolName: call.function.name,
+                imageData: imageData
             ))
         } catch {
             let errorMsg = error.localizedDescription
@@ -524,7 +528,15 @@ final class CopilotService {
                 }
             case .tool:
                 let content = Self.resolvedToolContent(msg.content, callId: msg.toolCallId, currentTurnToolIds: currentTurnToolIds)
-                apiMessages.append(APIMessage(role: "tool", content: content, toolCallId: msg.toolCallId))
+                if let imageData = msg.imageData {
+                    // Multipart tool result with image for vision models
+                    let base64 = imageData.base64EncodedString()
+                    let dataURL = "data:image/jpeg;base64,\(base64)"
+                    let parts: [APIContentPart] = [.text(content), .imageURL(dataURL)]
+                    apiMessages.append(APIMessage(role: "tool", content: nil, toolCallId: msg.toolCallId, contentParts: parts))
+                } else {
+                    apiMessages.append(APIMessage(role: "tool", content: content, toolCallId: msg.toolCallId))
+                }
             }
         }
 
@@ -563,7 +575,12 @@ final class CopilotService {
                 }
             case .tool:
                 if let callId = msg.toolCallId {
-                    let output = Self.resolvedToolContent(msg.content, callId: callId, currentTurnToolIds: currentTurnToolIds)
+                    var output = Self.resolvedToolContent(msg.content, callId: callId, currentTurnToolIds: currentTurnToolIds)
+                    // Responses API function_call_output is text-only; append image reference if available
+                    if let imageData = msg.imageData {
+                        let base64 = imageData.base64EncodedString()
+                        output += "\n\n![screenshot](data:image/jpeg;base64,\(base64))"
+                    }
                     input.append(.functionCallOutput(callId: callId, output: output))
                 }
             }

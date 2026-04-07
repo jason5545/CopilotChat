@@ -11,11 +11,18 @@ struct ChatMessage: Identifiable, Equatable, Codable {
     var toolName: String?
     let timestamp: Date
 
+    /// Optional image data (e.g. web screenshot). Not persisted to JSON.
+    var imageData: Data?
+
     enum Role: String, Codable {
         case system
         case user
         case assistant
         case tool
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, role, content, toolCalls, toolCallId, toolName, timestamp
     }
 
     init(
@@ -25,7 +32,8 @@ struct ChatMessage: Identifiable, Equatable, Codable {
         toolCalls: [ToolCall]? = nil,
         toolCallId: String? = nil,
         toolName: String? = nil,
-        timestamp: Date = Date()
+        timestamp: Date = Date(),
+        imageData: Data? = nil
     ) {
         self.id = id
         self.role = role
@@ -34,6 +42,7 @@ struct ChatMessage: Identifiable, Equatable, Codable {
         self.toolCallId = toolCallId
         self.toolName = toolName
         self.timestamp = timestamp
+        self.imageData = imageData
     }
 
     static func == (lhs: ChatMessage, rhs: ChatMessage) -> Bool {
@@ -104,6 +113,7 @@ struct ChatCompletionRequest: Encodable {
 struct APIMessage: Encodable {
     let role: String
     let content: String?
+    let contentParts: [APIContentPart]?
     let toolCalls: [APIToolCall]?
     let toolCallId: String?
 
@@ -113,25 +123,56 @@ struct APIMessage: Encodable {
         case toolCallId = "tool_call_id"
     }
 
-    init(role: String, content: String?, toolCalls: [APIToolCall]? = nil, toolCallId: String? = nil) {
+    init(role: String, content: String?, toolCalls: [APIToolCall]? = nil, toolCallId: String? = nil,
+         contentParts: [APIContentPart]? = nil) {
         self.role = role
         self.content = content
         self.toolCalls = toolCalls
         self.toolCallId = toolCallId
+        self.contentParts = contentParts
     }
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(role, forKey: .role)
-        // Always encode content (as null when nil) — the API requires "content": null
-        // on assistant messages with tool_calls; omitting the key causes hangs.
-        try container.encode(content, forKey: .content)
-        // Only include tool_calls / tool_call_id when they carry a value
+
+        // Multipart content (text + image) takes priority over plain string
+        if let contentParts {
+            try container.encode(contentParts, forKey: .content)
+        } else {
+            // Always encode content (as null when nil) — the API requires "content": null
+            // on assistant messages with tool_calls; omitting the key causes hangs.
+            try container.encode(content, forKey: .content)
+        }
+
         if let toolCalls {
             try container.encode(toolCalls, forKey: .toolCalls)
         }
         if let toolCallId {
             try container.encode(toolCallId, forKey: .toolCallId)
+        }
+    }
+}
+
+/// Content part for multipart API messages (vision support).
+enum APIContentPart: Encodable {
+    case text(String)
+    case imageURL(String)
+
+    private enum CodingKeys: String, CodingKey {
+        case type, text
+        case imageURL = "image_url"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .text(let text):
+            try container.encode("text", forKey: .type)
+            try container.encode(text, forKey: .text)
+        case .imageURL(let url):
+            try container.encode("image_url", forKey: .type)
+            try container.encode(["url": url], forKey: .imageURL)
         }
     }
 }
