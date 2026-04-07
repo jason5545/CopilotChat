@@ -230,10 +230,18 @@ final class CopilotService {
     private func executeSingleToolCall(_ call: ToolCall) async {
         toolCallStatuses[call.id] = .executing
         do {
-            let result = try await settingsStore.callTool(
-                name: call.function.name,
-                argumentsJSON: call.function.arguments
-            )
+            let result: String
+            if BuiltInTools.isBuiltIn(call.function.name) {
+                result = try await BuiltInTools.execute(
+                    name: call.function.name,
+                    argumentsJSON: call.function.arguments
+                )
+            } else {
+                result = try await settingsStore.callTool(
+                    name: call.function.name,
+                    argumentsJSON: call.function.arguments
+                )
+            }
             toolCallStatuses[call.id] = .completed
             messages.append(ChatMessage(
                 role: .tool, content: result,
@@ -276,10 +284,13 @@ final class CopilotService {
         let model = settingsStore.selectedModel
         let stream: AsyncThrowingStream<SSEEvent, Error>
 
+        // Merge built-in tools with MCP tools
+        let allTools = BuiltInTools.tools + tools
+
         if Self.useResponsesAPI(model: model) {
             // Responses API path
             let (instructions, input) = buildResponsesInput()
-            let apiTools: [ResponsesAPITool]? = tools.isEmpty ? nil : tools.map { tool in
+            let apiTools: [ResponsesAPITool]? = allTools.isEmpty ? nil : allTools.map { tool in
                 ResponsesAPITool(type: "function", name: tool.name,
                                  description: tool.description, parameters: tool.inputSchema)
             }
@@ -295,7 +306,7 @@ final class CopilotService {
         } else {
             // Chat Completions path
             let apiMessages = buildAPIMessages()
-            let apiTools = tools.isEmpty ? nil : tools.map { tool in
+            let apiTools = allTools.isEmpty ? nil : allTools.map { tool in
                 APITool(type: "function", function: .init(
                     name: tool.name, description: tool.description, parameters: tool.inputSchema))
             }

@@ -49,6 +49,10 @@ final class SettingsStore {
     }
 
     func checkPermission(toolName: String, serverName: String) -> PermissionCheckResult {
+        // 0. Built-in tools are always allowed
+        if BuiltInTools.isBuiltIn(toolName) {
+            return .allowed
+        }
         // 1. Tool-level override takes priority
         if let toolOverride = toolPermissionOverrides[toolName] {
             return toolOverride == .alwaysAllow ? .allowed : .denied
@@ -88,7 +92,10 @@ final class SettingsStore {
     }
 
     func serverNameForTool(_ toolName: String) -> String? {
-        mcpTools.first(where: { $0.name == toolName })?.serverName
+        if BuiltInTools.isBuiltIn(toolName) {
+            return BuiltInTools.serverName
+        }
+        return mcpTools.first(where: { $0.name == toolName })?.serverName
     }
 
     func toolsForServer(_ serverName: String) -> [MCPTool] {
