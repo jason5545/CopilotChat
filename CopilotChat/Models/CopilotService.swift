@@ -768,12 +768,17 @@ final class CopilotService {
         request.setValue("vscode-chat", forHTTPHeaderField: "Copilot-Integration-Id")
         request.setValue("OpenCode/\(Self.openCodeVersion)", forHTTPHeaderField: "Editor-Version")
         request.setValue("OpenCode/\(Self.openCodeVersion)", forHTTPHeaderField: "Editor-Plugin-Version")
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
 
         do {
             let (data, response) = try await Self.urlSession.data(for: request)
             guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { return }
+
             let modelsResponse = try JSONDecoder().decode(ModelsResponse.self, from: data)
-            availableModels = modelsResponse.data.sorted { $0.id < $1.id }
+            // Deduplicate by model ID (API may return duplicates like gpt-4)
+            var seen = Set<String>()
+            let unique = modelsResponse.data.filter { seen.insert($0.id).inserted }
+            availableModels = unique.sorted { $0.id < $1.id }
         } catch {
             // Non-critical
         }
