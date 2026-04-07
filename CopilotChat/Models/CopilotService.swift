@@ -5,9 +5,17 @@ import Observation
 @MainActor
 final class CopilotService {
     private static let chatEndpoint = "https://api.githubcopilot.com/chat/completions"
+    private static let responsesEndpoint = "https://api.githubcopilot.com/responses"
     private static let modelsEndpoint = "https://api.githubcopilot.com/models"
-    private static let userAgent = "CopilotChat/1.0.0"
+    private static let openCodeVersion = "1.0"
+    private static let userAgent = "OpenCode/\(openCodeVersion)"
     private static let maxToolIterations = 10
+
+    /// GPT models use Responses API; others (Claude, etc.) use Chat Completions.
+    private static func useResponsesAPI(model: String) -> Bool {
+        let m = model.lowercased()
+        return m.hasPrefix("gpt") || m.hasPrefix("o1") || m.hasPrefix("o3") || m.hasPrefix("o4")
+    }
 
     private static let urlSession: URLSession = {
         let config = URLSessionConfiguration.default
@@ -265,36 +273,45 @@ final class CopilotService {
             throw CopilotError.notAuthenticated
         }
 
-        let apiMessages = buildAPIMessages()
-        let apiTools = tools.isEmpty ? nil : tools.map { tool in
-            APITool(
-                type: "function",
-                function: .init(
-                    name: tool.name,
-                    description: tool.description,
-                    parameters: tool.inputSchema
-                )
+        let model = settingsStore.selectedModel
+        let stream: AsyncThrowingStream<SSEEvent, Error>
+
+        if Self.useResponsesAPI(model: model) {
+            // Responses API path
+            let (instructions, input) = buildResponsesInput()
+            let apiTools: [ResponsesAPITool]? = tools.isEmpty ? nil : tools.map { tool in
+                ResponsesAPITool(type: "function", name: tool.name,
+                                 description: tool.description, parameters: tool.inputSchema)
+            }
+            let request = ResponsesAPIRequest(
+                model: model, instructions: instructions, input: input,
+                stream: true, maxOutputTokens: 8192, temperature: 0.7,
+                tools: apiTools, toolChoice: apiTools != nil ? "auto" : nil
             )
+            let requestData = try JSONEncoder().encode(request)
+            let urlRequest = Self.buildURLRequest(
+                url: URL(string: Self.responsesEndpoint)!, token: token, body: requestData)
+            stream = try await Self.openResponsesSSEStream(urlRequest: urlRequest)
+        } else {
+            // Chat Completions path
+            let apiMessages = buildAPIMessages()
+            let apiTools = tools.isEmpty ? nil : tools.map { tool in
+                APITool(type: "function", function: .init(
+                    name: tool.name, description: tool.description, parameters: tool.inputSchema))
+            }
+            let request = ChatCompletionRequest(
+                model: model, messages: apiMessages, stream: true,
+                maxTokens: 8192, temperature: 0.7, tools: apiTools,
+                toolChoice: apiTools != nil ? "auto" : nil,
+                streamOptions: .init(includeUsage: true)
+            )
+            let requestData = try JSONEncoder().encode(request)
+            let urlRequest = Self.buildURLRequest(
+                url: URL(string: Self.chatEndpoint)!, token: token, body: requestData)
+            stream = try await Self.openSSEStream(urlRequest: urlRequest)
         }
 
-        let request = ChatCompletionRequest(
-            model: settingsStore.selectedModel,
-            messages: apiMessages,
-            stream: true,
-            maxTokens: 8192,
-            temperature: 0.7,
-            tools: apiTools,
-            toolChoice: apiTools != nil ? "auto" : nil,
-            streamOptions: .init(includeUsage: true)
-        )
-
-        let requestData = try JSONEncoder().encode(request)
-        let urlRequest = Self.buildURLRequest(token: token, body: requestData)
-
-        // Run the network I/O and SSE parsing off-MainActor so the UI thread stays free.
-        let stream = try await Self.openSSEStream(urlRequest: urlRequest)
-
-        // Consume parsed events on MainActor where we can safely mutate @Observable state.
+        // Event consumption — identical for both APIs
         var pendingToolCalls: [String: (id: String, name: String, arguments: String)] = [:]
 
         for try await event in stream {
@@ -331,44 +348,47 @@ final class CopilotService {
         }
     }
 
-    /// Build the URL request — pure function, no actor isolation needed.
-    private static func buildURLRequest(token: String, body: Data) -> URLRequest {
-        var urlRequest = URLRequest(url: URL(string: chatEndpoint)!)
+    /// Build the URL request with OpenCode-style headers.
+    private static func buildURLRequest(url: URL, token: String, body: Data) -> URLRequest {
+        var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         urlRequest.setValue(userAgent, forHTTPHeaderField: "User-Agent")
-        urlRequest.setValue("conversation-edits", forHTTPHeaderField: "Openai-Intent")
-        urlRequest.setValue("user", forHTTPHeaderField: "x-initiator")
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.setValue("conversation-panel", forHTTPHeaderField: "Openai-Intent")
+        urlRequest.setValue("vscode-chat", forHTTPHeaderField: "Copilot-Integration-Id")
+        urlRequest.setValue("OpenCode/\(openCodeVersion)", forHTTPHeaderField: "Editor-Version")
+        urlRequest.setValue("OpenCode/\(openCodeVersion)", forHTTPHeaderField: "Editor-Plugin-Version")
         urlRequest.httpBody = body
         return urlRequest
     }
 
-    /// Open the SSE connection and return an AsyncThrowingStream of parsed events.
-    /// Runs the network I/O and JSON parsing on the URLSession's OperationQueue —
-    /// NOT on MainActor — so the UI thread is never blocked by network delays.
-    private nonisolated static func openSSEStream(
-        urlRequest: URLRequest
-    ) async throws -> AsyncThrowingStream<SSEEvent, Error> {
-        let (bytes, response) = try await urlSession.bytes(for: urlRequest)
-
+    /// Open a validated byte stream — shared by both SSE parsers.
+    private nonisolated static func validatedBytes(
+        for request: URLRequest
+    ) async throws -> URLSession.AsyncBytes {
+        let (bytes, response) = try await urlSession.bytes(for: request)
         guard let http = response as? HTTPURLResponse else {
             throw CopilotError.invalidResponse
         }
-
-
         guard http.statusCode == 200 else {
             var body = ""
-            for try await line in bytes.lines {
-                body += line
-                if body.count > 2000 { break }
-            }
+            for try await line in bytes.lines { body += line; if body.count > 2000 { break } }
             throw CopilotError.httpError(http.statusCode, body)
         }
+        return bytes
+    }
+
+    /// Parse Chat Completions SSE stream into SSEEvent variants.
+    private nonisolated static func openSSEStream(
+        urlRequest: URLRequest
+    ) async throws -> AsyncThrowingStream<SSEEvent, Error> {
+        let bytes = try await validatedBytes(for: urlRequest)
 
         return AsyncThrowingStream { continuation in
             let task = Task.detached {
                 do {
+                    let decoder = JSONDecoder()
                     var finishedReason: String?
 
                     for try await line in bytes.lines {
@@ -380,7 +400,7 @@ final class CopilotService {
                         if payload == "[DONE]" { break }
 
                         guard let data = payload.data(using: .utf8),
-                              let chunk = try? JSONDecoder().decode(StreamChunk.self, from: data) else { continue }
+                              let chunk = try? decoder.decode(StreamChunk.self, from: data) else { continue }
 
                         if let usage = chunk.usage {
                             continuation.yield(.usage(usage))
@@ -410,7 +430,6 @@ final class CopilotService {
                         }
                     }
 
-                    // Yield .finish only after the stream is fully drained
                     if let reason = finishedReason {
                         continuation.yield(.finish(reason: reason))
                     }
@@ -419,26 +438,26 @@ final class CopilotService {
                     continuation.finish(throwing: error)
                 }
             }
-            continuation.onTermination = { _ in
-                task.cancel()
-            }
+            continuation.onTermination = { _ in task.cancel() }
         }
     }
 
-    func buildAPIMessages() -> [APIMessage] {
-        // If we have a summary, only include messages from the summary onward
-        var messagesToProcess = messages
+    private func preparedMessages() -> (messages: [ChatMessage], answeredToolCallIds: Set<String>) {
+        var msgs = messages
         if let summaryId = summaryMessageId,
-           let summaryIndex = messagesToProcess.firstIndex(where: { $0.id == summaryId }) {
-            messagesToProcess = Array(messagesToProcess[summaryIndex...])
+           let summaryIndex = msgs.firstIndex(where: { $0.id == summaryId }) {
+            msgs = Array(msgs[summaryIndex...])
         }
+        let answered = Set(msgs.compactMap { $0.role == .tool ? $0.toolCallId : nil })
+        return (msgs, answered)
+    }
+
+    func buildAPIMessages() -> [APIMessage] {
+        let (messagesToProcess, answeredToolCallIds) = preparedMessages()
 
         var apiMessages: [APIMessage] = [
-            APIMessage(role: "system", content: "You are a helpful AI assistant. Respond in the user's language.")
+            APIMessage(role: "system", content: Self.systemInstructions)
         ]
-
-        // Collect all tool call IDs that have corresponding tool results
-        let answeredToolCallIds = Set(messagesToProcess.compactMap { $0.role == .tool ? $0.toolCallId : nil })
 
         for msg in messagesToProcess {
             switch msg.role {
@@ -474,48 +493,186 @@ final class CopilotService {
         return apiMessages
     }
 
+    // MARK: - Responses API Input Builder
+
+    func buildResponsesInput() -> (instructions: String, input: [ResponsesInputItem]) {
+        let (messagesToProcess, answeredToolCallIds) = preparedMessages()
+
+        let instructions = Self.systemInstructions
+        var input: [ResponsesInputItem] = []
+
+        for msg in messagesToProcess {
+            switch msg.role {
+            case .system:
+                continue
+            case .user:
+                input.append(.userMessage(content: msg.content))
+            case .assistant:
+                if msg.id == summaryMessageId {
+                    input.append(.userMessage(content: msg.content))
+                    continue
+                }
+                if !msg.content.isEmpty {
+                    input.append(.assistantMessage(content: msg.content))
+                }
+                if let toolCalls = msg.toolCalls {
+                    for call in toolCalls where answeredToolCallIds.contains(call.id) {
+                        input.append(.functionCall(
+                            callId: call.id, name: call.function.name,
+                            arguments: call.function.arguments
+                        ))
+                    }
+                }
+            case .tool:
+                if let callId = msg.toolCallId {
+                    input.append(.functionCallOutput(callId: callId, output: msg.content))
+                }
+            }
+        }
+        return (instructions, input)
+    }
+
+    // MARK: - Responses API SSE Stream
+
+    /// Parse Responses API SSE stream (typed events) into the same SSEEvent variants.
+    private nonisolated static func openResponsesSSEStream(
+        urlRequest: URLRequest
+    ) async throws -> AsyncThrowingStream<SSEEvent, Error> {
+        let bytes = try await validatedBytes(for: urlRequest)
+
+        return AsyncThrowingStream { continuation in
+            let task = Task.detached {
+                do {
+                    let decoder = JSONDecoder()
+                    var currentEventType: String?
+                    var hasToolCalls = false
+
+                    for try await line in bytes.lines {
+                        try Task.checkCancellation()
+
+                        if line.hasPrefix("event: ") {
+                            currentEventType = String(line.dropFirst(7))
+                            continue
+                        }
+
+                        guard line.hasPrefix("data: "),
+                              let eventType = currentEventType else { continue }
+                        let payload = String(line.dropFirst(6))
+                        currentEventType = nil
+
+                        guard let data = payload.data(using: .utf8) else { continue }
+
+                        switch eventType {
+                        case "response.output_text.delta":
+                            if let evt = try? decoder.decode(ResponsesStreamEvent.self, from: data),
+                               let delta = evt.delta {
+                                continuation.yield(.contentDelta(delta))
+                            }
+
+                        case "response.output_item.added":
+                            if let evt = try? decoder.decode(ResponsesStreamEvent.self, from: data),
+                               let item = evt.item, item.type == "function_call" {
+                                let idx = evt.outputIndex ?? 0
+                                hasToolCalls = true
+                                continuation.yield(.toolCallDelta(
+                                    index: idx, id: item.callId, name: item.name, arguments: nil
+                                ))
+                            }
+
+                        case "response.function_call_arguments.delta":
+                            if let evt = try? decoder.decode(ResponsesStreamEvent.self, from: data) {
+                                let idx = evt.outputIndex ?? 0
+                                continuation.yield(.toolCallDelta(
+                                    index: idx, id: nil, name: nil, arguments: evt.delta
+                                ))
+                            }
+
+                        case "response.completed":
+                            if let evt = try? decoder.decode(ResponsesStreamEvent.self, from: data),
+                               let usage = evt.response?.usage {
+                                continuation.yield(.usage(usage.asTokenUsage))
+                            }
+                            continuation.yield(.finish(reason: hasToolCalls ? "tool_calls" : "stop"))
+
+                        case "response.failed":
+                            continuation.yield(.finish(reason: "error"))
+
+                        case "response.incomplete":
+                            continuation.yield(.finish(reason: "length"))
+
+                        default:
+                            break
+                        }
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
     // MARK: - Compaction
+
+    private static let systemInstructions = "You are a helpful AI assistant. Respond in the user's language."
+
+    private static let summarizerInstructions = """
+        You are a helpful AI assistant tasked with summarizing conversations.
+
+        When asked to summarize, provide a detailed but concise summary of the conversation. \
+        Focus on information that would be helpful for continuing the conversation, including:
+        - What was done
+        - What is currently being worked on
+        - Which files are being modified
+        - What needs to be done next
+
+        Your summary should be comprehensive enough to provide context but concise enough to be quickly understood.
+        """
+
+    private static let summarizerPrompt = """
+        Provide a detailed but concise summary of our conversation above. \
+        Focus on information that would be helpful for continuing the conversation, \
+        including what we did, what we're doing, which files we're working on, \
+        and what we're going to do next.
+        """
 
     func compactConversation() async throws {
         guard let token = authManager.token else { throw CopilotError.notAuthenticated }
 
-        // Build current conversation messages, then swap system prompt for summarizer
-        var apiMessages = buildAPIMessages()
-        if !apiMessages.isEmpty && apiMessages[0].role == "system" {
-            apiMessages[0] = APIMessage(role: "system", content: """
-                You are a helpful AI assistant tasked with summarizing conversations.
+        let model = settingsStore.selectedModel
+        let isResponses = Self.useResponsesAPI(model: model)
+        let requestData: Data
+        let url: URL
 
-                When asked to summarize, provide a detailed but concise summary of the conversation. \
-                Focus on information that would be helpful for continuing the conversation, including:
-                - What was done
-                - What is currently being worked on
-                - Which files are being modified
-                - What needs to be done next
-
-                Your summary should be comprehensive enough to provide context but concise enough to be quickly understood.
-                """)
+        if isResponses {
+            let (_, input) = buildResponsesInput()
+            var fullInput = input
+            fullInput.append(.userMessage(content: Self.summarizerPrompt))
+            let request = ResponsesAPIRequest(
+                model: model, instructions: Self.summarizerInstructions,
+                input: fullInput, stream: false,
+                maxOutputTokens: 4096, temperature: 0.5,
+                tools: nil, toolChoice: nil
+            )
+            requestData = try JSONEncoder().encode(request)
+            url = URL(string: Self.responsesEndpoint)!
+        } else {
+            var apiMessages = buildAPIMessages()
+            if !apiMessages.isEmpty && apiMessages[0].role == "system" {
+                apiMessages[0] = APIMessage(role: "system", content: Self.summarizerInstructions)
+            }
+            apiMessages.append(APIMessage(role: "user", content: Self.summarizerPrompt))
+            let request = ChatCompletionRequest(
+                model: model, messages: apiMessages, stream: false,
+                maxTokens: 4096, temperature: 0.5,
+                tools: nil, toolChoice: nil, streamOptions: nil
+            )
+            requestData = try JSONEncoder().encode(request)
+            url = URL(string: Self.chatEndpoint)!
         }
 
-        apiMessages.append(APIMessage(role: "user", content: """
-            Provide a detailed but concise summary of our conversation above. \
-            Focus on information that would be helpful for continuing the conversation, \
-            including what we did, what we're doing, which files we're working on, \
-            and what we're going to do next.
-            """))
-
-        let request = ChatCompletionRequest(
-            model: settingsStore.selectedModel,
-            messages: apiMessages,
-            stream: false,
-            maxTokens: 4096,
-            temperature: 0.5,
-            tools: nil,
-            toolChoice: nil,
-            streamOptions: nil
-        )
-
-        let requestData = try JSONEncoder().encode(request)
-        let urlRequest = Self.buildURLRequest(token: token, body: requestData)
+        let urlRequest = Self.buildURLRequest(url: url, token: token, body: requestData)
 
         let (data, response) = try await Self.urlSession.data(for: urlRequest)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
@@ -523,18 +680,24 @@ final class CopilotService {
             throw CopilotError.httpError((response as? HTTPURLResponse)?.statusCode ?? 0, body)
         }
 
-        let result = try JSONDecoder().decode(NonStreamingResponse.self, from: data)
-        guard let summaryText = result.choices.first?.message.content, !summaryText.isEmpty else { return }
+        let summaryText: String?
+        let usage: TokenUsage?
 
-        // Create summary message and record its ID
-        let summaryMessage = ChatMessage(role: .assistant, content: summaryText)
+        if isResponses {
+            let result = try JSONDecoder().decode(NonStreamingResponsesResponse.self, from: data)
+            summaryText = result.output.first?.content?.first(where: { $0.type == "output_text" })?.text
+            usage = result.usage?.asTokenUsage
+        } else {
+            let result = try JSONDecoder().decode(NonStreamingResponse.self, from: data)
+            summaryText = result.choices.first?.message.content
+            usage = result.usage
+        }
+
+        guard let text = summaryText, !text.isEmpty else { return }
+        let summaryMessage = ChatMessage(role: .assistant, content: text)
         messages.append(summaryMessage)
         summaryMessageId = summaryMessage.id
-
-        // Update token usage from summary response
-        if let usage = result.usage {
-            tokenUsage = usage
-        }
+        if let usage { tokenUsage = usage }
     }
 
     // MARK: - Fetch Models
@@ -546,6 +709,9 @@ final class CopilotService {
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("vscode-chat", forHTTPHeaderField: "Copilot-Integration-Id")
+        request.setValue("OpenCode/\(Self.openCodeVersion)", forHTTPHeaderField: "Editor-Version")
+        request.setValue("OpenCode/\(Self.openCodeVersion)", forHTTPHeaderField: "Editor-Plugin-Version")
 
         do {
             let (data, response) = try await Self.urlSession.data(for: request)

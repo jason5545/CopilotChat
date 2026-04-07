@@ -39,10 +39,17 @@ struct ModelPickerView: View {
                                         Text(model.displayName)
                                             .font(.carbonSans(.body))
                                             .foregroundStyle(Color.carbonText)
-                                        if model.id != model.displayName {
-                                            Text(model.id)
-                                                .font(.carbonMono(.caption2))
-                                                .foregroundStyle(Color.carbonTextTertiary)
+                                        HStack(spacing: 6) {
+                                            if model.id != model.displayName {
+                                                Text(model.id)
+                                                    .font(.carbonMono(.caption2))
+                                                    .foregroundStyle(Color.carbonTextTertiary)
+                                            }
+                                            if let tokens = model.displayContextWindowTokens, tokens > 0 {
+                                                Text("\(formatTokenCount(tokens)) ctx")
+                                                    .font(.carbonMono(.caption2))
+                                                    .foregroundStyle(Color.carbonAccent.opacity(0.8))
+                                            }
                                         }
                                     }
                                     Spacer()
@@ -85,4 +92,5 @@ struct ModelPickerView: View {
             }
         }
     }
+
 }

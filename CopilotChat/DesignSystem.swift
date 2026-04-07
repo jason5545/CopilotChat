@@ -174,6 +174,20 @@ struct CarbonSectionHeader: View {
     }
 }
 
+// MARK: - Token Formatting
+
+func formatTokenCount(_ tokens: Int) -> String {
+    if tokens >= 1_000_000 {
+        let m = Double(tokens) / 1_000_000
+        return m.truncatingRemainder(dividingBy: 1) == 0
+            ? String(format: "%.0fM", m)
+            : String(format: "%.1fM", m)
+    } else if tokens >= 1_000 {
+        return String(format: "%.0fK", Double(tokens) / 1_000)
+    }
+    return "\(tokens)"
+}
+
 // MARK: - Context Window Ring
 
 struct ContextRing: View {
@@ -194,14 +208,7 @@ struct ContextRing: View {
         return .carbonAccent
     }
 
-    private var label: String {
-        if promptTokens >= 1_000_000 {
-            return String(format: "%.1fM", Double(promptTokens) / 1_000_000)
-        } else if promptTokens >= 1_000 {
-            return String(format: "%.0fK", Double(promptTokens) / 1_000)
-        }
-        return "\(promptTokens)"
-    }
+    private var label: String { formatTokenCount(promptTokens) }
 
     var body: some View {
         HStack(spacing: 5) {

@@ -4,11 +4,12 @@ import Observation
 @Observable
 @MainActor
 final class AuthManager {
-    // OpenCode's Copilot OAuth Client ID
+    // App OAuth client ID
     static let clientID = "Ov23li8tweQw6odWQebz"
     static let scope = "read:user"
     static let keychainKey = "github_token"
-    static let userAgent = "CopilotChat/1.0.0"
+    static let legacyKeychainKey = "github_token_vscode"
+    static let userAgent = "GitHubCopilotChat/0.26.7"
 
     var isAuthenticated = false
     var username: String?
@@ -19,10 +20,11 @@ final class AuthManager {
     var authError: String?
 
     private var githubToken: String?
-
     var token: String? { githubToken }
 
     init() {
+        // The old token was minted under a different OAuth app identity, so force re-auth.
+        KeychainHelper.delete(key: Self.legacyKeychainKey)
         loadSavedToken()
     }
 
@@ -48,6 +50,7 @@ final class AuthManager {
         avatarUrl = nil
         isAuthenticated = false
         KeychainHelper.delete(key: Self.keychainKey)
+        KeychainHelper.delete(key: Self.legacyKeychainKey)
     }
 
     // MARK: - Device Flow OAuth

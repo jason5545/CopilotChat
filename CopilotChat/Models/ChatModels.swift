@@ -174,6 +174,13 @@ struct TokenUsage: Codable, Equatable {
         case completionTokens = "completion_tokens"
         case totalTokens = "total_tokens"
     }
+
+    init(promptTokens: Int, completionTokens: Int, totalTokens: Int) {
+        self.promptTokens = promptTokens
+        self.completionTokens = completionTokens
+        self.totalTokens = totalTokens
+    }
+
 }
 
 // MARK: - API Response Types (Streaming)
@@ -233,6 +240,22 @@ struct ModelsResponse: Decodable {
             name ?? id
         }
 
+        /// Raw context window from the API payload.
+        var contextWindowTokens: Int? {
+            capabilities?.limits?.maxContextWindowTokens
+                ?? capabilities?.limits?.maxPromptTokens
+        }
+
+        /// Display-friendly context size aligned with VS Code's model metadata.
+        var displayContextWindowTokens: Int? {
+            if let prompt = capabilities?.limits?.maxPromptTokens,
+               let output = capabilities?.limits?.maxOutputTokens {
+                return prompt + output
+            }
+            return contextWindowTokens
+        }
+
+        /// Prompt limit for compaction logic and ContextRing.
         var maxPromptTokens: Int? {
             capabilities?.limits?.maxPromptTokens
         }
@@ -241,10 +264,14 @@ struct ModelsResponse: Decodable {
             let limits: Limits?
 
             struct Limits: Decodable {
+                let maxContextWindowTokens: Int?
                 let maxPromptTokens: Int?
+                let maxOutputTokens: Int?
 
                 enum CodingKeys: String, CodingKey {
+                    case maxContextWindowTokens = "max_context_window_tokens"
                     case maxPromptTokens = "max_prompt_tokens"
+                    case maxOutputTokens = "max_output_tokens"
                 }
             }
         }
@@ -389,5 +416,134 @@ struct AnyCodable: Codable, Equatable, @unchecked Sendable {
 
     static func == (lhs: AnyCodable, rhs: AnyCodable) -> Bool {
         String(describing: lhs.value) == String(describing: rhs.value)
+    }
+}
+
+// MARK: - Responses API Types
+
+struct ResponsesAPIRequest: Encodable {
+    let model: String
+    let instructions: String?
+    let input: [ResponsesInputItem]
+    let stream: Bool
+    let maxOutputTokens: Int?
+    let temperature: Double?
+    let tools: [ResponsesAPITool]?
+    let toolChoice: String?
+
+    enum CodingKeys: String, CodingKey {
+        case model, instructions, input, stream, temperature, tools
+        case maxOutputTokens = "max_output_tokens"
+        case toolChoice = "tool_choice"
+    }
+}
+
+enum ResponsesInputItem: Encodable {
+    case userMessage(content: String)
+    case assistantMessage(content: String)
+    case functionCall(callId: String, name: String, arguments: String)
+    case functionCallOutput(callId: String, output: String)
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: DynamicCodingKey.self)
+        switch self {
+        case .userMessage(let content):
+            try container.encode("user", forKey: .init("role"))
+            try container.encode(content, forKey: .init("content"))
+        case .assistantMessage(let content):
+            try container.encode("message", forKey: .init("type"))
+            try container.encode("assistant", forKey: .init("role"))
+            let parts: [[String: String]] = [["type": "output_text", "text": content]]
+            try container.encode(parts, forKey: .init("content"))
+        case .functionCall(let callId, let name, let arguments):
+            try container.encode("function_call", forKey: .init("type"))
+            try container.encode(callId, forKey: .init("call_id"))
+            try container.encode(name, forKey: .init("name"))
+            try container.encode(arguments, forKey: .init("arguments"))
+        case .functionCallOutput(let callId, let output):
+            try container.encode("function_call_output", forKey: .init("type"))
+            try container.encode(callId, forKey: .init("call_id"))
+            try container.encode(output, forKey: .init("output"))
+        }
+    }
+}
+
+private struct DynamicCodingKey: CodingKey {
+    var stringValue: String
+    var intValue: Int? { nil }
+    init(_ string: String) { self.stringValue = string }
+    init?(stringValue: String) { self.stringValue = stringValue }
+    init?(intValue: Int) { nil }
+}
+
+struct ResponsesAPITool: Encodable {
+    let type: String
+    let name: String
+    let description: String
+    let parameters: [String: AnyCodable]?
+}
+
+// MARK: - Responses API SSE Payloads
+
+struct ResponsesStreamEvent: Decodable {
+    let delta: String?
+    let outputIndex: Int?
+    let item: ResponsesStreamItem?
+    let name: String?
+    let arguments: String?
+    let response: ResponsesResponsePayload?
+
+    enum CodingKeys: String, CodingKey {
+        case delta
+        case outputIndex = "output_index"
+        case item, name, arguments, response
+    }
+}
+
+struct ResponsesStreamItem: Decodable {
+    let type: String?
+    let callId: String?
+    let name: String?
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case callId = "call_id"
+        case name
+    }
+}
+
+struct ResponsesResponsePayload: Decodable {
+    let usage: ResponsesUsage?
+}
+
+struct ResponsesUsage: Decodable {
+    let inputTokens: Int
+    let outputTokens: Int
+
+    enum CodingKeys: String, CodingKey {
+        case inputTokens = "input_tokens"
+        case outputTokens = "output_tokens"
+    }
+
+    var asTokenUsage: TokenUsage {
+        TokenUsage(promptTokens: inputTokens, completionTokens: outputTokens,
+                   totalTokens: inputTokens + outputTokens)
+    }
+}
+
+// MARK: - Responses API Non-Streaming Response
+
+struct NonStreamingResponsesResponse: Decodable {
+    let output: [ResponsesOutputItem]
+    let usage: ResponsesUsage?
+
+    struct ResponsesOutputItem: Decodable {
+        let type: String
+        let content: [ResponsesContentPart]?
+    }
+
+    struct ResponsesContentPart: Decodable {
+        let type: String
+        let text: String?
     }
 }

@@ -204,9 +204,15 @@ struct SettingsView: View {
             } else {
                 Picker("Model", selection: $store.selectedModel) {
                     ForEach(copilotService.availableModels) { model in
-                        Text(model.displayName)
-                            .font(.carbonSans(.subheadline))
-                            .tag(model.id)
+                        if let tokens = model.displayContextWindowTokens, tokens > 0 {
+                            Text("\(model.displayName)  (\(formatTokenCount(tokens)))")
+                                .font(.carbonSans(.subheadline))
+                                .tag(model.id)
+                        } else {
+                            Text(model.displayName)
+                                .font(.carbonSans(.subheadline))
+                                .tag(model.id)
+                        }
                     }
                 }
                 .tint(Color.carbonAccent)
