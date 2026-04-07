@@ -21,6 +21,14 @@ final class CopilotService {
     var streamingError: String?
     var availableModels: [ModelsResponse.ModelInfo] = []
     var toolCallStatuses: [String: ToolCallStatus] = [:]
+    var tokenUsage: TokenUsage?
+
+    // MARK: - Context Window
+
+    var contextWindow: Int {
+        let model = availableModels.first { $0.id == settingsStore.selectedModel }
+        return model?.maxPromptTokens ?? 0
+    }
 
     private let authManager: AuthManager
     private let settingsStore: SettingsStore
@@ -60,6 +68,7 @@ final class CopilotService {
         stopStreaming()
         messages.removeAll()
         toolCallStatuses.removeAll()
+        tokenUsage = nil
     }
 
     /// Load messages from a saved conversation (for resuming).
@@ -166,12 +175,14 @@ final class CopilotService {
     private enum SSEEvent: Sendable, CustomStringConvertible {
         case contentDelta(String)
         case toolCallDelta(index: Int, id: String?, name: String?, arguments: String?)
+        case usage(TokenUsage)
         case finish(reason: String)
 
         var description: String {
             switch self {
             case .contentDelta(let s): "contentDelta(\(s.prefix(50)))"
             case .toolCallDelta(let i, let id, let n, _): "toolCallDelta(idx=\(i), id=\(id ?? "nil"), name=\(n ?? "nil"))"
+            case .usage(let u): "usage(prompt=\(u.promptTokens), completion=\(u.completionTokens))"
             case .finish(let r): "finish(\(r))"
             }
         }
@@ -201,7 +212,8 @@ final class CopilotService {
             maxTokens: 8192,
             temperature: 0.7,
             tools: apiTools,
-            toolChoice: apiTools != nil ? "auto" : nil
+            toolChoice: apiTools != nil ? "auto" : nil,
+            streamOptions: .init(includeUsage: true)
         )
 
         let requestData = try JSONEncoder().encode(request)
@@ -231,6 +243,9 @@ final class CopilotService {
                 if let arguments, pendingToolCalls[key] != nil {
                     pendingToolCalls[key]?.arguments += arguments
                 }
+
+            case .usage(let usage):
+                tokenUsage = usage
 
             case .finish(let reason):
                 if reason == "tool_calls" {
@@ -292,12 +307,16 @@ final class CopilotService {
 
                         if payload == "[DONE]" { break }
 
-                        // After finish, keep consuming lines until [DONE] to drain the stream
+                        guard let data = payload.data(using: .utf8),
+                              let chunk = try? JSONDecoder().decode(StreamChunk.self, from: data) else { continue }
+
+                        if let usage = chunk.usage {
+                            continuation.yield(.usage(usage))
+                        }
+
                         if finishedReason != nil { continue }
 
-                        guard let data = payload.data(using: .utf8),
-                              let chunk = try? JSONDecoder().decode(StreamChunk.self, from: data),
-                              let choice = chunk.choices?.first else { continue }
+                        guard let choice = chunk.choices?.first else { continue }
 
                         if let content = choice.delta.content {
                             continuation.yield(.contentDelta(content))

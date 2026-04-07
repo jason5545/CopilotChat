@@ -173,3 +173,54 @@ struct CarbonSectionHeader: View {
             .kerning(1.2)
     }
 }
+
+// MARK: - Context Window Ring
+
+struct ContextRing: View {
+    let promptTokens: Int
+    let contextWindow: Int
+
+    private var percent: Double {
+        guard contextWindow > 0 else { return 0 }
+        return Double(promptTokens) / Double(contextWindow) * 100
+    }
+
+    private let size: CGFloat = 20
+    private let lineWidth: CGFloat = 2.5
+
+    private var arcColor: Color {
+        if percent > 90 { return .carbonError }
+        if percent > 70 { return .carbonWarning }
+        return .carbonAccent
+    }
+
+    private var label: String {
+        if promptTokens >= 1_000_000 {
+            return String(format: "%.1fM", Double(promptTokens) / 1_000_000)
+        } else if promptTokens >= 1_000 {
+            return String(format: "%.0fK", Double(promptTokens) / 1_000)
+        }
+        return "\(promptTokens)"
+    }
+
+    var body: some View {
+        HStack(spacing: 5) {
+            ZStack {
+                // Track
+                Circle()
+                    .stroke(Color.carbonBorder.opacity(0.4), lineWidth: lineWidth)
+                // Fill arc
+                Circle()
+                    .trim(from: 0, to: min(percent / 100, 1.0))
+                    .stroke(arcColor, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .animation(.easeOut(duration: 0.4), value: percent)
+            }
+            .frame(width: size, height: size)
+
+            Text(label)
+                .font(.carbonMono(.caption2))
+                .foregroundStyle(percent > 70 ? arcColor : Color.carbonTextSecondary)
+        }
+    }
+}

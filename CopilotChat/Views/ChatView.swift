@@ -51,12 +51,21 @@ struct ChatView: View {
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showSettings = true
-                    } label: {
-                        Image(systemName: "gearshape")
-                            .font(.subheadline)
-                            .foregroundStyle(Color.carbonTextSecondary)
+                    HStack(spacing: 12) {
+                        if let usage = copilotService.tokenUsage, copilotService.contextWindow > 0 {
+                            ContextRing(
+                                promptTokens: usage.promptTokens,
+                                contextWindow: copilotService.contextWindow
+                            )
+                        }
+
+                        Button {
+                            showSettings = true
+                        } label: {
+                            Image(systemName: "gearshape")
+                                .font(.subheadline)
+                                .foregroundStyle(Color.carbonTextSecondary)
+                        }
                     }
                 }
             }

@@ -70,11 +70,21 @@ struct ChatCompletionRequest: Encodable {
     let temperature: Double?
     let tools: [APITool]?
     let toolChoice: String?
+    let streamOptions: StreamOptions?
 
     enum CodingKeys: String, CodingKey {
         case model, messages, stream, temperature, tools
         case maxTokens = "max_tokens"
         case toolChoice = "tool_choice"
+        case streamOptions = "stream_options"
+    }
+
+    struct StreamOptions: Encodable {
+        let includeUsage: Bool
+
+        enum CodingKeys: String, CodingKey {
+            case includeUsage = "include_usage"
+        }
     }
 }
 
@@ -139,11 +149,26 @@ struct APITool: Encodable {
     }
 }
 
+// MARK: - Token Usage
+
+struct TokenUsage: Codable, Equatable {
+    let promptTokens: Int
+    let completionTokens: Int
+    let totalTokens: Int
+
+    enum CodingKeys: String, CodingKey {
+        case promptTokens = "prompt_tokens"
+        case completionTokens = "completion_tokens"
+        case totalTokens = "total_tokens"
+    }
+}
+
 // MARK: - API Response Types (Streaming)
 
 struct StreamChunk: Decodable {
     let id: String?
     let choices: [StreamChoice]?
+    let usage: TokenUsage?
 
     struct StreamChoice: Decodable {
         let index: Int
@@ -189,9 +214,26 @@ struct ModelsResponse: Decodable {
         let id: String
         let name: String?
         let version: String?
+        let capabilities: Capabilities?
 
         var displayName: String {
             name ?? id
+        }
+
+        var maxPromptTokens: Int? {
+            capabilities?.limits?.maxPromptTokens
+        }
+
+        struct Capabilities: Decodable {
+            let limits: Limits?
+
+            struct Limits: Decodable {
+                let maxPromptTokens: Int?
+
+                enum CodingKeys: String, CodingKey {
+                    case maxPromptTokens = "max_prompt_tokens"
+                }
+            }
         }
     }
 }
