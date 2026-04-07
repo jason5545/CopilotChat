@@ -7,6 +7,7 @@ struct Conversation: Identifiable, Codable {
     var title: String
     var messages: [ChatMessage]
     var userMessageCount: Int
+    var summaryMessageId: UUID?
     let createdAt: Date
     var updatedAt: Date
 
@@ -14,6 +15,7 @@ struct Conversation: Identifiable, Codable {
         id: UUID = UUID(),
         title: String = Conversation.defaultTitle,
         messages: [ChatMessage] = [],
+        summaryMessageId: UUID? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
@@ -21,6 +23,7 @@ struct Conversation: Identifiable, Codable {
         self.title = title
         self.messages = messages
         self.userMessageCount = messages.filter { $0.role == .user }.count
+        self.summaryMessageId = summaryMessageId
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }

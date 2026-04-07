@@ -238,6 +238,22 @@ struct ModelsResponse: Decodable {
     }
 }
 
+// MARK: - Non-Streaming Response (for compaction)
+
+struct NonStreamingResponse: Decodable {
+    let choices: [Choice]
+    let usage: TokenUsage?
+
+    struct Choice: Decodable {
+        let message: Message
+
+        struct Message: Decodable {
+            let role: String
+            let content: String?
+        }
+    }
+}
+
 // MARK: - Device Flow Types
 
 struct DeviceCodeResponse: Decodable {

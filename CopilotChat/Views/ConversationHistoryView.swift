@@ -92,11 +92,12 @@ struct ConversationHistoryView: View {
 
     private func resumeConversation(_ conversation: Conversation) {
         copilotService.stopStreaming()
-        let messages = store.switchToConversation(
+        let result = store.switchToConversation(
             conversation.id,
-            currentMessages: copilotService.messages
+            currentMessages: copilotService.messages,
+            currentSummaryId: copilotService.summaryMessageId
         )
-        copilotService.loadMessages(messages)
+        copilotService.loadMessages(result.messages, summaryMessageId: result.summaryMessageId)
         dismiss()
     }
 }

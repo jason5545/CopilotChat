@@ -189,9 +189,9 @@ struct ChatView: View {
     private var streamingIndicator: some View {
         HStack(spacing: 10) {
             ThinkingIndicator()
-            Text("Thinking")
+            Text(copilotService.isCompacting ? "Compacting" : "Thinking")
                 .font(.carbonMono(.caption2, weight: .medium))
-                .foregroundStyle(Color.carbonTextTertiary)
+                .foregroundStyle(copilotService.isCompacting ? Color.carbonWarning : Color.carbonTextTertiary)
             Spacer()
             Button {
                 copilotService.stopStreaming()
@@ -301,13 +301,19 @@ struct ChatView: View {
     }
 
     private func startNewConversation() {
-        conversationStore.startNewConversation(currentMessages: copilotService.messages)
+        conversationStore.startNewConversation(
+            currentMessages: copilotService.messages,
+            currentSummaryId: copilotService.summaryMessageId
+        )
         copilotService.newConversation()
     }
 
     private func autoSaveConversation() {
         guard !copilotService.messages.isEmpty else { return }
-        conversationStore.updateCurrentConversation(messages: copilotService.messages)
+        conversationStore.updateCurrentConversation(
+            messages: copilotService.messages,
+            summaryMessageId: copilotService.summaryMessageId
+        )
     }
 }
 

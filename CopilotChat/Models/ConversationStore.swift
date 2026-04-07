@@ -46,24 +46,26 @@ final class ConversationStore {
         return conversation.id
     }
 
-    /// Save current messages (if any), then switch to another conversation and return its messages.
-    func switchToConversation(_ id: UUID, currentMessages: [ChatMessage]) -> [ChatMessage] {
-        saveCurrentIfNeeded(messages: currentMessages)
+    /// Save current messages (if any), then switch to another conversation and return its full state.
+    func switchToConversation(_ id: UUID, currentMessages: [ChatMessage], currentSummaryId: UUID? = nil) -> (messages: [ChatMessage], summaryMessageId: UUID?) {
+        saveCurrentIfNeeded(messages: currentMessages, summaryMessageId: currentSummaryId)
         currentConversationId = id
-        return loadMessages(for: id)
+        let msgs = loadMessages(for: id)
+        let summaryId = conversations.first { $0.id == id }?.summaryMessageId
+        return (msgs, summaryId)
     }
 
     /// Save current messages (if any), then start a fresh conversation.
-    func startNewConversation(currentMessages: [ChatMessage]) {
-        saveCurrentIfNeeded(messages: currentMessages)
+    func startNewConversation(currentMessages: [ChatMessage], currentSummaryId: UUID? = nil) {
+        saveCurrentIfNeeded(messages: currentMessages, summaryMessageId: currentSummaryId)
         currentConversationId = nil
     }
 
     // MARK: - Update
 
     /// Schedule a debounced save of the current conversation's messages.
-    func updateCurrentConversation(messages: [ChatMessage]) {
-        applyMessagesToCurrentConversation(messages)
+    func updateCurrentConversation(messages: [ChatMessage], summaryMessageId: UUID? = nil) {
+        applyMessagesToCurrentConversation(messages, summaryMessageId: summaryMessageId)
 
         saveTask?.cancel()
         saveTask = Task {
@@ -76,21 +78,21 @@ final class ConversationStore {
     }
 
     /// Save immediately (e.g., before switching conversations).
-    private func saveCurrentIfNeeded(messages: [ChatMessage]) {
+    private func saveCurrentIfNeeded(messages: [ChatMessage], summaryMessageId: UUID? = nil) {
         guard !messages.isEmpty else { return }
         saveTask?.cancel()
-        applyMessagesToCurrentConversation(messages)
+        applyMessagesToCurrentConversation(messages, summaryMessageId: summaryMessageId)
         if let id = currentConversationId,
            let conv = conversations.first(where: { $0.id == id }) {
             Task { await self.saveToDisk(conv) }
         }
     }
 
-    private func applyMessagesToCurrentConversation(_ messages: [ChatMessage]) {
+    private func applyMessagesToCurrentConversation(_ messages: [ChatMessage], summaryMessageId: UUID? = nil) {
         guard let id = currentConversationId,
               let index = conversations.firstIndex(where: { $0.id == id }) else {
             if !messages.isEmpty {
-                var conv = Conversation(messages: messages)
+                var conv = Conversation(messages: messages, summaryMessageId: summaryMessageId)
                 conv.generateTitle()
                 conversations.insert(conv, at: 0)
                 currentConversationId = conv.id
@@ -101,6 +103,7 @@ final class ConversationStore {
 
         conversations[index].messages = messages
         conversations[index].userMessageCount = messages.filter { $0.role == .user }.count
+        conversations[index].summaryMessageId = summaryMessageId
         conversations[index].updatedAt = Date()
 
         if conversations[index].title == Conversation.defaultTitle {

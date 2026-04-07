@@ -22,6 +22,8 @@ final class CopilotService {
     var availableModels: [ModelsResponse.ModelInfo] = []
     var toolCallStatuses: [String: ToolCallStatus] = [:]
     var tokenUsage: TokenUsage?
+    var isCompacting = false
+    var summaryMessageId: UUID?
 
     // MARK: - Context Window
 
@@ -69,12 +71,14 @@ final class CopilotService {
         messages.removeAll()
         toolCallStatuses.removeAll()
         tokenUsage = nil
+        summaryMessageId = nil
     }
 
     /// Load messages from a saved conversation (for resuming).
-    func loadMessages(_ saved: [ChatMessage]) {
+    func loadMessages(_ saved: [ChatMessage], summaryMessageId: UUID? = nil) {
         stopStreaming()
         messages = saved
+        self.summaryMessageId = summaryMessageId
         toolCallStatuses.removeAll()
         // Restore tool call statuses — mark all as completed since they're from a saved session
         for msg in saved where msg.role == .assistant {
@@ -113,7 +117,18 @@ final class CopilotService {
         let assistantIndex = messages.count - 1
         runStreamingTask {
             try await self.completionLoop(startingAt: assistantIndex, tools: tools)
+            // Auto-compact if context window is nearly full
+            if self.shouldCompact {
+                self.isCompacting = true
+                defer { self.isCompacting = false }
+                try await self.compactConversation()
+            }
         }
+    }
+
+    private var shouldCompact: Bool {
+        guard let usage = tokenUsage, contextWindow > 0 else { return false }
+        return Double(usage.promptTokens) / Double(contextWindow) >= 0.95
     }
 
     private func completionLoop(startingAt index: Int, tools: [MCPTool]) async throws {
@@ -354,20 +369,32 @@ final class CopilotService {
     }
 
     func buildAPIMessages() -> [APIMessage] {
+        // If we have a summary, only include messages from the summary onward
+        var messagesToProcess = messages
+        if let summaryId = summaryMessageId,
+           let summaryIndex = messagesToProcess.firstIndex(where: { $0.id == summaryId }) {
+            messagesToProcess = Array(messagesToProcess[summaryIndex...])
+        }
+
         var apiMessages: [APIMessage] = [
             APIMessage(role: "system", content: "You are a helpful AI assistant. Respond in the user's language.")
         ]
 
         // Collect all tool call IDs that have corresponding tool results
-        let answeredToolCallIds = Set(messages.compactMap { $0.role == .tool ? $0.toolCallId : nil })
+        let answeredToolCallIds = Set(messagesToProcess.compactMap { $0.role == .tool ? $0.toolCallId : nil })
 
-        for msg in messages {
+        for msg in messagesToProcess {
             switch msg.role {
             case .system:
                 continue
             case .user:
                 apiMessages.append(APIMessage(role: "user", content: msg.content))
             case .assistant:
+                // Summary message is sent as user role to provide context
+                if msg.id == summaryMessageId {
+                    apiMessages.append(APIMessage(role: "user", content: msg.content))
+                    continue
+                }
                 if let toolCalls = msg.toolCalls, !toolCalls.isEmpty {
                     // Only include tool calls that have corresponding results
                     let answeredCalls = toolCalls.filter { answeredToolCallIds.contains($0.id) }
@@ -387,8 +414,70 @@ final class CopilotService {
             }
         }
 
-
         return apiMessages
+    }
+
+    // MARK: - Compaction
+
+    func compactConversation() async throws {
+        guard let token = authManager.token else { throw CopilotError.notAuthenticated }
+
+        // Build current conversation messages, then swap system prompt for summarizer
+        var apiMessages = buildAPIMessages()
+        if !apiMessages.isEmpty && apiMessages[0].role == "system" {
+            apiMessages[0] = APIMessage(role: "system", content: """
+                You are a helpful AI assistant tasked with summarizing conversations.
+
+                When asked to summarize, provide a detailed but concise summary of the conversation. \
+                Focus on information that would be helpful for continuing the conversation, including:
+                - What was done
+                - What is currently being worked on
+                - Which files are being modified
+                - What needs to be done next
+
+                Your summary should be comprehensive enough to provide context but concise enough to be quickly understood.
+                """)
+        }
+
+        apiMessages.append(APIMessage(role: "user", content: """
+            Provide a detailed but concise summary of our conversation above. \
+            Focus on information that would be helpful for continuing the conversation, \
+            including what we did, what we're doing, which files we're working on, \
+            and what we're going to do next.
+            """))
+
+        let request = ChatCompletionRequest(
+            model: settingsStore.selectedModel,
+            messages: apiMessages,
+            stream: false,
+            maxTokens: 4096,
+            temperature: 0.5,
+            tools: nil,
+            toolChoice: nil,
+            streamOptions: nil
+        )
+
+        let requestData = try JSONEncoder().encode(request)
+        let urlRequest = Self.buildURLRequest(token: token, body: requestData)
+
+        let (data, response) = try await Self.urlSession.data(for: urlRequest)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            let body = String(data: data, encoding: .utf8) ?? ""
+            throw CopilotError.httpError((response as? HTTPURLResponse)?.statusCode ?? 0, body)
+        }
+
+        let result = try JSONDecoder().decode(NonStreamingResponse.self, from: data)
+        guard let summaryText = result.choices.first?.message.content, !summaryText.isEmpty else { return }
+
+        // Create summary message and record its ID
+        let summaryMessage = ChatMessage(role: .assistant, content: summaryText)
+        messages.append(summaryMessage)
+        summaryMessageId = summaryMessage.id
+
+        // Update token usage from summary response
+        if let usage = result.usage {
+            tokenUsage = usage
+        }
     }
 
     // MARK: - Fetch Models
