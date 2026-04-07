@@ -32,6 +32,24 @@ final class SettingsStore {
     }
     var sessionAllowedServers: Set<String> = []
 
+    // MARK: - API Keys
+
+    var braveSearchAPIKey: String {
+        get { KeychainHelper.loadString(key: BuiltInTools.braveSearchKeychainKey) ?? "" }
+        set {
+            if newValue.isEmpty {
+                KeychainHelper.delete(key: BuiltInTools.braveSearchKeychainKey)
+            } else {
+                KeychainHelper.save(newValue, for: BuiltInTools.braveSearchKeychainKey)
+            }
+            BuiltInTools.invalidateToolsCache()
+        }
+    }
+
+    var hasBraveSearchAPIKey: Bool {
+        KeychainHelper.loadString(key: BuiltInTools.braveSearchKeychainKey) != nil
+    }
+
     init() {
         self.selectedModel = UserDefaults.standard.string(forKey: Self.modelsKey) ?? Self.defaultModel
         self.mcpServers = Self.loadMCPServers()

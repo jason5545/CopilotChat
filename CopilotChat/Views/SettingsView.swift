@@ -7,12 +7,15 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var showAddMCPServer = false
+    @State private var braveAPIKeyInput = ""
+    @State private var isBraveKeyVisible = false
 
     var body: some View {
         NavigationStack {
             List {
                 accountSection
                 modelSection
+                apiKeysSection
                 mcpSection
                 mcpPermissionsSection
                 aboutSection
@@ -220,6 +223,104 @@ struct SettingsView: View {
             }
         } header: {
             CarbonSectionHeader(title: "Model")
+        }
+    }
+
+    // MARK: - API Keys Section
+
+    private var apiKeysSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.caption)
+                        .foregroundStyle(Color.carbonAccent)
+                    Text("Brave Search")
+                        .font(.carbonSans(.subheadline, weight: .medium))
+                        .foregroundStyle(Color.carbonText)
+                    Spacer()
+                    if settingsStore.hasBraveSearchAPIKey {
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(Color.carbonSuccess)
+                                .frame(width: 6, height: 6)
+                            Text("Active")
+                                .font(.carbonMono(.caption2))
+                                .foregroundStyle(Color.carbonSuccess)
+                        }
+                    }
+                }
+
+                HStack(spacing: 8) {
+                    Group {
+                        if isBraveKeyVisible {
+                            TextField("API Key", text: $braveAPIKeyInput)
+                        } else {
+                            SecureField("API Key", text: $braveAPIKeyInput)
+                        }
+                    }
+                    .font(.carbonMono(.caption))
+                    .foregroundStyle(Color.carbonText)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+
+                    Button {
+                        isBraveKeyVisible.toggle()
+                    } label: {
+                        Image(systemName: isBraveKeyVisible ? "eye.slash" : "eye")
+                            .font(.caption)
+                            .foregroundStyle(Color.carbonTextTertiary)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                HStack(spacing: 8) {
+                    Button {
+                        settingsStore.braveSearchAPIKey = braveAPIKeyInput
+                    } label: {
+                        Text("Save")
+                            .font(.carbonMono(.caption2, weight: .bold))
+                            .foregroundStyle(braveAPIKeyInput.isEmpty ? Color.carbonTextTertiary : Color.carbonBlack)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 6)
+                            .background(braveAPIKeyInput.isEmpty ? Color.carbonElevated : Color.carbonAccent)
+                            .clipShape(Capsule())
+                    }
+                    .disabled(braveAPIKeyInput.isEmpty)
+                    .buttonStyle(.plain)
+
+                    if settingsStore.hasBraveSearchAPIKey {
+                        Button {
+                            settingsStore.braveSearchAPIKey = ""
+                            braveAPIKeyInput = ""
+                        } label: {
+                            Text("Remove")
+                                .font(.carbonMono(.caption2, weight: .medium))
+                                .foregroundStyle(Color.carbonError)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 6)
+                                .background(Color.carbonElevated)
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    Spacer()
+                }
+            }
+            .padding(.vertical, 4)
+            .listRowBackground(Color.carbonSurface)
+        } header: {
+            CarbonSectionHeader(title: "API Keys")
+        } footer: {
+            Text("Enables brave_web_search built-in tool for web search.")
+                .font(.carbonMono(.caption2))
+                .foregroundStyle(Color.carbonTextTertiary)
+        }
+        .onAppear {
+            if settingsStore.hasBraveSearchAPIKey {
+                braveAPIKeyInput = settingsStore.braveSearchAPIKey
+            }
         }
     }
 
