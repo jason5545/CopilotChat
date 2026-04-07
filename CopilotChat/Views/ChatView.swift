@@ -40,7 +40,7 @@ struct ChatView: View {
             .sheet(isPresented: $showToolPicker) {
                 MCPToolPickerView { tool in
                     showToolPicker = false
-                    Task { await executeManualToolCall(tool) }
+                    copilotService.sendMessage("[Calling tool: \(tool.name)]", tools: settingsStore.mcpTools)
                 }
                 .presentationDetents([.medium, .large])
             }
@@ -58,8 +58,13 @@ struct ChatView: View {
                     }
 
                     ForEach(copilotService.messages) { message in
-                        MessageView(message: message) { toolCall in
-                            Task { await executeToolCall(toolCall) }
+                        let isLast = message.id == copilotService.messages.last?.id
+                        MessageView(
+                            message: message,
+                            toolCallStatuses: copilotService.toolCallStatuses,
+                            isStreaming: isLast && copilotService.isStreaming
+                        ) { toolCall in
+                            copilotService.retryToolCall(toolCall, tools: settingsStore.mcpTools)
                         }
                         .id(message.id)
                     }
@@ -80,6 +85,7 @@ struct ChatView: View {
                         }
                         .padding(.horizontal)
                         .padding(.vertical, 8)
+                        .id("streaming-indicator")
                     }
 
                     if let error = copilotService.streamingError {
@@ -95,13 +101,11 @@ struct ChatView: View {
                 }
                 .padding(.vertical, 8)
             }
+            .defaultScrollAnchor(.bottom)
             .scrollDismissesKeyboard(.interactively)
-            .onChange(of: copilotService.messages.last?.content) {
-                if let last = copilotService.messages.last {
-                    withAnimation(.easeOut(duration: 0.2)) {
-                        proxy.scrollTo(last.id, anchor: .bottom)
-                    }
-                }
+            .onChange(of: copilotService.messages.count) { scrollToBottom(proxy) }
+            .onChange(of: copilotService.isStreaming) {
+                if !copilotService.isStreaming { scrollToBottom(proxy) }
             }
         }
     }
@@ -170,6 +174,14 @@ struct ChatView: View {
         }
     }
 
+    private func scrollToBottom(_ proxy: ScrollViewProxy) {
+        if let last = copilotService.messages.last {
+            withAnimation(.easeOut(duration: 0.2)) {
+                proxy.scrollTo(last.id, anchor: .bottom)
+            }
+        }
+    }
+
     private var canSend: Bool {
         !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         && !copilotService.isStreaming
@@ -183,31 +195,6 @@ struct ChatView: View {
         copilotService.sendMessage(text, tools: settingsStore.mcpTools)
     }
 
-    // MARK: - Tool Execution
-
-    private func executeToolCall(_ call: ToolCall) async {
-        do {
-            let result = try await settingsStore.callTool(name: call.function.name, argumentsJSON: call.function.arguments)
-            copilotService.sendToolResult(
-                toolCallId: call.id,
-                toolName: call.function.name,
-                result: result,
-                tools: settingsStore.mcpTools
-            )
-        } catch {
-            copilotService.sendToolResult(
-                toolCallId: call.id,
-                toolName: call.function.name,
-                result: "Error: \(error.localizedDescription)",
-                tools: settingsStore.mcpTools
-            )
-        }
-    }
-
-    private func executeManualToolCall(_ tool: MCPTool) async {
-        // For manual tool calls, add a user message indicating the action
-        copilotService.sendMessage("[Calling tool: \(tool.name)]", tools: settingsStore.mcpTools)
-    }
 }
 
 // MARK: - MCP Tool Picker

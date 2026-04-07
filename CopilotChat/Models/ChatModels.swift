@@ -51,6 +51,15 @@ struct ToolCall: Identifiable, Equatable, Codable {
     }
 }
 
+// MARK: - Tool Call Status
+
+enum ToolCallStatus: Equatable {
+    case pending
+    case executing
+    case completed
+    case failed(String)
+}
+
 // MARK: - API Request Types
 
 struct ChatCompletionRequest: Encodable {
@@ -86,6 +95,21 @@ struct APIMessage: Encodable {
         self.content = content
         self.toolCalls = toolCalls
         self.toolCallId = toolCallId
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(role, forKey: .role)
+        // Always encode content (as null when nil) — the API requires "content": null
+        // on assistant messages with tool_calls; omitting the key causes hangs.
+        try container.encode(content, forKey: .content)
+        // Only include tool_calls / tool_call_id when they carry a value
+        if let toolCalls {
+            try container.encode(toolCalls, forKey: .toolCalls)
+        }
+        if let toolCallId {
+            try container.encode(toolCallId, forKey: .toolCallId)
+        }
     }
 }
 

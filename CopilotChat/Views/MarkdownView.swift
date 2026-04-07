@@ -3,144 +3,22 @@ import SwiftUI
 struct MarkdownView: View {
     let text: String
 
+    @State private var blocks: [MarkdownBlock] = []
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ForEach(Array(parseBlocks().enumerated()), id: \.offset) { _, block in
+            ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
                 renderBlock(block)
             }
         }
-    }
-
-    // MARK: - Block Types
-
-    private enum Block {
-        case paragraph(String)
-        case codeBlock(language: String?, code: String)
-        case heading(level: Int, text: String)
-        case unorderedList([String])
-        case orderedList([(Int, String)])
-        case blockquote(String)
-        case horizontalRule
-        case empty
-    }
-
-    // MARK: - Parser
-
-    private func parseBlocks() -> [Block] {
-        var blocks: [Block] = []
-        let lines = text.components(separatedBy: "\n")
-        var i = 0
-
-        while i < lines.count {
-            let line = lines[i]
-
-            // Code block
-            if line.hasPrefix("```") {
-                let language = String(line.dropFirst(3)).trimmingCharacters(in: .whitespaces)
-                var codeLines: [String] = []
-                i += 1
-                while i < lines.count && !lines[i].hasPrefix("```") {
-                    codeLines.append(lines[i])
-                    i += 1
-                }
-                if i < lines.count { i += 1 } // skip closing ```
-                blocks.append(.codeBlock(
-                    language: language.isEmpty ? nil : language,
-                    code: codeLines.joined(separator: "\n")
-                ))
-                continue
-            }
-
-            // Heading
-            if let headingMatch = line.firstMatch(of: /^(#{1,6})\s+(.+)$/) {
-                let level = headingMatch.1.count
-                let text = String(headingMatch.2)
-                blocks.append(.heading(level: level, text: text))
-                i += 1
-                continue
-            }
-
-            // Horizontal rule
-            if line.trimmingCharacters(in: .whitespaces).allSatisfy({ $0 == "-" || $0 == "*" || $0 == "_" })
-                && line.trimmingCharacters(in: .whitespaces).count >= 3
-                && !line.trimmingCharacters(in: .whitespaces).isEmpty {
-                let chars = Set(line.trimmingCharacters(in: .whitespaces))
-                if chars.count == 1 {
-                    blocks.append(.horizontalRule)
-                    i += 1
-                    continue
-                }
-            }
-
-            // Unordered list
-            if line.firstMatch(of: /^[\s]*[-*+]\s+/) != nil {
-                var items: [String] = []
-                while i < lines.count, lines[i].firstMatch(of: /^[\s]*[-*+]\s+(.*)$/) != nil {
-                    let content = lines[i].replacing(/^[\s]*[-*+]\s+/, with: "")
-                    items.append(content)
-                    i += 1
-                }
-                blocks.append(.unorderedList(items))
-                continue
-            }
-
-            // Ordered list
-            if line.firstMatch(of: /^[\s]*\d+\.\s+/) != nil {
-                var items: [(Int, String)] = []
-                var num = 1
-                while i < lines.count, lines[i].firstMatch(of: /^[\s]*(\d+)\.\s+(.*)$/) != nil {
-                    let content = lines[i].replacing(/^[\s]*\d+\.\s+/, with: "")
-                    items.append((num, content))
-                    num += 1
-                    i += 1
-                }
-                blocks.append(.orderedList(items))
-                continue
-            }
-
-            // Blockquote
-            if line.hasPrefix(">") {
-                var quoteLines: [String] = []
-                while i < lines.count && lines[i].hasPrefix(">") {
-                    let content = String(lines[i].dropFirst(1))
-                        .trimmingCharacters(in: .init(charactersIn: " "))
-                    quoteLines.append(content)
-                    i += 1
-                }
-                blocks.append(.blockquote(quoteLines.joined(separator: "\n")))
-                continue
-            }
-
-            // Empty line
-            if line.trimmingCharacters(in: .whitespaces).isEmpty {
-                i += 1
-                continue
-            }
-
-            // Paragraph - collect consecutive non-empty lines
-            var paraLines: [String] = []
-            while i < lines.count
-                    && !lines[i].trimmingCharacters(in: .whitespaces).isEmpty
-                    && !lines[i].hasPrefix("```")
-                    && !lines[i].hasPrefix("#")
-                    && !lines[i].hasPrefix(">")
-                    && lines[i].firstMatch(of: /^[\s]*[-*+]\s+/) == nil
-                    && lines[i].firstMatch(of: /^[\s]*\d+\.\s+/) == nil {
-                paraLines.append(lines[i])
-                i += 1
-            }
-            if !paraLines.isEmpty {
-                blocks.append(.paragraph(paraLines.joined(separator: "\n")))
-            }
-        }
-
-        return blocks
+        .onAppear { blocks = MarkdownParser.parse(text) }
+        .onChange(of: text) { blocks = MarkdownParser.parse(text) }
     }
 
     // MARK: - Renderers
 
     @ViewBuilder
-    private func renderBlock(_ block: Block) -> some View {
+    private func renderBlock(_ block: MarkdownBlock) -> some View {
         switch block {
         case .paragraph(let text):
             inlineMarkdown(text)
@@ -206,9 +84,6 @@ struct MarkdownView: View {
 
         case .horizontalRule:
             Divider()
-
-        case .empty:
-            EmptyView()
         }
     }
 

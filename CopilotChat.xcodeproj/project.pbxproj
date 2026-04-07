@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		157BFBF72A2B850E6A5D832E /* APIMessageEncodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC320742E69744CF3BEC9972 /* APIMessageEncodingTests.swift */; };
 		1642E88F49621293AC8EC307 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F8C8F50D0B29A8A7443C454 /* SettingsStore.swift */; };
 		17E6FDC95EBBCC13F2106A07 /* MCPSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAEE40518E4F65DA4E50E674 /* MCPSettingsView.swift */; };
 		1D92D9F9B34EBFEE478B0A29 /* CopilotChatApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A877976EB8149831636E8E06 /* CopilotChatApp.swift */; };
@@ -16,30 +17,52 @@
 		667A6D684FF61468C6F0903C /* AuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB3BB21C2425B2EC03EF63DA /* AuthManager.swift */; };
 		780C1E6B6A3D696CB6882F87 /* CopilotService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4D6D250CD46F217D156DA5E /* CopilotService.swift */; };
 		7ABC55784E0EBBF9AFFB150B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A7B782DFE064DC7FD97C4A83 /* Assets.xcassets */; };
+		7B21943225C6E8C7382E9DC4 /* BuildAPIMessagesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E27429D563A6EF3071A17A0 /* BuildAPIMessagesTests.swift */; };
 		82EA680B0A0A23D8DCE40446 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F9FAE980CC6C7D80EA66144 /* KeychainHelper.swift */; };
+		950435E7A28E106814422C1A /* ChatModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FD38A96474027CB84715BBB /* ChatModelsTests.swift */; };
+		9594396D7C49C3E8523AA1DC /* MarkdownParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E727D66DA592BDBB40BFE139 /* MarkdownParserTests.swift */; };
 		B9ABB2CF6F8B94253655D35C /* MessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B96E5A9BE12959957495FCCA /* MessageView.swift */; };
 		CE39153358114C150B561007 /* MarkdownView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209BCAEE6572124412782E61 /* MarkdownView.swift */; };
 		D1E9BB44D1210C75CD6D0AF9 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2B7AC6BD497F71C56B82001 /* SettingsView.swift */; };
+		D631677E396471A006024665 /* ToolCallStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86E94735DB084C36F9B3178D /* ToolCallStatusTests.swift */; };
 		DEB7B83E6DC8A93E721EC21A /* MCPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0360B8A2EA009CB9636C0D4D /* MCPClient.swift */; };
 		F5BCCA22632FE40F5BE33602 /* ChatModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16DB1EC5909ACF0B5B392F63 /* ChatModels.swift */; };
+		FA026C0E877A125F2A4B0B4F /* MarkdownParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DC0848F789894EADCC4F3EC /* MarkdownParser.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		4A6CF1E2429669122F9C5AC3 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = DB271B040BE3207C810189B0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 725090D1D39FE54630979995;
+			remoteInfo = CopilotChat;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		0360B8A2EA009CB9636C0D4D /* MCPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPClient.swift; sourceTree = "<group>"; };
+		0E27429D563A6EF3071A17A0 /* BuildAPIMessagesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildAPIMessagesTests.swift; sourceTree = "<group>"; };
 		16DB1EC5909ACF0B5B392F63 /* ChatModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatModels.swift; sourceTree = "<group>"; };
+		1F8D008BBFD2D4C734E8D385 /* CopilotChatTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = CopilotChatTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		209BCAEE6572124412782E61 /* MarkdownView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownView.swift; sourceTree = "<group>"; };
 		3F8C8F50D0B29A8A7443C454 /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
+		4DC0848F789894EADCC4F3EC /* MarkdownParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownParser.swift; sourceTree = "<group>"; };
 		5552AFC87E5FCBAE9ACE1C4A /* ModelPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelPickerView.swift; sourceTree = "<group>"; };
 		6F9FAE980CC6C7D80EA66144 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 		73E1C308EAC55AC71B9FE65D /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		7FD38A96474027CB84715BBB /* ChatModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatModelsTests.swift; sourceTree = "<group>"; };
+		86E94735DB084C36F9B3178D /* ToolCallStatusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolCallStatusTests.swift; sourceTree = "<group>"; };
 		A7B782DFE064DC7FD97C4A83 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A877976EB8149831636E8E06 /* CopilotChatApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CopilotChatApp.swift; sourceTree = "<group>"; };
 		B2ABD5318D1C1FEAD11AFD93 /* CopilotChat.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = CopilotChat.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B96E5A9BE12959957495FCCA /* MessageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageView.swift; sourceTree = "<group>"; };
 		BB3BB21C2425B2EC03EF63DA /* AuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthManager.swift; sourceTree = "<group>"; };
+		BC320742E69744CF3BEC9972 /* APIMessageEncodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIMessageEncodingTests.swift; sourceTree = "<group>"; };
 		C2B7AC6BD497F71C56B82001 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		D4D6D250CD46F217D156DA5E /* CopilotService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CopilotService.swift; sourceTree = "<group>"; };
 		DAEE40518E4F65DA4E50E674 /* MCPSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPSettingsView.swift; sourceTree = "<group>"; };
+		E727D66DA592BDBB40BFE139 /* MarkdownParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownParserTests.swift; sourceTree = "<group>"; };
 		EDE8D6B39D4CE3CC02F64DC5 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -50,6 +73,7 @@
 				BB3BB21C2425B2EC03EF63DA /* AuthManager.swift */,
 				16DB1EC5909ACF0B5B392F63 /* ChatModels.swift */,
 				D4D6D250CD46F217D156DA5E /* CopilotService.swift */,
+				4DC0848F789894EADCC4F3EC /* MarkdownParser.swift */,
 				0360B8A2EA009CB9636C0D4D /* MCPClient.swift */,
 				3F8C8F50D0B29A8A7443C454 /* SettingsStore.swift */,
 			);
@@ -60,6 +84,7 @@
 			isa = PBXGroup;
 			children = (
 				B2ABD5318D1C1FEAD11AFD93 /* CopilotChat.app */,
+				1F8D008BBFD2D4C734E8D385 /* CopilotChatTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -70,6 +95,18 @@
 				6F9FAE980CC6C7D80EA66144 /* KeychainHelper.swift */,
 			);
 			path = Utilities;
+			sourceTree = "<group>";
+		};
+		C7AF1669854E8386BEC8070A /* CopilotChatTests */ = {
+			isa = PBXGroup;
+			children = (
+				BC320742E69744CF3BEC9972 /* APIMessageEncodingTests.swift */,
+				0E27429D563A6EF3071A17A0 /* BuildAPIMessagesTests.swift */,
+				7FD38A96474027CB84715BBB /* ChatModelsTests.swift */,
+				E727D66DA592BDBB40BFE139 /* MarkdownParserTests.swift */,
+				86E94735DB084C36F9B3178D /* ToolCallStatusTests.swift */,
+			);
+			path = CopilotChatTests;
 			sourceTree = "<group>";
 		};
 		CFBEBB76DC310AB75CC33130 /* CopilotChat */ = {
@@ -102,6 +139,7 @@
 			isa = PBXGroup;
 			children = (
 				CFBEBB76DC310AB75CC33130 /* CopilotChat */,
+				C7AF1669854E8386BEC8070A /* CopilotChatTests */,
 				33350B4628AD5990F3764401 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -127,6 +165,24 @@
 			productReference = B2ABD5318D1C1FEAD11AFD93 /* CopilotChat.app */;
 			productType = "com.apple.product-type.application";
 		};
+		9947F2143804FAF57DCC67D2 /* CopilotChatTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 18596DBD9ECAB5AC4D1418C3 /* Build configuration list for PBXNativeTarget "CopilotChatTests" */;
+			buildPhases = (
+				95965752A1F356F58968E179 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				93DB1683F07C58CD24C9F541 /* PBXTargetDependency */,
+			);
+			name = CopilotChatTests;
+			packageProductDependencies = (
+			);
+			productName = CopilotChatTests;
+			productReference = 1F8D008BBFD2D4C734E8D385 /* CopilotChatTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -137,6 +193,10 @@
 				LastUpgradeCheck = 2600;
 				TargetAttributes = {
 					725090D1D39FE54630979995 = {
+						DevelopmentTeam = MW4GWYGX56;
+						ProvisioningStyle = Automatic;
+					};
+					9947F2143804FAF57DCC67D2 = {
 						DevelopmentTeam = MW4GWYGX56;
 						ProvisioningStyle = Automatic;
 					};
@@ -157,6 +217,7 @@
 			projectRoot = "";
 			targets = (
 				725090D1D39FE54630979995 /* CopilotChat */,
+				9947F2143804FAF57DCC67D2 /* CopilotChatTests */,
 			);
 		};
 /* End PBXProject section */
@@ -173,6 +234,18 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		95965752A1F356F58968E179 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				157BFBF72A2B850E6A5D832E /* APIMessageEncodingTests.swift in Sources */,
+				7B21943225C6E8C7382E9DC4 /* BuildAPIMessagesTests.swift in Sources */,
+				950435E7A28E106814422C1A /* ChatModelsTests.swift in Sources */,
+				9594396D7C49C3E8523AA1DC /* MarkdownParserTests.swift in Sources */,
+				D631677E396471A006024665 /* ToolCallStatusTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D8A1E965BD57A8D31403D5A4 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -186,6 +259,7 @@
 				82EA680B0A0A23D8DCE40446 /* KeychainHelper.swift in Sources */,
 				DEB7B83E6DC8A93E721EC21A /* MCPClient.swift in Sources */,
 				17E6FDC95EBBCC13F2106A07 /* MCPSettingsView.swift in Sources */,
+				FA026C0E877A125F2A4B0B4F /* MarkdownParser.swift in Sources */,
 				CE39153358114C150B561007 /* MarkdownView.swift in Sources */,
 				B9ABB2CF6F8B94253655D35C /* MessageView.swift in Sources */,
 				366FB1F9BC38A7EECD186BA1 /* ModelPickerView.swift in Sources */,
@@ -196,7 +270,51 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		93DB1683F07C58CD24C9F541 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 725090D1D39FE54630979995 /* CopilotChat */;
+			targetProxy = 4A6CF1E2429669122F9C5AC3 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		16FFCC00AB02CB322203F13A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = MW4GWYGX56;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.copilotchat.CopilotChatTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CopilotChat.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CopilotChat";
+			};
+			name = Release;
+		};
+		2B744C767050A5B576882B48 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = MW4GWYGX56;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.copilotchat.CopilotChatTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CopilotChat.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CopilotChat";
+			};
+			name = Debug;
+		};
 		67B5BB3019C60C56EC1078A5 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -375,6 +493,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		18596DBD9ECAB5AC4D1418C3 /* Build configuration list for PBXNativeTarget "CopilotChatTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2B744C767050A5B576882B48 /* Debug */,
+				16FFCC00AB02CB322203F13A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		5F0C1426AA7025ECCF57A75B /* Build configuration list for PBXProject "CopilotChat" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

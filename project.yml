@@ -14,6 +14,18 @@ settings:
   MARKETING_VERSION: "1.0.0"
   CURRENT_PROJECT_VERSION: "1"
 targets:
+  CopilotChatTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - CopilotChatTests
+    dependencies:
+      - target: CopilotChat
+    settings:
+      TEST_HOST: "$(BUILT_PRODUCTS_DIR)/CopilotChat.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CopilotChat"
+      BUNDLE_LOADER: "$(TEST_HOST)"
+      CODE_SIGN_STYLE: Automatic
+      DEVELOPMENT_TEAM: MW4GWYGX56
   CopilotChat:
     type: application
     platform: iOS

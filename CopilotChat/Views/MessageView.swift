@@ -2,11 +2,20 @@ import SwiftUI
 
 struct MessageView: View {
     let message: ChatMessage
-    let onToolCall: ((ToolCall) -> Void)?
+    let toolCallStatuses: [String: ToolCallStatus]
+    let isStreaming: Bool
+    let onRetryToolCall: ((ToolCall) -> Void)?
 
-    init(message: ChatMessage, onToolCall: ((ToolCall) -> Void)? = nil) {
+    init(
+        message: ChatMessage,
+        toolCallStatuses: [String: ToolCallStatus] = [:],
+        isStreaming: Bool = false,
+        onRetryToolCall: ((ToolCall) -> Void)? = nil
+    ) {
         self.message = message
-        self.onToolCall = onToolCall
+        self.toolCallStatuses = toolCallStatuses
+        self.isStreaming = isStreaming
+        self.onRetryToolCall = onRetryToolCall
     }
 
     var body: some View {
@@ -43,13 +52,19 @@ struct MessageView: View {
     private var assistantBubble: some View {
         VStack(alignment: .leading, spacing: 8) {
             if !message.content.isEmpty {
-                MarkdownView(text: message.content)
-                    .textSelection(.enabled)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.regularMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                Group {
+                    if isStreaming {
+                        Text(message.content)
+                    } else {
+                        MarkdownView(text: message.content)
+                    }
+                }
+                .textSelection(.enabled)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.regularMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
             }
 
             if let toolCalls = message.toolCalls {
@@ -65,44 +80,86 @@ struct MessageView: View {
     // MARK: - Tool Call Card
 
     private func toolCallCard(_ call: ToolCall) -> some View {
-        Button {
-            onToolCall?(call)
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: "wrench.and.screwdriver")
-                    .foregroundStyle(.orange)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(call.function.name)
-                        .font(.subheadline.bold())
-                    if let args = parseArgsSummary(call.function.arguments) {
-                        Text(args)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                    }
+        let status = toolCallStatuses[call.id] ?? .pending
+
+        return HStack(spacing: 10) {
+            toolCallStatusIcon(status)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(call.function.name)
+                    .font(.subheadline.bold())
+                if case .failed(let error) = status {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .lineLimit(2)
+                } else if let args = parseArgsSummary(call.function.arguments) {
+                    Text(args)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
                 }
-                Spacer()
-                Image(systemName: "play.circle.fill")
-                    .foregroundStyle(.blue)
             }
-            .padding(12)
-            .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(.quaternary)
-            )
+            Spacer()
+            if case .failed = status {
+                Button {
+                    onRetryToolCall?(call)
+                } label: {
+                    Image(systemName: "arrow.clockwise.circle.fill")
+                        .foregroundStyle(.blue)
+                        .font(.title3)
+                }
+                .buttonStyle(.plain)
+            }
         }
-        .buttonStyle(.plain)
+        .padding(12)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(toolCallBorderColor(status))
+        )
+    }
+
+    @ViewBuilder
+    private func toolCallStatusIcon(_ status: ToolCallStatus) -> some View {
+        switch status {
+        case .pending:
+            Image(systemName: "clock")
+                .foregroundStyle(.secondary)
+        case .executing:
+            ProgressView()
+                .scaleEffect(0.7)
+        case .completed:
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+        case .failed:
+            Image(systemName: "xmark.circle.fill")
+                .foregroundStyle(.red)
+        }
+    }
+
+    private func toolCallBorderColor(_ status: ToolCallStatus) -> Color {
+        switch status {
+        case .pending: .gray.opacity(0.2)
+        case .executing: .blue.opacity(0.3)
+        case .completed: .green.opacity(0.3)
+        case .failed: .red.opacity(0.3)
+        }
     }
 
     // MARK: - Tool Result
 
+    private var toolResultStatus: ToolCallStatus {
+        if let id = message.toolCallId, let status = toolCallStatuses[id] {
+            return status
+        }
+        return .completed
+    }
+
     private var toolResultBubble: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
+                toolCallStatusIcon(toolResultStatus)
                     .font(.caption)
                 Text(message.toolName ?? "Tool Result")
                     .font(.caption.bold())
