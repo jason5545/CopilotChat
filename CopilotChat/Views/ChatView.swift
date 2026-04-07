@@ -4,10 +4,12 @@ struct ChatView: View {
     @Environment(AuthManager.self) private var authManager
     @Environment(CopilotService.self) private var copilotService
     @Environment(SettingsStore.self) private var settingsStore
+    @Environment(ConversationStore.self) private var conversationStore
 
     @State private var inputText = ""
     @State private var showToolPicker = false
     @State private var showSettings = false
+    @State private var showHistory = false
     @FocusState private var isInputFocused: Bool
 
     var body: some View {
@@ -20,10 +22,17 @@ struct ChatView: View {
             .toolbarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        copilotService.newConversation()
-                    } label: {
-                        Image(systemName: "square.and.pencil")
+                    HStack(spacing: 12) {
+                        Button {
+                            showHistory = true
+                        } label: {
+                            Image(systemName: "clock.arrow.circlepath")
+                        }
+                        Button {
+                            startNewConversation()
+                        } label: {
+                            Image(systemName: "square.and.pencil")
+                        }
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
@@ -36,6 +45,9 @@ struct ChatView: View {
             }
             .sheet(isPresented: $showSettings) {
                 SettingsView()
+            }
+            .sheet(isPresented: $showHistory) {
+                ConversationHistoryView()
             }
             .sheet(isPresented: $showToolPicker) {
                 MCPToolPickerView { tool in
@@ -105,7 +117,10 @@ struct ChatView: View {
             .scrollDismissesKeyboard(.interactively)
             .onChange(of: copilotService.messages.count) { scrollToBottom(proxy) }
             .onChange(of: copilotService.isStreaming) {
-                if !copilotService.isStreaming { scrollToBottom(proxy) }
+                if !copilotService.isStreaming {
+                    scrollToBottom(proxy)
+                    autoSaveConversation()
+                }
             }
         }
     }
@@ -192,7 +207,23 @@ struct ChatView: View {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !copilotService.isStreaming, authManager.isAuthenticated else { return }
         inputText = ""
+
+        // Ensure we have a current conversation before sending
+        if conversationStore.currentConversationId == nil {
+            conversationStore.createConversation()
+        }
+
         copilotService.sendMessage(text, tools: settingsStore.mcpTools)
+    }
+
+    private func startNewConversation() {
+        conversationStore.startNewConversation(currentMessages: copilotService.messages)
+        copilotService.newConversation()
+    }
+
+    private func autoSaveConversation() {
+        guard !copilotService.messages.isEmpty else { return }
+        conversationStore.updateCurrentConversation(messages: copilotService.messages)
     }
 
 }

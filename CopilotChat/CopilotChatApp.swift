@@ -4,6 +4,7 @@ import SwiftUI
 struct CopilotChatApp: App {
     @State private var authManager = AuthManager()
     @State private var settingsStore = SettingsStore()
+    @State private var conversationStore = ConversationStore()
     @State private var copilotService: CopilotService?
 
     var body: some Scene {
@@ -13,6 +14,7 @@ struct CopilotChatApp: App {
                     ContentView()
                         .environment(authManager)
                         .environment(settingsStore)
+                        .environment(conversationStore)
                         .environment(copilotService)
                 } else {
                     ProgressView()

@@ -62,6 +62,21 @@ final class CopilotService {
         toolCallStatuses.removeAll()
     }
 
+    /// Load messages from a saved conversation (for resuming).
+    func loadMessages(_ saved: [ChatMessage]) {
+        stopStreaming()
+        messages = saved
+        toolCallStatuses.removeAll()
+        // Restore tool call statuses — mark all as completed since they're from a saved session
+        for msg in saved where msg.role == .assistant {
+            if let calls = msg.toolCalls {
+                for call in calls {
+                    toolCallStatuses[call.id] = .completed
+                }
+            }
+        }
+    }
+
     // MARK: - Completion Loop
 
     private func runStreamingTask(_ work: @escaping @MainActor () async throws -> Void) {
