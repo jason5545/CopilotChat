@@ -442,18 +442,44 @@ final class CopilotService {
         }
     }
 
-    private func preparedMessages() -> (messages: [ChatMessage], answeredToolCallIds: Set<String>) {
+    /// Max chars for historical (non-current-turn) tool results sent to the API.
+    private static let maxHistoricalToolResultChars = 200
+
+    private func preparedMessages() -> (messages: [ChatMessage], answeredToolCallIds: Set<String>, currentTurnToolIds: Set<String>) {
         var msgs = messages
         if let summaryId = summaryMessageId,
            let summaryIndex = msgs.firstIndex(where: { $0.id == summaryId }) {
             msgs = Array(msgs[summaryIndex...])
         }
         let answered = Set(msgs.compactMap { $0.role == .tool ? $0.toolCallId : nil })
-        return (msgs, answered)
+
+        // Find the last assistant message that issued tool calls — those are "current turn" results.
+        var currentIds = Set<String>()
+        for msg in msgs.reversed() {
+            if let calls = msg.toolCalls, !calls.isEmpty {
+                currentIds = Set(calls.map(\.id))
+                break
+            }
+        }
+        return (msgs, answered, currentIds)
+    }
+
+    /// Truncate a tool result that belongs to a previous turn.
+    private static func truncateHistoricalToolResult(_ content: String) -> String {
+        guard let idx = content.index(content.startIndex,
+                                      offsetBy: maxHistoricalToolResultChars,
+                                      limitedBy: content.endIndex) else { return content }
+        return String(content[..<idx]) + "\n[…truncated]"
+    }
+
+    /// Resolve tool message content, truncating historical results.
+    private static func resolvedToolContent(_ content: String, callId: String?, currentTurnToolIds: Set<String>) -> String {
+        if let id = callId, currentTurnToolIds.contains(id) { return content }
+        return truncateHistoricalToolResult(content)
     }
 
     func buildAPIMessages() -> [APIMessage] {
-        let (messagesToProcess, answeredToolCallIds) = preparedMessages()
+        let (messagesToProcess, answeredToolCallIds, currentTurnToolIds) = preparedMessages()
 
         var apiMessages: [APIMessage] = [
             APIMessage(role: "system", content: Self.systemInstructions)
@@ -486,7 +512,8 @@ final class CopilotService {
                     apiMessages.append(APIMessage(role: "assistant", content: msg.content))
                 }
             case .tool:
-                apiMessages.append(APIMessage(role: "tool", content: msg.content, toolCallId: msg.toolCallId))
+                let content = Self.resolvedToolContent(msg.content, callId: msg.toolCallId, currentTurnToolIds: currentTurnToolIds)
+                apiMessages.append(APIMessage(role: "tool", content: content, toolCallId: msg.toolCallId))
             }
         }
 
@@ -496,7 +523,7 @@ final class CopilotService {
     // MARK: - Responses API Input Builder
 
     func buildResponsesInput() -> (instructions: String, input: [ResponsesInputItem]) {
-        let (messagesToProcess, answeredToolCallIds) = preparedMessages()
+        let (messagesToProcess, answeredToolCallIds, currentTurnToolIds) = preparedMessages()
 
         let instructions = Self.systemInstructions
         var input: [ResponsesInputItem] = []
@@ -525,7 +552,8 @@ final class CopilotService {
                 }
             case .tool:
                 if let callId = msg.toolCallId {
-                    input.append(.functionCallOutput(callId: callId, output: msg.content))
+                    let output = Self.resolvedToolContent(msg.content, callId: callId, currentTurnToolIds: currentTurnToolIds)
+                    input.append(.functionCallOutput(callId: callId, output: output))
                 }
             }
         }
