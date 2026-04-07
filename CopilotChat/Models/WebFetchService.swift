@@ -1,6 +1,9 @@
 import Foundation
+import WebKit
 
 /// Built-in web fetching service that allows the agent to browse web pages.
+/// Uses WKWebView for HTML pages to support JavaScript-rendered (CSR) content.
+@MainActor
 enum WebFetchService {
 
     /// Maximum response body size in bytes (512 KB).
@@ -14,13 +17,88 @@ enum WebFetchService {
             throw WebFetchError.invalidURL(urlString)
         }
 
+        // First, do a HEAD request to check content type
+        var headRequest = URLRequest(url: url)
+        headRequest.httpMethod = "HEAD"
+        headRequest.setValue(
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1",
+            forHTTPHeaderField: "User-Agent"
+        )
+        headRequest.timeoutInterval = 15
+
+        // Try HEAD to determine content type; fall back to WebView for HTML
+        var useWebView = true
+        if let (_, headResponse) = try? await URLSession.shared.data(for: headRequest),
+           let http = headResponse as? HTTPURLResponse,
+           let contentType = http.value(forHTTPHeaderField: "Content-Type") {
+            // Only use plain URLSession for non-HTML content (JSON, plain text, etc.)
+            if !contentType.contains("text/html") && !contentType.contains("application/xhtml") {
+                useWebView = false
+            }
+        }
+
+        if useWebView {
+            return try await fetchWithWebView(url: url)
+        } else {
+            return try await fetchWithURLSession(url: url)
+        }
+    }
+
+    // MARK: - WKWebView Rendering
+
+    /// Load a page in a headless WKWebView, wait for JS to render, then extract text.
+    private static func fetchWithWebView(url: URL) async throws -> String {
+        let config = WKWebViewConfiguration()
+        config.websiteDataStore = .nonPersistent()
+
+        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 1080, height: 1920), configuration: config)
+        webView.customUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1"
+
+        let request = URLRequest(url: url, timeoutInterval: 30)
+
+        // Load and wait for navigation to finish
+        let navigationResult: Bool = try await withCheckedThrowingContinuation { continuation in
+            let delegate = WebViewNavigationDelegate(continuation: continuation)
+            webView.navigationDelegate = delegate
+            // Prevent delegate from being deallocated
+            objc_setAssociatedObject(webView, "navDelegate", delegate, .OBJC_ASSOCIATION_RETAIN)
+            webView.load(request)
+        }
+
+        guard navigationResult else {
+            throw WebFetchError.invalidResponse
+        }
+
+        // Give JS extra time to render (CSR frameworks like React/Next.js need this)
+        try await Task.sleep(for: .seconds(2))
+
+        // Extract rendered text content from DOM
+        let js = """
+        (function() {
+            // Remove script, style, noscript elements
+            document.querySelectorAll('script, style, noscript, nav, footer, header').forEach(e => e.remove());
+            return document.body ? document.body.innerText : '';
+        })();
+        """
+        let text = try await webView.evaluateJavaScript(js) as? String ?? ""
+
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw WebFetchError.emptyContent
+        }
+
+        return truncateResult(text)
+    }
+
+    // MARK: - URLSession Fallback (non-HTML)
+
+    private static func fetchWithURLSession(url: URL) async throws -> String {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue(
             "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1",
             forHTTPHeaderField: "User-Agent"
         )
-        request.setValue("text/html, application/json, text/plain;q=0.9, */*;q=0.5",
+        request.setValue("application/json, text/plain;q=0.9, */*;q=0.5",
                          forHTTPHeaderField: "Accept")
         request.timeoutInterval = 30
 
@@ -37,99 +115,16 @@ enum WebFetchService {
             ? data.prefix(maxBodyBytes)
             : data
 
-        guard let html = String(data: trimmedData, encoding: .utf8)
+        guard let text = String(data: trimmedData, encoding: .utf8)
                 ?? String(data: trimmedData, encoding: .ascii) else {
             throw WebFetchError.decodingFailed
         }
 
-        let contentType = http.value(forHTTPHeaderField: "Content-Type") ?? ""
-        if contentType.contains("application/json") || contentType.contains("text/plain") {
-            return truncateResult(html)
-        }
-
-        return truncateResult(extractText(from: html))
+        return truncateResult(text)
     }
 
-    // MARK: - HTML to Text
+    // MARK: - Truncation
 
-    /// Extract readable text from HTML by stripping tags, scripts, styles, and decoding entities.
-    private static func extractText(from html: String) -> String {
-        var text = html
-
-        // Remove script and style blocks entirely
-        let blockPatterns = [
-            "<script[^>]*>[\\s\\S]*?</script>",
-            "<style[^>]*>[\\s\\S]*?</style>",
-            "<noscript[^>]*>[\\s\\S]*?</noscript>",
-            "<!--[\\s\\S]*?-->",
-        ]
-        for pattern in blockPatterns {
-            if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) {
-                text = regex.stringByReplacingMatches(
-                    in: text, range: NSRange(text.startIndex..., in: text), withTemplate: " ")
-            }
-        }
-
-        // Insert newlines before block-level tags for readability
-        let blockTags = ["<br", "<p[ >]", "<div[ >]", "<li[ >]", "<h[1-6][ >]", "<tr[ >]", "<blockquote"]
-        for tag in blockTags {
-            if let regex = try? NSRegularExpression(pattern: tag, options: .caseInsensitive) {
-                text = regex.stringByReplacingMatches(
-                    in: text, range: NSRange(text.startIndex..., in: text), withTemplate: "\n")
-            }
-        }
-
-        // Strip all remaining HTML tags
-        if let regex = try? NSRegularExpression(pattern: "<[^>]+>", options: []) {
-            text = regex.stringByReplacingMatches(
-                in: text, range: NSRange(text.startIndex..., in: text), withTemplate: " ")
-        }
-
-        // Decode common HTML entities
-        text = decodeHTMLEntities(text)
-
-        // Collapse whitespace
-        text = text
-            .components(separatedBy: .newlines)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-            .joined(separator: "\n")
-
-        return text
-    }
-
-    private static func decodeHTMLEntities(_ text: String) -> String {
-        let entities: [String: String] = [
-            "&amp;": "&", "&lt;": "<", "&gt;": ">",
-            "&quot;": "\"", "&apos;": "'", "&#39;": "'",
-            "&nbsp;": " ", "&ndash;": "-", "&mdash;": "--",
-            "&laquo;": "\"", "&raquo;": "\"",
-            "&copy;": "(c)", "&reg;": "(R)",
-            "&hellip;": "...",
-        ]
-        var result = text
-        for (entity, replacement) in entities {
-            result = result.replacingOccurrences(of: entity, with: replacement)
-        }
-        // Decode numeric entities like &#123; and &#x1F4A9;
-        if let regex = try? NSRegularExpression(pattern: "&#x?([0-9a-fA-F]+);", options: []) {
-            let nsRange = NSRange(result.startIndex..., in: result)
-            let matches = regex.matches(in: result, range: nsRange).reversed()
-            for match in matches {
-                guard let fullRange = Range(match.range, in: result),
-                      let codeRange = Range(match.range(at: 1), in: result) else { continue }
-                let codeStr = String(result[codeRange])
-                let isHex = result[fullRange].hasPrefix("&#x")
-                if let codePoint = UInt32(codeStr, radix: isHex ? 16 : 10),
-                   let scalar = Unicode.Scalar(codePoint) {
-                    result.replaceSubrange(fullRange, with: String(scalar))
-                }
-            }
-        }
-        return result
-    }
-
-    /// Truncate to a reasonable size for LLM context.
     private static let maxResultChars = 20_000
 
     private static func truncateResult(_ text: String) -> String {
@@ -145,6 +140,7 @@ enum WebFetchService {
         case invalidResponse
         case httpError(Int)
         case decodingFailed
+        case emptyContent
 
         var errorDescription: String? {
             switch self {
@@ -152,7 +148,33 @@ enum WebFetchService {
             case .invalidResponse: "Invalid response from server."
             case .httpError(let code): "HTTP error \(code)"
             case .decodingFailed: "Failed to decode response body."
+            case .emptyContent: "Page returned empty content."
             }
         }
+    }
+}
+
+// MARK: - WKWebView Navigation Delegate
+
+private final class WebViewNavigationDelegate: NSObject, WKNavigationDelegate {
+    private var continuation: CheckedContinuation<Bool, Error>?
+
+    init(continuation: CheckedContinuation<Bool, Error>) {
+        self.continuation = continuation
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        continuation?.resume(returning: true)
+        continuation = nil
+    }
+
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        continuation?.resume(throwing: error)
+        continuation = nil
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        continuation?.resume(throwing: error)
+        continuation = nil
     }
 }
