@@ -6,7 +6,7 @@ struct MarkdownView: View {
     @State private var blocks: [MarkdownBlock] = []
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
                 renderBlock(block)
             }
@@ -22,68 +22,109 @@ struct MarkdownView: View {
         switch block {
         case .paragraph(let text):
             inlineMarkdown(text)
+                .font(.carbonSerif(.body))
 
         case .codeBlock(let language, let code):
             VStack(alignment: .leading, spacing: 0) {
                 if let language {
-                    Text(language)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 12)
-                        .padding(.top, 8)
+                    HStack {
+                        Text(language.uppercased())
+                            .font(.carbonMono(.caption2, weight: .semibold))
+                            .foregroundStyle(Color.carbonAccent.opacity(0.7))
+                            .kerning(0.6)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.top, 10)
+                    .padding(.bottom, 2)
                 }
                 ScrollView(.horizontal, showsIndicators: false) {
                     Text(code)
-                        .font(.system(.body, design: .monospaced))
+                        .font(.carbonMono(.callout))
+                        .foregroundStyle(Color.carbonText.opacity(0.9))
                         .textSelection(.enabled)
-                        .padding(12)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.quaternary)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .background(Color.carbonCodeBg)
+            .clipShape(RoundedRectangle(cornerRadius: Carbon.radiusSmall))
+            .overlay(
+                RoundedRectangle(cornerRadius: Carbon.radiusSmall)
+                    .stroke(Color.carbonBorder.opacity(0.3), lineWidth: 0.5)
+            )
 
         case .heading(let level, let text):
-            inlineMarkdown(text)
-                .font(headingFont(level: level))
-                .fontWeight(.bold)
+            VStack(alignment: .leading, spacing: 4) {
+                if level <= 2 {
+                    inlineMarkdown(text)
+                        .font(headingFont(level: level))
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.carbonText)
+
+                    if level == 1 {
+                        Rectangle()
+                            .fill(Color.carbonAccent.opacity(0.2))
+                            .frame(height: 1)
+                            .padding(.top, 2)
+                    }
+                } else {
+                    inlineMarkdown(text)
+                        .font(headingFont(level: level))
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.carbonText)
+                }
+            }
+            .padding(.top, level <= 2 ? 6 : 2)
 
         case .unorderedList(let items):
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 6) {
                 ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                    HStack(alignment: .top, spacing: 8) {
-                        Text("•")
-                            .foregroundStyle(.secondary)
+                    HStack(alignment: .top, spacing: 10) {
+                        Circle()
+                            .fill(Color.carbonAccent.opacity(0.5))
+                            .frame(width: 5, height: 5)
+                            .padding(.top, 7)
                         inlineMarkdown(item)
+                            .font(.carbonSerif(.body))
                     }
                 }
             }
 
         case .orderedList(let items):
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 6) {
                 ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                    HStack(alignment: .top, spacing: 8) {
+                    HStack(alignment: .top, spacing: 10) {
                         Text("\(item.0).")
-                            .foregroundStyle(.secondary)
+                            .font(.carbonMono(.callout, weight: .medium))
+                            .foregroundStyle(Color.carbonAccent.opacity(0.6))
                             .monospacedDigit()
+                            .frame(minWidth: 20, alignment: .trailing)
                         inlineMarkdown(item.1)
+                            .font(.carbonSerif(.body))
                     }
                 }
             }
 
         case .blockquote(let text):
-            HStack(spacing: 0) {
-                Rectangle()
-                    .fill(.secondary)
-                    .frame(width: 3)
+            HStack(alignment: .top, spacing: 0) {
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(Color.carbonAccent.opacity(0.4))
+                    .frame(width: 2.5)
                 inlineMarkdown(text)
-                    .foregroundStyle(.secondary)
-                    .padding(.leading, 12)
+                    .font(.carbonSerif(.body))
+                    .foregroundStyle(Color.carbonTextSecondary)
+                    .italic()
+                    .padding(.leading, 14)
             }
             .padding(.vertical, 4)
 
         case .horizontalRule:
-            Divider()
+            Rectangle()
+                .fill(Color.carbonBorder.opacity(0.3))
+                .frame(height: 0.5)
+                .padding(.vertical, 4)
         }
     }
 
@@ -96,10 +137,10 @@ struct MarkdownView: View {
 
     private func headingFont(level: Int) -> Font {
         switch level {
-        case 1: .title
-        case 2: .title2
-        case 3: .title3
-        default: .headline
+        case 1: .carbonSerif(.title2, weight: .bold)
+        case 2: .carbonSerif(.title3, weight: .bold)
+        case 3: .carbonSerif(.headline, weight: .semibold)
+        default: .carbonSerif(.subheadline, weight: .semibold)
         }
     }
 }
@@ -138,4 +179,6 @@ struct MarkdownView: View {
         """)
         .padding()
     }
+    .background(Color.carbonBlack)
+    .preferredColorScheme(.dark)
 }

@@ -21,11 +21,11 @@ struct MessageView: View {
     var body: some View {
         switch message.role {
         case .user:
-            userBubble
+            userMessage
         case .assistant:
-            assistantBubble
+            assistantMessage
         case .tool:
-            toolResultBubble
+            toolResultMessage
         case .system:
             EmptyView()
         }
@@ -33,38 +33,52 @@ struct MessageView: View {
 
     // MARK: - User Message
 
-    private var userBubble: some View {
+    private var userMessage: some View {
         HStack {
-            Spacer(minLength: 60)
+            Spacer(minLength: 72)
             Text(message.content)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(.blue)
-                .foregroundStyle(.white)
-                .clipShape(RoundedRectangle(cornerRadius: 18))
+                .font(.carbonSans(.body))
+                .foregroundStyle(Color.carbonText)
+                .padding(.horizontal, Carbon.messagePaddingH)
+                .padding(.vertical, Carbon.messagePaddingV)
+                .background(Color.carbonUserBubble)
+                .clipShape(RoundedRectangle(cornerRadius: Carbon.radiusLarge))
+                .overlay(
+                    RoundedRectangle(cornerRadius: Carbon.radiusLarge)
+                        .stroke(Color.carbonUserBorder, lineWidth: 0.5)
+                )
         }
-        .padding(.horizontal)
-        .padding(.vertical, 2)
+        .padding(.horizontal, Carbon.messagePaddingH)
+        .padding(.vertical, Carbon.spacingTight)
     }
 
     // MARK: - Assistant Message
 
-    private var assistantBubble: some View {
-        VStack(alignment: .leading, spacing: 8) {
+    private var assistantMessage: some View {
+        VStack(alignment: .leading, spacing: Carbon.spacingBase) {
             if !message.content.isEmpty {
-                Group {
-                    if isStreaming {
-                        Text(message.content)
-                    } else {
-                        MarkdownView(text: message.content)
+                HStack(alignment: .top, spacing: 0) {
+                    // Accent bar
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(Color.carbonAccent.opacity(0.5))
+                        .frame(width: Carbon.accentBarWidth)
+                        .padding(.vertical, 2)
+
+                    // Content
+                    Group {
+                        if isStreaming {
+                            Text(message.content)
+                                .font(.carbonSerif(.body))
+                        } else {
+                            MarkdownView(text: message.content)
+                        }
                     }
+                    .textSelection(.enabled)
+                    .foregroundStyle(Color.carbonText)
+                    .padding(.leading, Carbon.spacingRelaxed)
+                    .padding(.trailing, Carbon.spacingTight)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .textSelection(.enabled)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.regularMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
             }
 
             if let toolCalls = message.toolCalls {
@@ -73,8 +87,8 @@ struct MessageView: View {
                 }
             }
         }
-        .padding(.horizontal)
-        .padding(.vertical, 2)
+        .padding(.horizontal, Carbon.messagePaddingH)
+        .padding(.vertical, Carbon.spacingTight)
     }
 
     // MARK: - Tool Call Card
@@ -86,16 +100,17 @@ struct MessageView: View {
             toolCallStatusIcon(status)
             VStack(alignment: .leading, spacing: 2) {
                 Text(call.function.name)
-                    .font(.subheadline.bold())
+                    .font(.carbonMono(.caption, weight: .semibold))
+                    .foregroundStyle(Color.carbonText)
                 if case .failed(let error) = status {
                     Text(error)
-                        .font(.caption)
-                        .foregroundStyle(.red)
+                        .font(.carbonMono(.caption2))
+                        .foregroundStyle(Color.carbonError)
                         .lineLimit(2)
                 } else if let args = parseArgsSummary(call.function.arguments) {
                     Text(args)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.carbonMono(.caption2))
+                        .foregroundStyle(Color.carbonTextTertiary)
                         .lineLimit(2)
                 }
             }
@@ -104,19 +119,22 @@ struct MessageView: View {
                 Button {
                     onRetryToolCall?(call)
                 } label: {
-                    Image(systemName: "arrow.clockwise.circle.fill")
-                        .foregroundStyle(.blue)
-                        .font(.title3)
+                    Image(systemName: "arrow.clockwise")
+                        .font(.caption2.bold())
+                        .foregroundStyle(Color.carbonAccent)
+                        .frame(width: 26, height: 26)
+                        .background(Color.carbonAccentMuted)
+                        .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(12)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .padding(Carbon.spacingRelaxed)
+        .background(Color.carbonSurface)
+        .clipShape(RoundedRectangle(cornerRadius: Carbon.radiusMedium))
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(toolCallBorderColor(status))
+            RoundedRectangle(cornerRadius: Carbon.radiusMedium)
+                .stroke(toolCallBorderColor(status), lineWidth: 0.5)
         )
     }
 
@@ -125,25 +143,35 @@ struct MessageView: View {
         switch status {
         case .pending:
             Image(systemName: "clock")
-                .foregroundStyle(.secondary)
+                .font(.caption)
+                .foregroundStyle(Color.carbonTextTertiary)
         case .executing:
             ProgressView()
-                .scaleEffect(0.7)
+                .scaleEffect(0.6)
+                .tint(Color.carbonAccent)
         case .completed:
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green)
+            Image(systemName: "checkmark")
+                .font(.caption2.bold())
+                .foregroundStyle(Color.carbonBlack)
+                .frame(width: 18, height: 18)
+                .background(Color.carbonSuccess)
+                .clipShape(Circle())
         case .failed:
-            Image(systemName: "xmark.circle.fill")
-                .foregroundStyle(.red)
+            Image(systemName: "xmark")
+                .font(.caption2.bold())
+                .foregroundStyle(Color.carbonBlack)
+                .frame(width: 18, height: 18)
+                .background(Color.carbonError)
+                .clipShape(Circle())
         }
     }
 
     private func toolCallBorderColor(_ status: ToolCallStatus) -> Color {
         switch status {
-        case .pending: .gray.opacity(0.2)
-        case .executing: .blue.opacity(0.3)
-        case .completed: .green.opacity(0.3)
-        case .failed: .red.opacity(0.3)
+        case .pending: Color.carbonBorder.opacity(0.4)
+        case .executing: Color.carbonAccent.opacity(0.3)
+        case .completed: Color.carbonSuccess.opacity(0.3)
+        case .failed: Color.carbonError.opacity(0.3)
         }
     }
 
@@ -156,25 +184,30 @@ struct MessageView: View {
         return .completed
     }
 
-    private var toolResultBubble: some View {
-        VStack(alignment: .leading, spacing: 4) {
+    private var toolResultMessage: some View {
+        VStack(alignment: .leading, spacing: Carbon.spacingTight) {
             HStack(spacing: 6) {
                 toolCallStatusIcon(toolResultStatus)
-                    .font(.caption)
+                    .font(.caption2)
                 Text(message.toolName ?? "Tool Result")
-                    .font(.caption.bold())
-                    .foregroundStyle(.secondary)
+                    .font(.carbonMono(.caption2, weight: .semibold))
+                    .foregroundStyle(Color.carbonTextSecondary)
             }
             Text(message.content)
-                .font(.system(.caption, design: .monospaced))
+                .font(.carbonMono(.caption2))
+                .foregroundStyle(Color.carbonTextSecondary)
                 .lineLimit(10)
-                .padding(10)
+                .padding(Carbon.spacingRelaxed)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.quaternary)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .background(Color.carbonCodeBg)
+                .clipShape(RoundedRectangle(cornerRadius: Carbon.radiusSmall))
+                .overlay(
+                    RoundedRectangle(cornerRadius: Carbon.radiusSmall)
+                        .stroke(Color.carbonBorder.opacity(0.3), lineWidth: 0.5)
+                )
         }
-        .padding(.horizontal)
-        .padding(.vertical, 2)
+        .padding(.horizontal, Carbon.messagePaddingH)
+        .padding(.vertical, Carbon.spacingTight)
     }
 
     // MARK: - Helpers

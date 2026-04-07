@@ -17,7 +17,11 @@ struct CopilotChatApp: App {
                         .environment(conversationStore)
                         .environment(copilotService)
                 } else {
-                    ProgressView()
+                    ZStack {
+                        Color.carbonBlack.ignoresSafeArea()
+                        ProgressView()
+                            .tint(Color.carbonAccent)
+                    }
                 }
             }
             .task {
@@ -25,7 +29,7 @@ struct CopilotChatApp: App {
                     copilotService = CopilotService(authManager: authManager, settingsStore: settingsStore)
                 }
             }
-            .preferredColorScheme(nil) // Follow system setting
+            .preferredColorScheme(.dark)
         }
     }
 }

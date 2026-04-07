@@ -14,24 +14,39 @@ struct ChatView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                messagesList
-                inputBar
+            ZStack {
+                Color.carbonBlack.ignoresSafeArea()
+
+                VStack(spacing: 0) {
+                    messagesList
+                    inputBar
+                }
             }
-            .navigationTitle("Copilot Chat")
-            .toolbarTitleDisplayMode(.inline)
+            .toolbarBackground(Color.carbonSurface, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("COPILOT")
+                        .font(.carbonMono(.caption, weight: .bold))
+                        .kerning(2.5)
+                        .foregroundStyle(Color.carbonText)
+                }
                 ToolbarItem(placement: .topBarLeading) {
-                    HStack(spacing: 12) {
+                    HStack(spacing: 14) {
                         Button {
                             showHistory = true
                         } label: {
                             Image(systemName: "clock.arrow.circlepath")
+                                .font(.subheadline)
+                                .foregroundStyle(Color.carbonTextSecondary)
                         }
                         Button {
                             startNewConversation()
                         } label: {
                             Image(systemName: "square.and.pencil")
+                                .font(.subheadline)
+                                .foregroundStyle(Color.carbonTextSecondary)
                         }
                     }
                 }
@@ -40,6 +55,8 @@ struct ChatView: View {
                         showSettings = true
                     } label: {
                         Image(systemName: "gearshape")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.carbonTextSecondary)
                     }
                 }
             }
@@ -79,39 +96,18 @@ struct ChatView: View {
                             copilotService.retryToolCall(toolCall, tools: settingsStore.mcpTools)
                         }
                         .id(message.id)
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
                     }
 
                     if copilotService.isStreaming {
-                        HStack(spacing: 8) {
-                            ProgressView()
-                                .scaleEffect(0.8)
-                            Text("Thinking...")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                            Button("Stop") {
-                                copilotService.stopStreaming()
-                            }
-                            .font(.caption)
-                            .buttonStyle(.bordered)
-                        }
-                        .padding(.horizontal)
-                        .padding(.vertical, 8)
-                        .id("streaming-indicator")
+                        streamingIndicator
                     }
 
                     if let error = copilotService.streamingError {
-                        HStack {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundStyle(.red)
-                            Text(error)
-                                .font(.caption)
-                                .foregroundStyle(.red)
-                        }
-                        .padding()
+                        errorBanner(error)
                     }
                 }
-                .padding(.vertical, 8)
+                .padding(.vertical, Carbon.spacingBase)
             }
             .defaultScrollAnchor(.bottom)
             .scrollDismissesKeyboard(.interactively)
@@ -128,64 +124,144 @@ struct ChatView: View {
     // MARK: - Empty State
 
     private var emptyState: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 20) {
             Spacer()
-            Image(systemName: "bubble.left.and.bubble.right")
-                .font(.system(size: 48))
-                .foregroundStyle(.quaternary)
-            Text("Start a conversation")
-                .font(.title3)
-                .foregroundStyle(.secondary)
-            if !authManager.isAuthenticated {
-                Button("Sign in to GitHub") {
-                    showSettings = true
-                }
-                .buttonStyle(.borderedProminent)
+
+            ZStack {
+                Circle()
+                    .fill(Color.carbonAccent.opacity(0.08))
+                    .frame(width: 88, height: 88)
+                Circle()
+                    .fill(Color.carbonAccent.opacity(0.05))
+                    .frame(width: 120, height: 120)
+                Image(systemName: "chevron.left.forwardslash.chevron.right")
+                    .font(.system(size: 32, weight: .light))
+                    .foregroundStyle(Color.carbonAccent.opacity(0.6))
             }
-            Text(settingsStore.selectedModel)
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-                .padding(.top, 4)
+
+            VStack(spacing: 8) {
+                Text("Start a conversation")
+                    .font(.carbonSerif(.title3, weight: .medium))
+                    .foregroundStyle(Color.carbonText)
+
+                if !authManager.isAuthenticated {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "person.badge.key")
+                                .font(.caption)
+                            Text("Sign in to GitHub")
+                                .font(.carbonMono(.caption, weight: .medium))
+                        }
+                        .foregroundStyle(Color.carbonBlack)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 10)
+                        .background(Color.carbonAccent)
+                        .clipShape(Capsule())
+                    }
+                    .padding(.top, 4)
+                }
+
+                Text(settingsStore.selectedModel)
+                    .font(.carbonMono(.caption2))
+                    .foregroundStyle(Color.carbonTextTertiary)
+                    .padding(.top, 2)
+            }
+
             Spacer()
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 80)
     }
 
+    // MARK: - Streaming Indicator
+
+    private var streamingIndicator: some View {
+        HStack(spacing: 10) {
+            ThinkingIndicator()
+            Text("Thinking")
+                .font(.carbonMono(.caption2, weight: .medium))
+                .foregroundStyle(Color.carbonTextTertiary)
+            Spacer()
+            Button {
+                copilotService.stopStreaming()
+            } label: {
+                Text("STOP")
+                    .font(.carbonMono(.caption2, weight: .bold))
+                    .kerning(0.8)
+                    .foregroundStyle(Color.carbonError)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Color.carbonError.opacity(0.1))
+                    .clipShape(Capsule())
+            }
+        }
+        .padding(.horizontal, Carbon.messagePaddingH)
+        .padding(.vertical, Carbon.spacingBase)
+        .id("streaming-indicator")
+    }
+
+    // MARK: - Error Banner
+
+    private func errorBanner(_ error: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(Color.carbonError)
+                .font(.caption)
+            Text(error)
+                .font(.carbonMono(.caption2))
+                .foregroundStyle(Color.carbonError)
+        }
+        .padding(.horizontal, Carbon.messagePaddingH)
+        .padding(.vertical, Carbon.spacingBase)
+    }
+
     // MARK: - Input Bar
 
     private var inputBar: some View {
         VStack(spacing: 0) {
-            Divider()
-            HStack(alignment: .bottom, spacing: 8) {
+            Rectangle()
+                .fill(Color.carbonBorder.opacity(0.4))
+                .frame(height: 0.5)
+
+            HStack(alignment: .bottom, spacing: 10) {
                 if !settingsStore.mcpTools.isEmpty {
                     Button {
                         showToolPicker = true
                     } label: {
                         Image(systemName: "wrench.and.screwdriver")
-                            .font(.title3)
-                            .foregroundStyle(.secondary)
+                            .font(.subheadline)
+                            .foregroundStyle(Color.carbonTextTertiary)
+                            .frame(width: 28, height: 28)
                     }
                 }
 
                 TextField("Message", text: $inputText, axis: .vertical)
                     .textFieldStyle(.plain)
+                    .font(.carbonSans(.body))
+                    .foregroundStyle(Color.carbonText)
                     .lineLimit(1...8)
                     .focused($isInputFocused)
                     .onSubmit { sendCurrentMessage() }
+                    .tint(Color.carbonAccent)
 
                 Button {
                     sendCurrentMessage()
                 } label: {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.title2)
-                        .foregroundStyle(canSend ? Color.blue : Color.gray.opacity(0.3))
+                    Image(systemName: "arrow.up")
+                        .font(.caption.bold())
+                        .foregroundStyle(canSend ? Color.carbonBlack : Color.carbonTextTertiary)
+                        .frame(width: 28, height: 28)
+                        .background(canSend ? Color.carbonAccent : Color.carbonElevated)
+                        .clipShape(Circle())
                 }
                 .disabled(!canSend)
+                .animation(.easeOut(duration: 0.15), value: canSend)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(.bar)
+            .padding(.horizontal, Carbon.messagePaddingH)
+            .padding(.vertical, Carbon.spacingRelaxed)
+            .background(Color.carbonSurface)
         }
     }
 
@@ -208,7 +284,6 @@ struct ChatView: View {
         guard !text.isEmpty, !copilotService.isStreaming, authManager.isAuthenticated else { return }
         inputText = ""
 
-        // Ensure we have a current conversation before sending
         if conversationStore.currentConversationId == nil {
             conversationStore.createConversation()
         }
@@ -225,7 +300,6 @@ struct ChatView: View {
         guard !copilotService.messages.isEmpty else { return }
         conversationStore.updateCurrentConversation(messages: copilotService.messages)
     }
-
 }
 
 // MARK: - MCP Tool Picker
@@ -240,24 +314,32 @@ struct MCPToolPickerView: View {
                 Button {
                     onSelect(tool)
                 } label: {
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: 6) {
                         HStack {
                             Text(tool.name)
-                                .font(.headline)
+                                .font(.carbonMono(.subheadline, weight: .semibold))
+                                .foregroundStyle(Color.carbonText)
                             Spacer()
                             Text(tool.serverName)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(.carbonMono(.caption2))
+                                .foregroundStyle(Color.carbonTextTertiary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(Color.carbonElevated)
+                                .clipShape(Capsule())
                         }
                         Text(tool.description)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(.carbonSans(.caption))
+                            .foregroundStyle(Color.carbonTextSecondary)
                             .lineLimit(2)
                     }
                     .padding(.vertical, 4)
                 }
                 .buttonStyle(.plain)
+                .listRowBackground(Color.carbonSurface)
             }
+            .scrollContentBackground(.hidden)
+            .background(Color.carbonBlack)
             .navigationTitle("MCP Tools")
             .toolbarTitleDisplayMode(.inline)
         }

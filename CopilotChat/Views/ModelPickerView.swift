@@ -13,47 +13,74 @@ struct ModelPickerView: View {
                 if copilotService.availableModels.isEmpty {
                     Section {
                         Text("No models loaded. Sign in to GitHub to fetch available models.")
-                            .foregroundStyle(.secondary)
+                            .font(.carbonSans(.subheadline))
+                            .foregroundStyle(Color.carbonTextSecondary)
+                            .listRowBackground(Color.carbonSurface)
                     }
 
-                    Section("Manual Entry") {
+                    Section {
                         TextField("Model ID", text: $store.selectedModel)
+                            .font(.carbonMono(.body))
+                            .foregroundStyle(Color.carbonText)
                             .textInputAutocapitalization(.never)
+                            .listRowBackground(Color.carbonSurface)
+                    } header: {
+                        CarbonSectionHeader(title: "Manual Entry")
                     }
                 } else {
-                    Section("Available Models") {
+                    Section {
                         ForEach(copilotService.availableModels) { model in
                             Button {
                                 settingsStore.selectedModel = model.id
                                 dismiss()
                             } label: {
                                 HStack {
-                                    VStack(alignment: .leading) {
+                                    VStack(alignment: .leading, spacing: 3) {
                                         Text(model.displayName)
-                                            .font(.body)
+                                            .font(.carbonSans(.body))
+                                            .foregroundStyle(Color.carbonText)
                                         if model.id != model.displayName {
                                             Text(model.id)
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
+                                                .font(.carbonMono(.caption2))
+                                                .foregroundStyle(Color.carbonTextTertiary)
                                         }
                                     }
                                     Spacer()
                                     if settingsStore.selectedModel == model.id {
                                         Image(systemName: "checkmark")
-                                            .foregroundStyle(.blue)
+                                            .font(.caption.bold())
+                                            .foregroundStyle(Color.carbonAccent)
                                     }
                                 }
                             }
                             .buttonStyle(.plain)
+                            .listRowBackground(Color.carbonSurface)
                         }
+                    } header: {
+                        CarbonSectionHeader(title: "Available Models")
                     }
                 }
             }
-            .navigationTitle("Select Model")
-            .toolbarTitleDisplayMode(.inline)
+            .scrollContentBackground(.hidden)
+            .background(Color.carbonBlack)
+            .toolbarBackground(Color.carbonSurface, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("SELECT MODEL")
+                        .font(.carbonMono(.caption, weight: .bold))
+                        .kerning(2.5)
+                        .foregroundStyle(Color.carbonText)
+                }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
+                    Button {
+                        dismiss()
+                    } label: {
+                        Text("Done")
+                            .font(.carbonSans(.subheadline, weight: .medium))
+                            .foregroundStyle(Color.carbonAccent)
+                    }
                 }
             }
         }

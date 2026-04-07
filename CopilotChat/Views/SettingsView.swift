@@ -16,11 +16,26 @@ struct SettingsView: View {
                 mcpSection
                 aboutSection
             }
-            .navigationTitle("Settings")
-            .toolbarTitleDisplayMode(.inline)
+            .scrollContentBackground(.hidden)
+            .background(Color.carbonBlack)
+            .toolbarBackground(Color.carbonSurface, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("SETTINGS")
+                        .font(.carbonMono(.caption, weight: .bold))
+                        .kerning(2.5)
+                        .foregroundStyle(Color.carbonText)
+                }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
+                    Button {
+                        dismiss()
+                    } label: {
+                        Text("Done")
+                            .font(.carbonSans(.subheadline, weight: .medium))
+                            .foregroundStyle(Color.carbonAccent)
+                    }
                 }
             }
             .sheet(isPresented: $showAddMCPServer) {
@@ -35,108 +50,169 @@ struct SettingsView: View {
     // MARK: - Account Section
 
     private var accountSection: some View {
-        Section("Account") {
+        Section {
             if authManager.isAuthenticated {
-                HStack(spacing: 12) {
+                HStack(spacing: 14) {
                     if let url = authManager.avatarUrl, let imageURL = URL(string: url) {
                         AsyncImage(url: imageURL) { image in
                             image.resizable()
                                 .aspectRatio(contentMode: .fill)
                         } placeholder: {
-                            Image(systemName: "person.circle.fill")
-                                .font(.title)
-                                .foregroundStyle(.secondary)
+                            Circle()
+                                .fill(Color.carbonElevated)
+                                .overlay(
+                                    Image(systemName: "person.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(Color.carbonTextTertiary)
+                                )
                         }
-                        .frame(width: 40, height: 40)
+                        .frame(width: 44, height: 44)
                         .clipShape(Circle())
+                        .overlay(
+                            Circle()
+                                .stroke(Color.carbonAccent.opacity(0.3), lineWidth: 1)
+                        )
                     } else {
-                        Image(systemName: "person.circle.fill")
-                            .font(.title)
-                            .foregroundStyle(.secondary)
+                        Circle()
+                            .fill(Color.carbonElevated)
+                            .frame(width: 44, height: 44)
+                            .overlay(
+                                Image(systemName: "person.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(Color.carbonTextTertiary)
+                            )
                     }
 
-                    VStack(alignment: .leading) {
+                    VStack(alignment: .leading, spacing: 3) {
                         Text(authManager.username ?? "GitHub User")
-                            .font(.headline)
-                        Text("Connected")
-                            .font(.caption)
-                            .foregroundStyle(.green)
+                            .font(.carbonSans(.body, weight: .semibold))
+                            .foregroundStyle(Color.carbonText)
+                        HStack(spacing: 5) {
+                            Circle()
+                                .fill(Color.carbonSuccess)
+                                .frame(width: 6, height: 6)
+                            Text("Connected")
+                                .font(.carbonMono(.caption2))
+                                .foregroundStyle(Color.carbonSuccess)
+                        }
                     }
 
                     Spacer()
                 }
+                .listRowBackground(Color.carbonSurface)
 
                 Button("Sign Out", role: .destructive) {
                     authManager.signOut()
                 }
+                .font(.carbonSans(.subheadline))
+                .foregroundStyle(Color.carbonError)
+                .listRowBackground(Color.carbonSurface)
             } else if authManager.isAuthenticating {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack(spacing: 8) {
                         ProgressView()
+                            .tint(Color.carbonAccent)
+                            .scaleEffect(0.8)
                         Text("Waiting for authorization...")
-                            .font(.subheadline)
+                            .font(.carbonSans(.subheadline))
+                            .foregroundStyle(Color.carbonTextSecondary)
                     }
 
                     if let code = authManager.deviceFlowUserCode {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Enter this code on GitHub:")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            Text("ENTER THIS CODE ON GITHUB")
+                                .font(.carbonMono(.caption2, weight: .semibold))
+                                .foregroundStyle(Color.carbonTextTertiary)
+                                .kerning(0.8)
                             Text(code)
-                                .font(.system(.title, design: .monospaced))
-                                .fontWeight(.bold)
+                                .font(.carbonMono(.title2, weight: .bold))
+                                .foregroundStyle(Color.carbonAccent)
                                 .textSelection(.enabled)
                         }
 
                         if let urlString = authManager.deviceFlowVerificationURL,
                            let url = URL(string: urlString) {
-                            Link("Open GitHub", destination: url)
-                                .buttonStyle(.borderedProminent)
+                            Link(destination: url) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "arrow.up.right")
+                                        .font(.caption2)
+                                    Text("Open GitHub")
+                                        .font(.carbonMono(.caption, weight: .medium))
+                                }
+                                .foregroundStyle(Color.carbonBlack)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(Color.carbonAccent)
+                                .clipShape(Capsule())
+                            }
                         }
                     }
                 }
                 .padding(.vertical, 4)
+                .listRowBackground(Color.carbonSurface)
             } else {
                 Button {
                     Task { await authManager.startDeviceFlow() }
                 } label: {
-                    Label("Sign in with GitHub", systemImage: "person.badge.key")
+                    HStack(spacing: 8) {
+                        Image(systemName: "person.badge.key")
+                            .foregroundStyle(Color.carbonAccent)
+                        Text("Sign in with GitHub")
+                            .font(.carbonSans(.subheadline, weight: .medium))
+                            .foregroundStyle(Color.carbonText)
+                    }
                 }
+                .listRowBackground(Color.carbonSurface)
 
                 if let error = authManager.authError {
                     Text(error)
-                        .font(.caption)
-                        .foregroundStyle(.red)
+                        .font(.carbonMono(.caption2))
+                        .foregroundStyle(Color.carbonError)
+                        .listRowBackground(Color.carbonSurface)
                 }
             }
+        } header: {
+            CarbonSectionHeader(title: "Account")
         }
     }
 
     // MARK: - Model Section
 
     private var modelSection: some View {
-        Section("Model") {
+        Section {
             @Bindable var store = settingsStore
 
             if copilotService.availableModels.isEmpty {
                 HStack {
                     Text(settingsStore.selectedModel)
+                        .font(.carbonMono(.subheadline))
+                        .foregroundStyle(Color.carbonText)
                     Spacer()
                     if authManager.isAuthenticated {
-                        Button("Refresh") {
+                        Button {
                             Task { await copilotService.fetchModels() }
+                        } label: {
+                            Text("REFRESH")
+                                .font(.carbonMono(.caption2, weight: .bold))
+                                .kerning(0.6)
+                                .foregroundStyle(Color.carbonAccent)
                         }
-                        .font(.caption)
                     }
                 }
+                .listRowBackground(Color.carbonSurface)
             } else {
                 Picker("Model", selection: $store.selectedModel) {
                     ForEach(copilotService.availableModels) { model in
                         Text(model.displayName)
+                            .font(.carbonSans(.subheadline))
                             .tag(model.id)
                     }
                 }
+                .tint(Color.carbonAccent)
+                .listRowBackground(Color.carbonSurface)
             }
+        } header: {
+            CarbonSectionHeader(title: "Model")
         }
     }
 
@@ -149,18 +225,20 @@ struct SettingsView: View {
                     MCPServerDetailView(server: server)
                 } label: {
                     HStack {
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: 3) {
                             Text(server.name)
-                                .font(.headline)
+                                .font(.carbonSans(.subheadline, weight: .medium))
+                                .foregroundStyle(Color.carbonText)
                             Text(server.url)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(.carbonMono(.caption2))
+                                .foregroundStyle(Color.carbonTextTertiary)
                                 .lineLimit(1)
                         }
                         Spacer()
                         serverStatusIndicator(for: server)
                     }
                 }
+                .listRowBackground(Color.carbonSurface)
             }
             .onDelete { offsets in
                 settingsStore.removeServer(at: offsets)
@@ -169,13 +247,23 @@ struct SettingsView: View {
             Button {
                 showAddMCPServer = true
             } label: {
-                Label("Add MCP Server", systemImage: "plus")
+                HStack(spacing: 6) {
+                    Image(systemName: "plus")
+                        .font(.caption)
+                        .foregroundStyle(Color.carbonAccent)
+                    Text("Add MCP Server")
+                        .font(.carbonSans(.subheadline))
+                        .foregroundStyle(Color.carbonAccent)
+                }
             }
+            .listRowBackground(Color.carbonSurface)
         } header: {
-            Text("MCP Servers")
+            CarbonSectionHeader(title: "MCP Servers")
         } footer: {
             if !settingsStore.mcpTools.isEmpty {
                 Text("\(settingsStore.mcpTools.count) tools available")
+                    .font(.carbonMono(.caption2))
+                    .foregroundStyle(Color.carbonTextTertiary)
             }
         }
     }
@@ -183,18 +271,21 @@ struct SettingsView: View {
     private func serverStatusIndicator(for server: MCPServerConfig) -> some View {
         Group {
             if !server.isEnabled {
-                Image(systemName: "circle")
-                    .foregroundStyle(.secondary)
-            } else if let error = settingsStore.mcpConnectionErrors[server.id] {
-                Image(systemName: "exclamationmark.circle.fill")
-                    .foregroundStyle(.red)
-                    .help(error)
+                Circle()
+                    .stroke(Color.carbonTextTertiary, lineWidth: 1)
+                    .frame(width: 8, height: 8)
+            } else if settingsStore.mcpConnectionErrors[server.id] != nil {
+                Circle()
+                    .fill(Color.carbonError)
+                    .frame(width: 8, height: 8)
             } else if settingsStore.mcpClients[server.id] != nil {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
+                Circle()
+                    .fill(Color.carbonSuccess)
+                    .frame(width: 8, height: 8)
             } else {
                 ProgressView()
-                    .scaleEffect(0.7)
+                    .scaleEffect(0.6)
+                    .tint(Color.carbonAccent)
             }
         }
     }
@@ -202,13 +293,19 @@ struct SettingsView: View {
     // MARK: - About Section
 
     private var aboutSection: some View {
-        Section("About") {
+        Section {
             HStack {
                 Text("Version")
+                    .font(.carbonSans(.subheadline))
+                    .foregroundStyle(Color.carbonTextSecondary)
                 Spacer()
                 Text("1.0.0")
-                    .foregroundStyle(.secondary)
+                    .font(.carbonMono(.subheadline))
+                    .foregroundStyle(Color.carbonTextTertiary)
             }
+            .listRowBackground(Color.carbonSurface)
+        } header: {
+            CarbonSectionHeader(title: "About")
         }
     }
 }
@@ -236,35 +333,51 @@ struct MCPServerDetailView: View {
 
     var body: some View {
         Form {
-            Section("Server") {
+            Section {
                 TextField("Name", text: $name)
+                    .font(.carbonSans(.body))
+                    .foregroundStyle(Color.carbonText)
                 TextField("URL", text: $url)
+                    .font(.carbonMono(.body))
+                    .foregroundStyle(Color.carbonText)
                     .textInputAutocapitalization(.never)
                     .keyboardType(.URL)
                 Toggle("Enabled", isOn: $isEnabled)
+                    .tint(Color.carbonAccent)
+            } header: {
+                CarbonSectionHeader(title: "Server")
             }
+            .listRowBackground(Color.carbonSurface)
 
             Section {
                 TextEditor(text: $headersText)
-                    .font(.system(.body, design: .monospaced))
+                    .font(.carbonMono(.body))
+                    .foregroundStyle(Color.carbonText)
                     .frame(minHeight: 80)
                     .textInputAutocapitalization(.never)
+                    .scrollContentBackground(.hidden)
             } header: {
-                Text("Headers")
+                CarbonSectionHeader(title: "Headers")
             } footer: {
                 Text("One per line: Header-Name: value")
+                    .font(.carbonMono(.caption2))
+                    .foregroundStyle(Color.carbonTextTertiary)
             }
+            .listRowBackground(Color.carbonSurface)
 
             if let error = settingsStore.mcpConnectionErrors[server.id] {
-                Section("Error") {
+                Section {
                     Text(error)
-                        .font(.caption)
-                        .foregroundStyle(.red)
+                        .font(.carbonMono(.caption2))
+                        .foregroundStyle(Color.carbonError)
+                } header: {
+                    CarbonSectionHeader(title: "Error")
                 }
+                .listRowBackground(Color.carbonSurface)
             }
 
             Section {
-                Button("Save") {
+                Button {
                     let updated = MCPServerConfig(
                         id: server.id,
                         name: name,
@@ -274,10 +387,14 @@ struct MCPServerDetailView: View {
                     )
                     settingsStore.updateServer(updated)
                     dismiss()
+                } label: {
+                    Text("Save")
+                        .font(.carbonSans(.subheadline, weight: .semibold))
+                        .foregroundStyle(Color.carbonAccent)
                 }
                 .disabled(name.isEmpty || url.isEmpty)
 
-                Button("Reconnect") {
+                Button {
                     Task {
                         let current = MCPServerConfig(
                             id: server.id,
@@ -289,10 +406,18 @@ struct MCPServerDetailView: View {
                         settingsStore.updateServer(current)
                         await settingsStore.connectServer(current)
                     }
+                } label: {
+                    Text("Reconnect")
+                        .font(.carbonSans(.subheadline))
+                        .foregroundStyle(Color.carbonText)
                 }
             }
+            .listRowBackground(Color.carbonSurface)
         }
+        .scrollContentBackground(.hidden)
+        .background(Color.carbonBlack)
         .navigationTitle(server.name)
+        .toolbarColorScheme(.dark, for: .navigationBar)
     }
 
     static func headersToText(_ headers: [String: String]) -> String {
@@ -330,33 +455,61 @@ struct MCPServerEditView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Server") {
+                Section {
                     TextField("Name", text: $name)
+                        .font(.carbonSans(.body))
+                        .foregroundStyle(Color.carbonText)
                     TextField("URL", text: $url)
+                        .font(.carbonMono(.body))
+                        .foregroundStyle(Color.carbonText)
                         .textInputAutocapitalization(.never)
                         .keyboardType(.URL)
                     Toggle("Enabled", isOn: $isEnabled)
+                        .tint(Color.carbonAccent)
+                } header: {
+                    CarbonSectionHeader(title: "Server")
                 }
+                .listRowBackground(Color.carbonSurface)
 
                 Section {
                     TextEditor(text: $headersText)
-                        .font(.system(.body, design: .monospaced))
+                        .font(.carbonMono(.body))
+                        .foregroundStyle(Color.carbonText)
                         .frame(minHeight: 80)
                         .textInputAutocapitalization(.never)
+                        .scrollContentBackground(.hidden)
                 } header: {
-                    Text("Headers")
+                    CarbonSectionHeader(title: "Headers")
                 } footer: {
                     Text("One per line: Header-Name: value")
+                        .font(.carbonMono(.caption2))
+                        .foregroundStyle(Color.carbonTextTertiary)
                 }
+                .listRowBackground(Color.carbonSurface)
             }
-            .navigationTitle("Add MCP Server")
-            .toolbarTitleDisplayMode(.inline)
+            .scrollContentBackground(.hidden)
+            .background(Color.carbonBlack)
+            .toolbarBackground(Color.carbonSurface, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("ADD SERVER")
+                        .font(.carbonMono(.caption, weight: .bold))
+                        .kerning(2.5)
+                        .foregroundStyle(Color.carbonText)
+                }
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button {
+                        dismiss()
+                    } label: {
+                        Text("Cancel")
+                            .font(.carbonSans(.subheadline))
+                            .foregroundStyle(Color.carbonTextSecondary)
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") {
+                    Button {
                         let newServer = MCPServerConfig(
                             name: name,
                             url: url,
@@ -365,6 +518,10 @@ struct MCPServerEditView: View {
                         )
                         onSave(newServer)
                         dismiss()
+                    } label: {
+                        Text("Add")
+                            .font(.carbonSans(.subheadline, weight: .semibold))
+                            .foregroundStyle(Color.carbonAccent)
                     }
                     .disabled(name.isEmpty || url.isEmpty)
                 }

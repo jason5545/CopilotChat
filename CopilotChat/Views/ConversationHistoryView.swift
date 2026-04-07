@@ -9,30 +9,57 @@ struct ConversationHistoryView: View {
         NavigationStack {
             Group {
                 if store.conversations.isEmpty {
-                    ContentUnavailableView(
-                        "No Conversations",
-                        systemImage: "bubble.left.and.text.bubble.right",
-                        description: Text("Your conversation history will appear here.")
-                    )
+                    ZStack {
+                        Color.carbonBlack.ignoresSafeArea()
+                        VStack(spacing: 16) {
+                            Image(systemName: "bubble.left.and.text.bubble.right")
+                                .font(.system(size: 36, weight: .light))
+                                .foregroundStyle(Color.carbonTextTertiary)
+                            VStack(spacing: 6) {
+                                Text("No Conversations")
+                                    .font(.carbonSerif(.headline))
+                                    .foregroundStyle(Color.carbonTextSecondary)
+                                Text("Your conversation history will appear here.")
+                                    .font(.carbonSans(.caption))
+                                    .foregroundStyle(Color.carbonTextTertiary)
+                            }
+                        }
+                    }
                 } else {
                     conversationList
                 }
             }
-            .navigationTitle("History")
-            .toolbarTitleDisplayMode(.inline)
+            .toolbarBackground(Color.carbonSurface, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("HISTORY")
+                        .font(.carbonMono(.caption, weight: .bold))
+                        .kerning(2.5)
+                        .foregroundStyle(Color.carbonText)
+                }
                 ToolbarItem(placement: .topBarLeading) {
                     if !store.conversations.isEmpty {
-                        Button("Clear All", role: .destructive) {
+                        Button {
                             store.deleteAllConversations()
                             copilotService.newConversation()
                             dismiss()
+                        } label: {
+                            Text("Clear All")
+                                .font(.carbonSans(.caption))
+                                .foregroundStyle(Color.carbonError)
                         }
-                        .foregroundStyle(.red)
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
+                    Button {
+                        dismiss()
+                    } label: {
+                        Text("Done")
+                            .font(.carbonSans(.subheadline, weight: .medium))
+                            .foregroundStyle(Color.carbonAccent)
+                    }
                 }
             }
         }
@@ -50,6 +77,7 @@ struct ConversationHistoryView: View {
                     )
                 }
                 .buttonStyle(.plain)
+                .listRowBackground(Color.carbonSurface)
             }
             .onDelete { indexSet in
                 for index in indexSet {
@@ -58,6 +86,8 @@ struct ConversationHistoryView: View {
             }
         }
         .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .background(Color.carbonBlack)
     }
 
     private func resumeConversation(_ conversation: Conversation) {
@@ -78,33 +108,43 @@ private struct ConversationRow: View {
     let isCurrent: Bool
 
     var body: some View {
-        HStack {
+        HStack(spacing: 12) {
+            // Active indicator
+            if isCurrent {
+                Circle()
+                    .fill(Color.carbonAccent)
+                    .frame(width: 6, height: 6)
+            } else {
+                Circle()
+                    .fill(Color.clear)
+                    .frame(width: 6, height: 6)
+            }
+
             VStack(alignment: .leading, spacing: 4) {
                 Text(conversation.title)
-                    .font(.body)
-                    .fontWeight(isCurrent ? .semibold : .regular)
+                    .font(isCurrent
+                        ? .carbonSans(.body, weight: .semibold)
+                        : .carbonSans(.body))
+                    .foregroundStyle(isCurrent ? Color.carbonText : Color.carbonTextSecondary)
                     .lineLimit(1)
 
                 HStack(spacing: 8) {
-                    Text("\(conversation.userMessageCount) message\(conversation.userMessageCount == 1 ? "" : "s")")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    Text("\(conversation.userMessageCount) msg\(conversation.userMessageCount == 1 ? "" : "s")")
+                        .font(.carbonMono(.caption2))
+                        .foregroundStyle(Color.carbonTextTertiary)
+
+                    Text("·")
+                        .foregroundStyle(Color.carbonTextTertiary)
 
                     Text(conversation.updatedAt.formatted(.relative(presentation: .named)))
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .font(.carbonMono(.caption2))
+                        .foregroundStyle(Color.carbonTextTertiary)
                 }
             }
 
             Spacer()
-
-            if isCurrent {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.blue)
-                    .font(.caption)
-            }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
         .contentShape(Rectangle())
     }
 }

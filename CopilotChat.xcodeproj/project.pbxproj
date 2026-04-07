@@ -14,6 +14,7 @@
 		245E035ACB480E48764C62A4 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73E1C308EAC55AC71B9FE65D /* ContentView.swift */; };
 		2C303CE1B8E56BEAF2FC2AC6 /* ConversationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7156A2F3FCF640CE82D1D4D /* ConversationStore.swift */; };
 		366FB1F9BC38A7EECD186BA1 /* ModelPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5552AFC87E5FCBAE9ACE1C4A /* ModelPickerView.swift */; };
+		5308035D2EF7B4053EEFE38C /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E4C54DF2D9B605822055885 /* DesignSystem.swift */; };
 		618203C783472CF073B70DBA /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDE8D6B39D4CE3CC02F64DC5 /* ChatView.swift */; };
 		667A6D684FF61468C6F0903C /* AuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB3BB21C2425B2EC03EF63DA /* AuthManager.swift */; };
 		780C1E6B6A3D696CB6882F87 /* CopilotService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4D6D250CD46F217D156DA5E /* CopilotService.swift */; };
@@ -47,6 +48,7 @@
 		0360B8A2EA009CB9636C0D4D /* MCPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPClient.swift; sourceTree = "<group>"; };
 		095D95CCFBFE3A4CB52AED3A /* ConversationHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationHistoryView.swift; sourceTree = "<group>"; };
 		0E27429D563A6EF3071A17A0 /* BuildAPIMessagesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildAPIMessagesTests.swift; sourceTree = "<group>"; };
+		0E4C54DF2D9B605822055885 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
 		16DB1EC5909ACF0B5B392F63 /* ChatModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatModels.swift; sourceTree = "<group>"; };
 		1F8D008BBFD2D4C734E8D385 /* CopilotChatTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = CopilotChatTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		209BCAEE6572124412782E61 /* MarkdownView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownView.swift; sourceTree = "<group>"; };
@@ -123,6 +125,7 @@
 				A7B782DFE064DC7FD97C4A83 /* Assets.xcassets */,
 				73E1C308EAC55AC71B9FE65D /* ContentView.swift */,
 				A877976EB8149831636E8E06 /* CopilotChatApp.swift */,
+				0E4C54DF2D9B605822055885 /* DesignSystem.swift */,
 				12F4A27B9A5B53598863A0FA /* Models */,
 				7B4B25C6920E9B9B6EA6A8BF /* Utilities */,
 				E99E2D1BA21056BF6E532C09 /* Views */,
@@ -268,6 +271,7 @@
 				2C303CE1B8E56BEAF2FC2AC6 /* ConversationStore.swift in Sources */,
 				1D92D9F9B34EBFEE478B0A29 /* CopilotChatApp.swift in Sources */,
 				780C1E6B6A3D696CB6882F87 /* CopilotService.swift in Sources */,
+				5308035D2EF7B4053EEFE38C /* DesignSystem.swift in Sources */,
 				82EA680B0A0A23D8DCE40446 /* KeychainHelper.swift in Sources */,
 				DEB7B83E6DC8A93E721EC21A /* MCPClient.swift in Sources */,
 				17E6FDC95EBBCC13F2106A07 /* MCPSettingsView.swift in Sources */,

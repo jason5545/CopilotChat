@@ -7,10 +7,9 @@ struct ContentView: View {
 
     var body: some View {
         ChatView()
+            .background(Color.carbonBlack)
             .task {
-                // Connect MCP servers on launch
                 await settingsStore.connectAllServers()
-                // Fetch available models if authenticated
                 if authManager.isAuthenticated {
                     await copilotService.fetchModels()
                 }

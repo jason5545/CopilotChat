@@ -16,55 +16,68 @@ struct MCPSettingsView: View {
                     } label: {
                         serverRow(server)
                     }
+                    .listRowBackground(Color.carbonSurface)
                 }
                 .onDelete { offsets in
                     settingsStore.removeServer(at: offsets)
                 }
             } header: {
-                Text("Servers")
+                CarbonSectionHeader(title: "Servers")
             } footer: {
                 Text("MCP servers provide tools that the AI can use during conversations.")
+                    .font(.carbonMono(.caption2))
+                    .foregroundStyle(Color.carbonTextTertiary)
             }
 
-            Section("Connected Tools") {
+            Section {
                 if settingsStore.mcpTools.isEmpty {
                     Text("No tools available")
-                        .foregroundStyle(.secondary)
+                        .font(.carbonSans(.subheadline))
+                        .foregroundStyle(Color.carbonTextTertiary)
+                        .listRowBackground(Color.carbonSurface)
                 } else {
                     ForEach(settingsStore.mcpTools) { tool in
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: 5) {
                             HStack {
                                 Image(systemName: "wrench.and.screwdriver")
-                                    .foregroundStyle(.blue)
-                                    .font(.caption)
+                                    .foregroundStyle(Color.carbonAccent)
+                                    .font(.caption2)
                                 Text(tool.name)
-                                    .font(.subheadline.bold())
+                                    .font(.carbonMono(.caption, weight: .semibold))
+                                    .foregroundStyle(Color.carbonText)
                                 Spacer()
                                 Text(tool.serverName)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(.quaternary)
+                                    .font(.carbonMono(.caption2))
+                                    .foregroundStyle(Color.carbonTextTertiary)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(Color.carbonElevated)
                                     .clipShape(Capsule())
                             }
                             Text(tool.description)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(.carbonSans(.caption))
+                                .foregroundStyle(Color.carbonTextSecondary)
                                 .lineLimit(3)
                         }
                         .padding(.vertical, 2)
+                        .listRowBackground(Color.carbonSurface)
                     }
                 }
+            } header: {
+                CarbonSectionHeader(title: "Connected Tools")
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(Color.carbonBlack)
         .navigationTitle("MCP Servers")
+        .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     showAddServer = true
                 } label: {
                     Image(systemName: "plus")
+                        .foregroundStyle(Color.carbonAccent)
                 }
             }
         }
@@ -78,28 +91,33 @@ struct MCPSettingsView: View {
 
     private func serverRow(_ server: MCPServerConfig) -> some View {
         HStack {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(server.name)
-                    .font(.body)
+                    .font(.carbonSans(.subheadline, weight: .medium))
+                    .foregroundStyle(Color.carbonText)
                 Text(server.url)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.carbonMono(.caption2))
+                    .foregroundStyle(Color.carbonTextTertiary)
                     .lineLimit(1)
             }
             Spacer()
             if !server.isEnabled {
-                Text("Disabled")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text("OFF")
+                    .font(.carbonMono(.caption2, weight: .bold))
+                    .foregroundStyle(Color.carbonTextTertiary)
+                    .kerning(0.4)
             } else if settingsStore.mcpConnectionErrors[server.id] != nil {
-                Image(systemName: "exclamationmark.circle.fill")
-                    .foregroundStyle(.red)
+                Circle()
+                    .fill(Color.carbonError)
+                    .frame(width: 8, height: 8)
             } else if settingsStore.mcpClients[server.id] != nil {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
+                Circle()
+                    .fill(Color.carbonSuccess)
+                    .frame(width: 8, height: 8)
             } else {
                 ProgressView()
-                    .scaleEffect(0.7)
+                    .scaleEffect(0.6)
+                    .tint(Color.carbonAccent)
             }
         }
     }
