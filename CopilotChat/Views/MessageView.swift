@@ -130,6 +130,20 @@ struct MessageView: View {
                 }
             }
 
+            if let reason = message.finishReason, reason == .length || reason == .error {
+                let icon = reason == .length ? "exclamationmark.triangle" : "bolt.slash"
+                let label = reason == .length ? "Response truncated (token limit)" : "Response interrupted (connection lost)"
+                HStack(spacing: 6) {
+                    Image(systemName: icon).font(.caption2)
+                    Text(label).font(.carbonMono(.caption2))
+                }
+                .foregroundStyle(Color.carbonWarning)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.carbonWarning.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: Carbon.radiusSmall))
+            }
+
             HStack(spacing: 8) {
                 if let onRegenerate {
                     Button {

@@ -19,8 +19,8 @@ final class CopilotService {
 
     private static let urlSession: URLSession = {
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 60
-        config.timeoutIntervalForResource = 300
+        config.timeoutIntervalForRequest = 180
+        config.timeoutIntervalForResource = 600
         return URLSession(configuration: config, delegate: nil, delegateQueue: OperationQueue())
     }()
 
@@ -46,7 +46,9 @@ final class CopilotService {
 
     var contextWindow: Int {
         let model = availableModels.first { $0.id == settingsStore.selectedModel }
-        return model?.maxPromptTokens ?? 0
+        if let prompt = model?.maxPromptTokens { return prompt }
+        if let ctx = model?.contextWindowTokens { return Int(Double(ctx) * (1 - Self.outputReserveRatio)) }
+        return Self.defaultContextWindow
     }
 
     private let authManager: AuthManager
@@ -171,8 +173,13 @@ final class CopilotService {
                 // cancelled
             } catch {
                 streamingError = error.localizedDescription
-                if let last = messages.last, last.role == .assistant && last.content.isEmpty {
-                    messages[messages.count - 1].content = "Error: \(error.localizedDescription)"
+                let idx = messages.count - 1
+                if idx >= 0, messages[idx].role == .assistant {
+                    if messages[idx].content.isEmpty {
+                        messages[idx].content = "Error: \(error.localizedDescription)"
+                    } else {
+                        messages[idx].finishReason = .error
+                    }
                 }
             }
             isStreaming = false
@@ -430,6 +437,7 @@ final class CopilotService {
                 tokenUsage = usage
 
             case .finish(let reason):
+                messages[index].finishReason = ChatMessage.FinishReason(rawValue: reason)
                 if reason == "tool_calls" {
                     let calls = pendingToolCalls.sorted(by: { $0.key < $1.key }).map { (_, value) in
                         ToolCall(id: value.id, function: .init(name: value.name, arguments: value.arguments))
@@ -534,6 +542,9 @@ final class CopilotService {
             continuation.onTermination = { _ in task.cancel() }
         }
     }
+
+    private static let defaultContextWindow = 128_000
+    private static let outputReserveRatio = 0.2
 
     /// Max chars for historical (non-current-turn) tool results sent to the API.
     private static let maxHistoricalToolResultChars = 200

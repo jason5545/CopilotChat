@@ -24,8 +24,18 @@ struct ChatMessage: Identifiable, Equatable, Codable {
     /// Per-message token usage snapshot (stored when assistant response completes).
     var tokenUsage: TokenUsage?
 
+    /// Why the model stopped generating. "error" is app-internal (connection lost mid-stream).
+    var finishReason: FinishReason?
+
+    enum FinishReason: String, Codable {
+        case stop
+        case length
+        case toolCalls = "tool_calls"
+        case error
+    }
+
     enum CodingKeys: String, CodingKey {
-        case id, role, content, toolCalls, toolCallId, toolName, timestamp, tokenUsage
+        case id, role, content, toolCalls, toolCallId, toolName, timestamp, tokenUsage, finishReason
     }
 
     init(
@@ -37,7 +47,8 @@ struct ChatMessage: Identifiable, Equatable, Codable {
         toolName: String? = nil,
         timestamp: Date = Date(),
         imageData: Data? = nil,
-        tokenUsage: TokenUsage? = nil
+        tokenUsage: TokenUsage? = nil,
+        finishReason: FinishReason? = nil
     ) {
         self.id = id
         self.role = role
@@ -48,6 +59,7 @@ struct ChatMessage: Identifiable, Equatable, Codable {
         self.timestamp = timestamp
         self.imageData = imageData
         self.tokenUsage = tokenUsage
+        self.finishReason = finishReason
     }
 
     static func == (lhs: ChatMessage, rhs: ChatMessage) -> Bool {
