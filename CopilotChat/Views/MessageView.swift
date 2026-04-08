@@ -80,6 +80,7 @@ struct MessageView: View {
                         }
                     }
                     .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
                     .foregroundStyle(Color.carbonText)
                     .padding(.leading, Carbon.spacingRelaxed)
                     .padding(.trailing, Carbon.spacingTight)

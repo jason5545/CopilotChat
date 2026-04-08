@@ -106,10 +106,10 @@ struct MarkdownParserTests {
         #expect(MarkdownParser.parse("Hello world") == [.paragraph("Hello world")])
     }
 
-    @Test("Joins consecutive lines into one paragraph")
+    @Test("Reflows consecutive lines into one paragraph")
     func multiLineParagraph() {
         let input = "Line one\nLine two\nLine three"
-        #expect(MarkdownParser.parse(input) == [.paragraph("Line one\nLine two\nLine three")])
+        #expect(MarkdownParser.parse(input) == [.paragraph("Line one Line two Line three")])
     }
 
     @Test("Splits paragraphs on blank lines")

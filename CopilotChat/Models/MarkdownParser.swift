@@ -114,17 +114,17 @@ enum MarkdownParser {
             // Paragraph
             var paraLines: [String] = []
             while i < lines.count {
-                let pLine = lines[i]
-                let pTrimmed = pLine.trimmingCharacters(in: .whitespaces)
+                let pTrimmed = lines[i].trimmingCharacters(in: .whitespaces)
                 if pTrimmed.isEmpty || pTrimmed.hasPrefix("```") || pTrimmed.hasPrefix("#")
-                    || pTrimmed.hasPrefix(">") || isUnorderedListItem(pTrimmed) || isOrderedListItem(pTrimmed) {
+                    || pTrimmed.hasPrefix(">") || isHorizontalRule(pTrimmed)
+                    || isUnorderedListItem(pTrimmed) || isOrderedListItem(pTrimmed) {
                     break
                 }
-                paraLines.append(pLine)
+                paraLines.append(pTrimmed)
                 i += 1
             }
             if !paraLines.isEmpty {
-                blocks.append(.paragraph(paraLines.joined(separator: "\n")))
+                blocks.append(.paragraph(paraLines.joined(separator: " ")))
             }
         }
 
