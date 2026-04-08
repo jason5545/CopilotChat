@@ -104,6 +104,13 @@ extension View {
     func carbonCard(filled: Bool = true) -> some View {
         modifier(CarbonCardStyle(filled: filled))
     }
+
+    /// Flip vertically for reversed-list chat scroll.
+    /// Apply to the ScrollView AND each child to cancel out the visual flip.
+    func flippedForChat() -> some View {
+        rotationEffect(.radians(.pi))
+            .scaleEffect(x: -1, y: 1, anchor: .center)
+    }
 }
 
 // MARK: - Pulsing Dot Animation

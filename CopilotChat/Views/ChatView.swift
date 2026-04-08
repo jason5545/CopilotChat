@@ -87,128 +87,77 @@ struct ChatView: View {
 
     // MARK: - Messages List
 
-    private static let streamingIndicatorID = "streaming-indicator"
-
-    @State private var autoFollow = true
-    /// Keeps Text renderer briefly after stream ends so Text→MarkdownView
-    /// layout swap doesn't cause a scroll jump.
-    @State private var markdownGrace = false
-    @State private var scrollDebounceTask: Task<Void, Never>?
-    @State private var streamEndTask: Task<Void, Never>?
+    /// Reversed-list chat scroll: the ScrollView is flipped vertically so new
+    /// content appears at the scroll origin. No scrollTo needed during streaming.
+    @State private var isScrolledUp = false
+    @State private var scrollPosition: ScrollPosition = .init(edge: .top)
 
     private var messagesList: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    if copilotService.messages.isEmpty {
-                        emptyState
-                    }
-
-                    ForEach(copilotService.messages) { message in
-                        let isLast = message.id == copilotService.messages.last?.id
-                        let showAsStreaming = isLast && (copilotService.isStreaming || markdownGrace)
-                        MessageView(
-                            message: message,
-                            toolCallStatuses: copilotService.toolCallStatuses,
-                            toolCallServerNames: copilotService.toolCallServerNames,
-                            isStreaming: showAsStreaming,
-                            onRetryToolCall: { toolCall in
-                                copilotService.retryToolCall(toolCall, tools: settingsStore.mcpTools)
-                            },
-                            onPermissionDecision: { decision in
-                                copilotService.resolvePermission(decision)
-                            }
-                        )
-                        .id(message.id)
-                        .transition(.opacity.combined(with: .move(edge: .bottom)))
-                    }
-
-                    if copilotService.isStreaming {
-                        streamingIndicator
-                    }
-
-                    if let error = copilotService.streamingError {
-                        errorBanner(error)
-                    }
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                if copilotService.isStreaming {
+                    streamingIndicator.flippedForChat()
                 }
-                .padding(.vertical, Carbon.spacingBase)
-            }
-            .defaultScrollAnchor(.bottom)
-            .scrollDismissesKeyboard(.interactively)
-            .onScrollGeometryChange(for: Bool.self) { geo in
-                let distance = geo.contentSize.height - geo.contentOffset.y - geo.containerSize.height
-                return distance > 300
-            } action: { _, scrolledUp in
-                if scrolledUp { autoFollow = false }
-                if !scrolledUp { autoFollow = true }
-            }
-            .onChange(of: copilotService.messages.count) {
-                autoFollow = true
-                streamEndTask?.cancel()
-                scrollToBottom(proxy: proxy)
-            }
-            .onChange(of: copilotService.contentRevision) {
-                guard autoFollow else { return }
-                scrollDebounceTask?.cancel()
-                scrollDebounceTask = Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(16))
-                    scrollToBottom(proxy: proxy)
-                }
-            }
-            .onChange(of: copilotService.isStreaming) {
-                if !copilotService.isStreaming {
-                    autoFollow = true
-                    scrollDebounceTask?.cancel()
-                    autoSaveConversation()
-                    markdownGrace = true
-                    streamEndTask?.cancel()
-                    streamEndTask = Task { @MainActor in
-                        try? await Task.sleep(for: .milliseconds(50))
-                        guard !Task.isCancelled else { return }
-                        scrollToBottom(proxy: proxy)
-                        try? await Task.sleep(for: .milliseconds(100))
-                        guard !Task.isCancelled else { return }
-                        markdownGrace = false
-                        try? await Task.sleep(for: .milliseconds(50))
-                        guard !Task.isCancelled else { return }
-                        scrollToBottom(proxy: proxy)
-                    }
-                }
-            }
-            .onDisappear {
-                scrollDebounceTask?.cancel()
-                streamEndTask?.cancel()
-            }
-            .overlay(alignment: .bottom) {
-                if !autoFollow {
-                    Button {
-                        autoFollow = true
-                        withAnimation(.easeOut(duration: 0.2)) {
-                            scrollToBottom(proxy: proxy)
+
+                ForEach(copilotService.messages.reversed()) { message in
+                    let isLast = message.id == copilotService.messages.last?.id
+                    MessageView(
+                        message: message,
+                        toolCallStatuses: copilotService.toolCallStatuses,
+                        toolCallServerNames: copilotService.toolCallServerNames,
+                        isStreaming: isLast && copilotService.isStreaming,
+                        onRetryToolCall: { toolCall in
+                            copilotService.retryToolCall(toolCall, tools: settingsStore.mcpTools)
+                        },
+                        onPermissionDecision: { decision in
+                            copilotService.resolvePermission(decision)
                         }
-                    } label: {
-                        Image(systemName: "arrow.down")
-                            .font(.caption.bold())
-                            .foregroundStyle(Color.carbonText)
-                            .frame(width: 32, height: 32)
-                            .background(Color.carbonElevated)
-                            .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.4), radius: 4, y: 2)
-                    }
-                    .padding(.bottom, 10)
-                    .transition(.scale.combined(with: .opacity))
+                    )
+                    .flippedForChat()
+                    .id(message.id)
+                }
+
+                if copilotService.messages.isEmpty {
+                    emptyState.flippedForChat()
+                }
+
+                if let error = copilotService.streamingError {
+                    errorBanner(error).flippedForChat()
                 }
             }
-            .animation(.easeOut(duration: 0.2), value: autoFollow)
+            .padding(.vertical, Carbon.spacingBase)
         }
-    }
-
-    private func scrollToBottom(proxy: ScrollViewProxy) {
-        if copilotService.isStreaming || markdownGrace {
-            proxy.scrollTo(Self.streamingIndicatorID, anchor: .bottom)
-        } else if let lastID = copilotService.messages.last?.id {
-            proxy.scrollTo(lastID, anchor: .bottom)
+        .scrollPosition($scrollPosition)
+        .flippedForChat()
+        .scrollDismissesKeyboard(.interactively)
+        .onScrollGeometryChange(for: Bool.self) { geo in
+            geo.contentOffset.y > 300
+        } action: { _, scrolledAway in
+            isScrolledUp = scrolledAway
         }
+        .onChange(of: copilotService.isStreaming) {
+            if !copilotService.isStreaming {
+                autoSaveConversation()
+            }
+        }
+        .overlay(alignment: .bottom) {
+            if isScrolledUp {
+                Button {
+                    scrollPosition.scrollTo(edge: .top)
+                } label: {
+                    Image(systemName: "arrow.down")
+                        .font(.caption.bold())
+                        .foregroundStyle(Color.carbonText)
+                        .frame(width: 32, height: 32)
+                        .background(Color.carbonElevated)
+                        .clipShape(Circle())
+                        .shadow(color: .black.opacity(0.4), radius: 4, y: 2)
+                }
+                .padding(.bottom, 10)
+                .transition(.scale.combined(with: .opacity))
+            }
+        }
+        .animation(.easeOut(duration: 0.2), value: isScrolledUp)
     }
 
     // MARK: - Empty State
@@ -277,7 +226,7 @@ struct ChatView: View {
         }
         .padding(.horizontal, Carbon.messagePaddingH)
         .padding(.vertical, Carbon.spacingBase)
-        .id(Self.streamingIndicatorID)
+        .id("streaming-indicator")
     }
 
     // MARK: - Error Banner
