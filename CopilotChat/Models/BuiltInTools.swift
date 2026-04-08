@@ -91,10 +91,75 @@ enum BuiltInTools {
         _cachedTools = nil
     }
 
+    // MARK: - Tool Search (deferred loading)
+
+    static let toolSearchName = "tool_search"
+
+    static let toolSearchTool = MCPTool(
+        name: toolSearchName,
+        description: "Search for available MCP tools by name or keyword. Returns matching tools with their full schemas so they can be called in subsequent requests. Use this when you need a tool that isn't directly available yet.",
+        inputSchema: [
+            "type": AnyCodable("object"),
+            "properties": AnyCodable([
+                "query": [
+                    "type": "string",
+                    "description": "Tool name (exact match) or keyword to search tool names and descriptions",
+                ] as [String: Any],
+                "max_results": [
+                    "type": "integer",
+                    "description": "Maximum number of results to return (default: 5)",
+                ] as [String: Any],
+            ] as [String: Any]),
+            "required": AnyCodable(["query"]),
+        ],
+        serverName: serverName
+    )
+
+    /// Search available MCP tools by name or keyword. Returns formatted results and the names of matched tools.
+    static func searchTools(query: String, maxResults: Int = 5, in availableTools: [MCPTool]) -> (text: String, matchedNames: [String]) {
+        let q = query.lowercased()
+
+        // 1. Exact name match
+        if let exact = availableTools.first(where: { $0.name.lowercased() == q }) {
+            let text = formatToolResult(exact)
+            return (text, [exact.name])
+        }
+
+        // 2. Name-contains match, then description-contains
+        let nameMatches = availableTools.filter { $0.name.lowercased().contains(q) }
+        let nameMatchNames = Set(nameMatches.map(\.name))
+        let descMatches = availableTools.filter { tool in
+            !nameMatchNames.contains(tool.name) &&
+            tool.description.lowercased().contains(q)
+        }
+
+        let combined = Array((nameMatches + descMatches).prefix(maxResults))
+
+        if combined.isEmpty {
+            return ("No tools found matching \"\(query)\". Available tools: \(availableTools.map(\.name).joined(separator: ", "))", [])
+        }
+
+        let lines = combined.map { formatToolResult($0) }
+        let text = "Found \(combined.count) tool(s):\n\n" + lines.joined(separator: "\n\n---\n\n")
+        return (text, combined.map(\.name))
+    }
+
+    private static func formatToolResult(_ tool: MCPTool) -> String {
+        var result = "**\(tool.name)** (server: \(tool.serverName))\n\(tool.description)"
+        if let schema = tool.inputSchema {
+            if let data = try? JSONSerialization.data(withJSONObject: schema.mapValues(\.value), options: [.prettyPrinted, .sortedKeys]),
+               let json = String(data: data, encoding: .utf8) {
+                result += "\n\nParameters:\n```json\n\(json)\n```"
+            }
+        }
+        return result
+    }
+
     /// All possible built-in tool names, including those that may not be currently active.
     private static let allToolNames: Set<String> = {
         var names = Set(baseTools.map(\.name))
         names.insert(braveSearchTool.name)
+        names.insert(toolSearchName)
         return names
     }()
 
@@ -123,6 +188,9 @@ enum BuiltInTools {
         case "brave_web_search":
             let text = try await executeBraveSearch(argumentsJSON: argumentsJSON)
             return ToolResult(text: text)
+        case toolSearchName:
+            // tool_search execution is handled by CopilotService (needs MCP tool list)
+            throw BuiltInToolError.invalidArguments("tool_search must be executed via CopilotService")
         default:
             throw BuiltInToolError.unknownTool(name)
         }

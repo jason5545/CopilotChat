@@ -25,6 +25,27 @@ enum ReasoningEffort: String, CaseIterable, Codable, Sendable {
     }
 }
 
+// MARK: - Tool Access Mode
+
+enum ToolAccessMode: String, CaseIterable, Codable, Sendable {
+    case alwaysLoaded
+    case loadWhenNeeded
+
+    var label: String {
+        switch self {
+        case .alwaysLoaded: "Tools always loaded"
+        case .loadWhenNeeded: "Load tools when needed"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .alwaysLoaded: "All tool schemas sent in every request. Uses more context window."
+        case .loadWhenNeeded: "MCP tools loaded on demand via tool search. Saves context window."
+        }
+    }
+}
+
 @Observable
 @MainActor
 final class SettingsStore {
@@ -34,6 +55,7 @@ final class SettingsStore {
     private static let toolOverridesKey = "mcpToolPermissionOverrides"
     private static let reasoningEffortKey = "reasoningEffort"
     private static let systemPromptKey = "systemPrompt"
+    private static let toolAccessModeKey = "toolAccessMode"
     private static let defaultModel = "claude-sonnet-4-6"
     static let defaultSystemPrompt = "You are a helpful AI assistant. Respond in the user's language."
 
@@ -50,6 +72,13 @@ final class SettingsStore {
 
     var systemPrompt: String {
         didSet { UserDefaults.standard.set(systemPrompt, forKey: Self.systemPromptKey) }
+    }
+
+    var toolAccessMode: ToolAccessMode {
+        didSet {
+            guard toolAccessMode != oldValue else { return }
+            UserDefaults.standard.set(toolAccessMode.rawValue, forKey: Self.toolAccessModeKey)
+        }
     }
 
     var mcpServers: [MCPServerConfig] {
@@ -96,6 +125,11 @@ final class SettingsStore {
             return effort
         }()
         self.systemPrompt = UserDefaults.standard.string(forKey: Self.systemPromptKey) ?? Self.defaultSystemPrompt
+        self.toolAccessMode = {
+            guard let raw = UserDefaults.standard.string(forKey: Self.toolAccessModeKey),
+                  let mode = ToolAccessMode(rawValue: raw) else { return .alwaysLoaded }
+            return mode
+        }()
         self.mcpServers = Self.loadMCPServers()
         self.alwaysAllowedServers = Self.loadAlwaysAllowedServers()
         self.toolPermissionOverrides = Self.loadToolOverrides()

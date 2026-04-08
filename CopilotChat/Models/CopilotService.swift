@@ -36,6 +36,9 @@ final class CopilotService {
     var isCompacting = false
     var summaryMessageId: UUID?
 
+    /// Tool names discovered via tool_search in the current conversation (for deferred loading mode).
+    var discoveredMCPTools: Set<String> = []
+
     // Permission flow
     private var permissionContinuation: CheckedContinuation<PermissionDecision, Never>?
 
@@ -120,6 +123,7 @@ final class CopilotService {
         toolCallServerNames.removeAll()
         tokenUsage = nil
         summaryMessageId = nil
+        discoveredMCPTools.removeAll()
         settingsStore.clearSessionPermissions()
     }
 
@@ -135,11 +139,20 @@ final class CopilotService {
         self.summaryMessageId = summaryMessageId
         toolCallStatuses.removeAll()
         toolCallServerNames.removeAll()
+        discoveredMCPTools.removeAll()
         // Restore tool call statuses — mark all as completed since they're from a saved session
+        // Also rebuild discoveredMCPTools from tool_search history
         for msg in saved where msg.role == .assistant {
             if let calls = msg.toolCalls {
                 for call in calls {
                     toolCallStatuses[call.id] = .completed
+                    if call.function.name == BuiltInTools.toolSearchName {
+                        let (query, maxResults) = Self.parseToolSearchArgs(call.function.arguments)
+                        let (_, matchedNames) = BuiltInTools.searchTools(
+                            query: query, maxResults: maxResults, in: settingsStore.mcpTools
+                        )
+                        discoveredMCPTools.formUnion(matchedNames)
+                    }
                 }
             }
         }
@@ -267,7 +280,15 @@ final class CopilotService {
         do {
             let text: String
             var imageData: Data?
-            if BuiltInTools.isBuiltIn(call.function.name) {
+            if call.function.name == BuiltInTools.toolSearchName {
+                let (query, maxResults) = Self.parseToolSearchArgs(call.function.arguments)
+                let (resultText, matchedNames) = BuiltInTools.searchTools(
+                    query: query, maxResults: maxResults, in: settingsStore.mcpTools
+                )
+                discoveredMCPTools.formUnion(matchedNames)
+                text = resultText
+                imageData = nil
+            } else if BuiltInTools.isBuiltIn(call.function.name) {
                 let result = try await BuiltInTools.execute(
                     name: call.function.name,
                     argumentsJSON: call.function.arguments
@@ -294,6 +315,16 @@ final class CopilotService {
                 toolCallId: call.id, toolName: call.function.name
             ))
         }
+    }
+
+    private static func parseToolSearchArgs(_ argumentsJSON: String) -> (query: String, maxResults: Int) {
+        guard let data = argumentsJSON.data(using: .utf8),
+              let args = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let query = args["query"] as? String else {
+            return ("", 5)
+        }
+        let maxResults = args["max_results"] as? Int ?? 5
+        return (query, maxResults)
     }
 
     // MARK: - Streaming Implementation
@@ -323,12 +354,19 @@ final class CopilotService {
         let model = settingsStore.selectedModel
         let stream: AsyncThrowingStream<SSEEvent, Error>
 
-        // Merge built-in tools with MCP tools
-        let allTools = BuiltInTools.tools + tools
+        // Merge built-in tools with MCP tools (filtered by access mode)
+        let allTools: [MCPTool]
+        if settingsStore.toolAccessMode == .loadWhenNeeded && !tools.isEmpty {
+            // Deferred mode: only include discovered MCP tools + tool_search
+            let discovered = tools.filter { discoveredMCPTools.contains($0.name) }
+            allTools = BuiltInTools.tools + [BuiltInTools.toolSearchTool] + discovered
+        } else {
+            allTools = BuiltInTools.tools + tools
+        }
 
         if Self.useResponsesAPI(model: model) {
             // Responses API path
-            let (instructions, input) = buildResponsesInput()
+            let (instructions, input) = buildResponsesInput(mcpTools: tools)
             let apiTools: [ResponsesAPITool]? = allTools.isEmpty ? nil : allTools.map { tool in
                 ResponsesAPITool(type: "function", name: tool.name,
                                  description: tool.description, parameters: tool.inputSchema)
@@ -344,7 +382,7 @@ final class CopilotService {
             stream = try await Self.openResponsesSSEStream(urlRequest: urlRequest)
         } else {
             // Chat Completions path
-            let apiMessages = buildAPIMessages()
+            let apiMessages = buildAPIMessages(mcpTools: tools)
             let apiTools = allTools.isEmpty ? nil : allTools.map { tool in
                 APITool(type: "function", function: .init(
                     name: tool.name, description: tool.description, parameters: tool.inputSchema))
@@ -533,12 +571,15 @@ final class CopilotService {
         return truncateHistoricalToolResult(content)
     }
 
-    func buildAPIMessages() -> [APIMessage] {
+    func buildAPIMessages(mcpTools: [MCPTool] = []) -> [APIMessage] {
         let (messagesToProcess, answeredToolCallIds, currentTurnToolIds) = preparedMessages()
 
         var apiMessages: [APIMessage] = [
             APIMessage(role: "system", content: systemInstructions)
         ]
+        if let notice = deferredToolsNotice(mcpTools: mcpTools) {
+            apiMessages.append(APIMessage(role: "system", content: notice))
+        }
 
         for msg in messagesToProcess {
             switch msg.role {
@@ -589,10 +630,14 @@ final class CopilotService {
 
     // MARK: - Responses API Input Builder
 
-    func buildResponsesInput() -> (instructions: String, input: [ResponsesInputItem]) {
+    func buildResponsesInput(mcpTools: [MCPTool] = []) -> (instructions: String, input: [ResponsesInputItem]) {
         let (messagesToProcess, answeredToolCallIds, currentTurnToolIds) = preparedMessages()
 
-        let instructions = systemInstructions
+        var instructions = systemInstructions
+        // Responses API only supports a single instructions field, so append here
+        if let notice = deferredToolsNotice(mcpTools: mcpTools) {
+            instructions += "\n\n" + notice
+        }
         var input: [ResponsesInputItem] = []
 
         for msg in messagesToProcess {
@@ -717,6 +762,15 @@ final class CopilotService {
     private var systemInstructions: String {
         let prompt = settingsStore.systemPrompt
         return prompt.isEmpty ? SettingsStore.defaultSystemPrompt : prompt
+    }
+
+    /// Returns a separate system message listing undiscovered MCP tools, or nil if not applicable.
+    private func deferredToolsNotice(mcpTools: [MCPTool]) -> String? {
+        guard settingsStore.toolAccessMode == .loadWhenNeeded, !mcpTools.isEmpty else { return nil }
+        let undiscovered = mcpTools.filter { !discoveredMCPTools.contains($0.name) }
+        guard !undiscovered.isEmpty else { return nil }
+        let toolList = undiscovered.map { "- \($0.name): \($0.description)" }.joined(separator: "\n")
+        return "The following MCP tools are available but not yet loaded. Use the tool_search tool to load them before calling:\n\(toolList)"
     }
 
     // MARK: - Message Management

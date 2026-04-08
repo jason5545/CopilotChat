@@ -18,6 +18,7 @@ struct SettingsView: View {
                 systemPromptSection
                 apiKeysSection
                 mcpSection
+                toolAccessModeSection
                 mcpPermissionsSection
                 aboutSection
             }
@@ -420,6 +421,40 @@ struct SettingsView: View {
                         .foregroundStyle(Color.carbonSuccess.opacity(0.7))
                 }
             }
+        }
+    }
+
+    // MARK: - Tool Access Mode Section
+
+    private var toolAccessModeSection: some View {
+        Section {
+            @Bindable var store = settingsStore
+            if settingsStore.mcpServers.isEmpty {
+                HStack(spacing: 8) {
+                    Image(systemName: "wrench.and.screwdriver")
+                        .font(.caption)
+                        .foregroundStyle(Color.carbonTextTertiary)
+                    Text("Add MCP servers to configure tool loading")
+                        .font(.carbonSans(.caption))
+                        .foregroundStyle(Color.carbonTextTertiary)
+                }
+                .listRowBackground(Color.carbonSurface)
+            } else {
+                Picker("Tool Access Mode", selection: $store.toolAccessMode) {
+                    ForEach(ToolAccessMode.allCases, id: \.self) { mode in
+                        Text(mode.label).tag(mode)
+                    }
+                }
+                .font(.carbonSans(.subheadline, weight: .medium))
+                .foregroundStyle(Color.carbonText)
+                .listRowBackground(Color.carbonSurface)
+            }
+        } header: {
+            CarbonSectionHeader(title: "Tool Loading")
+        } footer: {
+            Text(settingsStore.toolAccessMode.description)
+                .font(.carbonMono(.caption2))
+                .foregroundStyle(Color.carbonTextTertiary)
         }
     }
 
