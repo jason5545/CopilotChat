@@ -46,9 +46,8 @@ final class CopilotService {
 
     var contextWindow: Int {
         let model = availableModels.first { $0.id == settingsStore.selectedModel }
-        if let prompt = model?.maxPromptTokens { return prompt }
-        if let ctx = model?.contextWindowTokens { return Int(Double(ctx) * (1 - Self.outputReserveRatio)) }
-        return Self.defaultContextWindow
+        // Fallback covers the window before fetchModels() completes or if it fails.
+        return model?.maxPromptTokens ?? Self.defaultContextWindow
     }
 
     private let authManager: AuthManager
@@ -544,7 +543,6 @@ final class CopilotService {
     }
 
     private static let defaultContextWindow = 128_000
-    private static let outputReserveRatio = 0.2
 
     /// Max chars for historical (non-current-turn) tool results sent to the API.
     private static let maxHistoricalToolResultChars = 200
