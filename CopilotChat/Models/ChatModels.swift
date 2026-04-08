@@ -93,12 +93,14 @@ struct ChatCompletionRequest: Encodable {
     let tools: [APITool]?
     let toolChoice: String?
     let streamOptions: StreamOptions?
+    let reasoningEffort: String?
 
     enum CodingKeys: String, CodingKey {
         case model, messages, stream, temperature, tools
         case maxTokens = "max_tokens"
         case toolChoice = "tool_choice"
         case streamOptions = "stream_options"
+        case reasoningEffort = "reasoning_effort"
     }
 
     struct StreamOptions: Encodable {

@@ -87,6 +87,15 @@ struct ChatView: View {
 
     // MARK: - Messages List
 
+    private static let streamingIndicatorID = "streaming-indicator"
+
+    @State private var autoFollow = true
+    /// Keeps Text renderer briefly after stream ends so Text→MarkdownView
+    /// layout swap doesn't cause a scroll jump.
+    @State private var markdownGrace = false
+    @State private var scrollDebounceTask: Task<Void, Never>?
+    @State private var streamEndTask: Task<Void, Never>?
+
     private var messagesList: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -97,11 +106,12 @@ struct ChatView: View {
 
                     ForEach(copilotService.messages) { message in
                         let isLast = message.id == copilotService.messages.last?.id
+                        let showAsStreaming = isLast && (copilotService.isStreaming || markdownGrace)
                         MessageView(
                             message: message,
                             toolCallStatuses: copilotService.toolCallStatuses,
                             toolCallServerNames: copilotService.toolCallServerNames,
-                            isStreaming: isLast && copilotService.isStreaming,
+                            isStreaming: showAsStreaming,
                             onRetryToolCall: { toolCall in
                                 copilotService.retryToolCall(toolCall, tools: settingsStore.mcpTools)
                             },
@@ -125,13 +135,79 @@ struct ChatView: View {
             }
             .defaultScrollAnchor(.bottom)
             .scrollDismissesKeyboard(.interactively)
-            .onChange(of: copilotService.messages.count) { scrollToBottom(proxy) }
-            .onChange(of: copilotService.isStreaming) {
-                if !copilotService.isStreaming {
-                    scrollToBottom(proxy)
-                    autoSaveConversation()
+            .onScrollGeometryChange(for: Bool.self) { geo in
+                let distance = geo.contentSize.height - geo.contentOffset.y - geo.containerSize.height
+                return distance > 300
+            } action: { _, scrolledUp in
+                if scrolledUp { autoFollow = false }
+                if !scrolledUp { autoFollow = true }
+            }
+            .onChange(of: copilotService.messages.count) {
+                autoFollow = true
+                streamEndTask?.cancel()
+                scrollToBottom(proxy: proxy)
+            }
+            .onChange(of: copilotService.contentRevision) {
+                guard autoFollow else { return }
+                scrollDebounceTask?.cancel()
+                scrollDebounceTask = Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(16))
+                    scrollToBottom(proxy: proxy)
                 }
             }
+            .onChange(of: copilotService.isStreaming) {
+                if !copilotService.isStreaming {
+                    autoFollow = true
+                    scrollDebounceTask?.cancel()
+                    autoSaveConversation()
+                    markdownGrace = true
+                    streamEndTask?.cancel()
+                    streamEndTask = Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(50))
+                        guard !Task.isCancelled else { return }
+                        scrollToBottom(proxy: proxy)
+                        try? await Task.sleep(for: .milliseconds(100))
+                        guard !Task.isCancelled else { return }
+                        markdownGrace = false
+                        try? await Task.sleep(for: .milliseconds(50))
+                        guard !Task.isCancelled else { return }
+                        scrollToBottom(proxy: proxy)
+                    }
+                }
+            }
+            .onDisappear {
+                scrollDebounceTask?.cancel()
+                streamEndTask?.cancel()
+            }
+            .overlay(alignment: .bottom) {
+                if !autoFollow {
+                    Button {
+                        autoFollow = true
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            scrollToBottom(proxy: proxy)
+                        }
+                    } label: {
+                        Image(systemName: "arrow.down")
+                            .font(.caption.bold())
+                            .foregroundStyle(Color.carbonText)
+                            .frame(width: 32, height: 32)
+                            .background(Color.carbonElevated)
+                            .clipShape(Circle())
+                            .shadow(color: .black.opacity(0.4), radius: 4, y: 2)
+                    }
+                    .padding(.bottom, 10)
+                    .transition(.scale.combined(with: .opacity))
+                }
+            }
+            .animation(.easeOut(duration: 0.2), value: autoFollow)
+        }
+    }
+
+    private func scrollToBottom(proxy: ScrollViewProxy) {
+        if copilotService.isStreaming || markdownGrace {
+            proxy.scrollTo(Self.streamingIndicatorID, anchor: .bottom)
+        } else if let lastID = copilotService.messages.last?.id {
+            proxy.scrollTo(lastID, anchor: .bottom)
         }
     }
 
@@ -198,22 +274,10 @@ struct ChatView: View {
                 .font(.carbonMono(.caption2, weight: .medium))
                 .foregroundStyle(copilotService.isCompacting ? Color.carbonWarning : Color.carbonTextTertiary)
             Spacer()
-            Button {
-                copilotService.stopStreaming()
-            } label: {
-                Text("STOP")
-                    .font(.carbonMono(.caption2, weight: .bold))
-                    .kerning(0.8)
-                    .foregroundStyle(Color.carbonError)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(Color.carbonError.opacity(0.1))
-                    .clipShape(Capsule())
-            }
         }
         .padding(.horizontal, Carbon.messagePaddingH)
         .padding(.vertical, Carbon.spacingBase)
-        .id("streaming-indicator")
+        .id(Self.streamingIndicatorID)
     }
 
     // MARK: - Error Banner
@@ -233,11 +297,19 @@ struct ChatView: View {
 
     // MARK: - Input Bar
 
+    private var showThinkingChip: Bool {
+        ReasoningEffort.isSupported(model: settingsStore.selectedModel)
+    }
+
     private var inputBar: some View {
         VStack(spacing: 0) {
             Rectangle()
                 .fill(Color.carbonBorder.opacity(0.4))
                 .frame(height: 0.5)
+
+            if showThinkingChip {
+                thinkingEffortBar
+            }
 
             HStack(alignment: .bottom, spacing: 10) {
                 if !settingsStore.mcpTools.isEmpty {
@@ -260,31 +332,89 @@ struct ChatView: View {
                     .onSubmit { sendCurrentMessage() }
                     .tint(Color.carbonAccent)
 
-                Button {
-                    sendCurrentMessage()
-                } label: {
-                    Image(systemName: "arrow.up")
-                        .font(.caption.bold())
-                        .foregroundStyle(canSend ? Color.carbonBlack : Color.carbonTextTertiary)
-                        .frame(width: 28, height: 28)
-                        .background(canSend ? Color.carbonAccent : Color.carbonElevated)
-                        .clipShape(Circle())
+                if copilotService.isStreaming {
+                    Button {
+                        copilotService.stopStreaming()
+                    } label: {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.carbonError)
+                            .frame(width: 12, height: 12)
+                            .frame(width: 28, height: 28)
+                            .background(Color.carbonError.opacity(0.15))
+                            .clipShape(Circle())
+                    }
+                    .transition(.scale.combined(with: .opacity))
+                } else {
+                    Button {
+                        sendCurrentMessage()
+                    } label: {
+                        Image(systemName: "arrow.up")
+                            .font(.caption.bold())
+                            .foregroundStyle(canSend ? Color.carbonBlack : Color.carbonTextTertiary)
+                            .frame(width: 28, height: 28)
+                            .background(canSend ? Color.carbonAccent : Color.carbonElevated)
+                            .clipShape(Circle())
+                    }
+                    .disabled(!canSend)
+                    .transition(.scale.combined(with: .opacity))
                 }
-                .disabled(!canSend)
-                .animation(.easeOut(duration: 0.15), value: canSend)
             }
+            .animation(.easeOut(duration: 0.2), value: copilotService.isStreaming)
             .padding(.horizontal, Carbon.messagePaddingH)
             .padding(.vertical, Carbon.spacingRelaxed)
             .background(Color.carbonSurface)
         }
     }
 
-    private func scrollToBottom(_ proxy: ScrollViewProxy) {
-        if let last = copilotService.messages.last {
-            withAnimation(.easeOut(duration: 0.2)) {
-                proxy.scrollTo(last.id, anchor: .bottom)
+    // MARK: - Thinking Effort Bar
+
+    private var thinkingEffortBar: some View {
+        @Bindable var store = settingsStore
+        return HStack(spacing: 6) {
+            Image(systemName: "brain")
+                .font(.caption2)
+                .foregroundStyle(
+                    store.reasoningEffort == .off
+                        ? Color.carbonTextTertiary
+                        : Color.carbonAccent
+                )
+
+            Text("THINKING")
+                .font(.carbonMono(.caption2, weight: .semibold))
+                .foregroundStyle(Color.carbonTextTertiary)
+                .kerning(0.8)
+
+            ForEach(ReasoningEffort.allCases, id: \.self) { effort in
+                let isSelected = store.reasoningEffort == effort
+                Button {
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        store.reasoningEffort = effort
+                    }
+                } label: {
+                    Text(effort.label)
+                        .font(.carbonMono(.caption2, weight: isSelected ? .bold : .medium))
+                        .foregroundStyle(
+                            isSelected
+                                ? (effort == .off ? Color.carbonTextSecondary : Color.carbonBlack)
+                                : Color.carbonTextTertiary
+                        )
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            isSelected
+                                ? (effort == .off ? Color.carbonElevated : Color.carbonAccent)
+                                : Color.clear
+                        )
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
             }
+
+            Spacer()
         }
+        .padding(.horizontal, Carbon.messagePaddingH)
+        .padding(.vertical, 6)
+        .background(Color.carbonSurface)
     }
 
     private var canSend: Bool {
@@ -308,7 +438,8 @@ struct ChatView: View {
     private func startNewConversation() {
         conversationStore.startNewConversation(
             currentMessages: copilotService.messages,
-            currentSummaryId: copilotService.summaryMessageId
+            currentSummaryId: copilotService.summaryMessageId,
+            currentReasoningEffort: settingsStore.reasoningEffort
         )
         copilotService.newConversation()
     }
@@ -317,7 +448,8 @@ struct ChatView: View {
         guard !copilotService.messages.isEmpty else { return }
         conversationStore.updateCurrentConversation(
             messages: copilotService.messages,
-            summaryMessageId: copilotService.summaryMessageId
+            summaryMessageId: copilotService.summaryMessageId,
+            reasoningEffort: settingsStore.reasoningEffort
         )
     }
 }

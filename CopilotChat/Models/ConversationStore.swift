@@ -47,25 +47,25 @@ final class ConversationStore {
     }
 
     /// Save current messages (if any), then switch to another conversation and return its full state.
-    func switchToConversation(_ id: UUID, currentMessages: [ChatMessage], currentSummaryId: UUID? = nil) -> (messages: [ChatMessage], summaryMessageId: UUID?) {
-        saveCurrentIfNeeded(messages: currentMessages, summaryMessageId: currentSummaryId)
+    func switchToConversation(_ id: UUID, currentMessages: [ChatMessage], currentSummaryId: UUID? = nil, currentReasoningEffort: ReasoningEffort? = nil) -> (messages: [ChatMessage], summaryMessageId: UUID?, reasoningEffort: ReasoningEffort?) {
+        saveCurrentIfNeeded(messages: currentMessages, summaryMessageId: currentSummaryId, reasoningEffort: currentReasoningEffort)
         currentConversationId = id
         let msgs = loadMessages(for: id)
-        let summaryId = conversations.first { $0.id == id }?.summaryMessageId
-        return (msgs, summaryId)
+        let conv = conversations.first { $0.id == id }
+        return (msgs, conv?.summaryMessageId, conv?.reasoningEffort)
     }
 
     /// Save current messages (if any), then start a fresh conversation.
-    func startNewConversation(currentMessages: [ChatMessage], currentSummaryId: UUID? = nil) {
-        saveCurrentIfNeeded(messages: currentMessages, summaryMessageId: currentSummaryId)
+    func startNewConversation(currentMessages: [ChatMessage], currentSummaryId: UUID? = nil, currentReasoningEffort: ReasoningEffort? = nil) {
+        saveCurrentIfNeeded(messages: currentMessages, summaryMessageId: currentSummaryId, reasoningEffort: currentReasoningEffort)
         currentConversationId = nil
     }
 
     // MARK: - Update
 
     /// Schedule a debounced save of the current conversation's messages.
-    func updateCurrentConversation(messages: [ChatMessage], summaryMessageId: UUID? = nil) {
-        applyMessagesToCurrentConversation(messages, summaryMessageId: summaryMessageId)
+    func updateCurrentConversation(messages: [ChatMessage], summaryMessageId: UUID? = nil, reasoningEffort: ReasoningEffort? = nil) {
+        applyMessagesToCurrentConversation(messages, summaryMessageId: summaryMessageId, reasoningEffort: reasoningEffort)
 
         saveTask?.cancel()
         saveTask = Task {
@@ -78,21 +78,21 @@ final class ConversationStore {
     }
 
     /// Save immediately (e.g., before switching conversations).
-    private func saveCurrentIfNeeded(messages: [ChatMessage], summaryMessageId: UUID? = nil) {
+    private func saveCurrentIfNeeded(messages: [ChatMessage], summaryMessageId: UUID? = nil, reasoningEffort: ReasoningEffort? = nil) {
         guard !messages.isEmpty else { return }
         saveTask?.cancel()
-        applyMessagesToCurrentConversation(messages, summaryMessageId: summaryMessageId)
+        applyMessagesToCurrentConversation(messages, summaryMessageId: summaryMessageId, reasoningEffort: reasoningEffort)
         if let id = currentConversationId,
            let conv = conversations.first(where: { $0.id == id }) {
             Task { await self.saveToDisk(conv) }
         }
     }
 
-    private func applyMessagesToCurrentConversation(_ messages: [ChatMessage], summaryMessageId: UUID? = nil) {
+    private func applyMessagesToCurrentConversation(_ messages: [ChatMessage], summaryMessageId: UUID? = nil, reasoningEffort: ReasoningEffort? = nil) {
         guard let id = currentConversationId,
               let index = conversations.firstIndex(where: { $0.id == id }) else {
             if !messages.isEmpty {
-                var conv = Conversation(messages: messages, summaryMessageId: summaryMessageId)
+                var conv = Conversation(messages: messages, summaryMessageId: summaryMessageId, reasoningEffort: reasoningEffort)
                 conv.generateTitle()
                 conversations.insert(conv, at: 0)
                 currentConversationId = conv.id
@@ -104,6 +104,9 @@ final class ConversationStore {
         conversations[index].messages = messages
         conversations[index].userMessageCount = messages.filter { $0.role == .user }.count
         conversations[index].summaryMessageId = summaryMessageId
+        if conversations[index].reasoningEffort != reasoningEffort {
+            conversations[index].reasoningEffort = reasoningEffort
+        }
         conversations[index].updatedAt = Date()
 
         if conversations[index].title == Conversation.defaultTitle {

@@ -3,6 +3,7 @@ import SwiftUI
 struct ConversationHistoryView: View {
     @Environment(ConversationStore.self) private var store
     @Environment(CopilotService.self) private var copilotService
+    @Environment(SettingsStore.self) private var settingsStore
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -95,9 +96,13 @@ struct ConversationHistoryView: View {
         let result = store.switchToConversation(
             conversation.id,
             currentMessages: copilotService.messages,
-            currentSummaryId: copilotService.summaryMessageId
+            currentSummaryId: copilotService.summaryMessageId,
+            currentReasoningEffort: settingsStore.reasoningEffort
         )
         copilotService.loadMessages(result.messages, summaryMessageId: result.summaryMessageId)
+        if let effort = result.reasoningEffort {
+            settingsStore.reasoningEffort = effort
+        }
         dismiss()
     }
 }

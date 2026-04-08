@@ -27,6 +27,8 @@ final class CopilotService {
     var messages: [ChatMessage] = []
     var isStreaming = false
     var streamingError: String?
+    /// Incremented on every streaming content delta — cheap scroll trigger.
+    var contentRevision: Int = 0
     var availableModels: [ModelsResponse.ModelInfo] = []
     var toolCallStatuses: [String: ToolCallStatus] = [:]
     var toolCallServerNames: [String: String] = [:]
@@ -314,11 +316,15 @@ final class CopilotService {
                 APITool(type: "function", function: .init(
                     name: tool.name, description: tool.description, parameters: tool.inputSchema))
             }
+            let effort = settingsStore.reasoningEffort
+            let reasoningValue: String? = (ReasoningEffort.isSupported(model: model) && effort != .off)
+                ? effort.rawValue : nil
             let request = ChatCompletionRequest(
                 model: model, messages: apiMessages, stream: true,
                 maxTokens: 8192, temperature: 0.7, tools: apiTools,
                 toolChoice: apiTools != nil ? "auto" : nil,
-                streamOptions: .init(includeUsage: true)
+                streamOptions: .init(includeUsage: true),
+                reasoningEffort: reasoningValue
             )
             let requestData = try JSONEncoder().encode(request)
             let urlRequest = Self.buildURLRequest(
@@ -335,6 +341,7 @@ final class CopilotService {
             switch event {
             case .contentDelta(let text):
                 messages[index].content += text
+                contentRevision &+= 1
 
             case .toolCallDelta(let idx, let id, let name, let arguments):
                 let key = "\(idx)"
@@ -722,7 +729,8 @@ final class CopilotService {
             let request = ChatCompletionRequest(
                 model: model, messages: apiMessages, stream: false,
                 maxTokens: 4096, temperature: 0.5,
-                tools: nil, toolChoice: nil, streamOptions: nil
+                tools: nil, toolChoice: nil, streamOptions: nil,
+                reasoningEffort: nil
             )
             requestData = try JSONEncoder().encode(request)
             url = URL(string: Self.chatEndpoint)!

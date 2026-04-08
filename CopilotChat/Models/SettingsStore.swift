@@ -1,6 +1,30 @@
 import Foundation
 import Observation
 
+// MARK: - Reasoning Effort
+
+enum ReasoningEffort: String, CaseIterable, Codable, Sendable {
+    case off
+    case low
+    case medium
+    case high
+    case max
+
+    var label: String {
+        switch self {
+        case .off: "Off"
+        case .low: "Low"
+        case .medium: "Med"
+        case .high: "High"
+        case .max: "Max"
+        }
+    }
+
+    static func isSupported(model: String) -> Bool {
+        model.lowercased().contains("claude")
+    }
+}
+
 @Observable
 @MainActor
 final class SettingsStore {
@@ -8,10 +32,18 @@ final class SettingsStore {
     private static let mcpServersKey = "mcpServers"
     private static let alwaysAllowedKey = "mcpAlwaysAllowedServers"
     private static let toolOverridesKey = "mcpToolPermissionOverrides"
+    private static let reasoningEffortKey = "reasoningEffort"
     private static let defaultModel = "claude-sonnet-4-6"
 
     var selectedModel: String {
         didSet { UserDefaults.standard.set(selectedModel, forKey: Self.modelsKey) }
+    }
+
+    var reasoningEffort: ReasoningEffort {
+        didSet {
+            guard reasoningEffort != oldValue else { return }
+            UserDefaults.standard.set(reasoningEffort.rawValue, forKey: Self.reasoningEffortKey)
+        }
     }
 
     var mcpServers: [MCPServerConfig] {
@@ -52,6 +84,11 @@ final class SettingsStore {
 
     init() {
         self.selectedModel = UserDefaults.standard.string(forKey: Self.modelsKey) ?? Self.defaultModel
+        self.reasoningEffort = {
+            guard let raw = UserDefaults.standard.string(forKey: Self.reasoningEffortKey),
+                  let effort = ReasoningEffort(rawValue: raw) else { return .high }
+            return effort
+        }()
         self.mcpServers = Self.loadMCPServers()
         self.alwaysAllowedServers = Self.loadAlwaysAllowedServers()
         self.toolPermissionOverrides = Self.loadToolOverrides()
