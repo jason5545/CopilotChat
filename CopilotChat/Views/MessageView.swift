@@ -10,6 +10,7 @@ struct MessageView: View {
     let isSummary: Bool
     let onEdit: ((ChatMessage) -> Void)?
     let onRegenerate: (() -> Void)?
+    let onDelete: ((ChatMessage) -> Void)?
 
     init(
         message: ChatMessage,
@@ -20,7 +21,8 @@ struct MessageView: View {
         onPermissionDecision: ((PermissionDecision) -> Void)? = nil,
         isSummary: Bool = false,
         onEdit: ((ChatMessage) -> Void)? = nil,
-        onRegenerate: (() -> Void)? = nil
+        onRegenerate: (() -> Void)? = nil,
+        onDelete: ((ChatMessage) -> Void)? = nil
     ) {
         self.message = message
         self.toolCallStatuses = toolCallStatuses
@@ -31,6 +33,7 @@ struct MessageView: View {
         self.isSummary = isSummary
         self.onEdit = onEdit
         self.onRegenerate = onRegenerate
+        self.onDelete = onDelete
     }
 
     var body: some View {
@@ -68,7 +71,7 @@ struct MessageView: View {
                         Text(message.content)
                             .font(.carbonSans(.body))
                             .foregroundStyle(Color.carbonText)
-                            .frame(maxWidth: .infinity, alignment: .trailing)
+                            .multilineTextAlignment(.trailing)
                     }
                 }
                 .padding(.horizontal, Carbon.messagePaddingH)
@@ -79,6 +82,7 @@ struct MessageView: View {
                     RoundedRectangle(cornerRadius: Carbon.radiusLarge)
                         .stroke(Color.carbonUserBorder, lineWidth: 0.5)
                 )
+                .contextMenu { messageContextMenu() }
             }
             if let onEdit {
                 Button {
@@ -108,22 +112,16 @@ struct MessageView: View {
                         .frame(width: Carbon.accentBarWidth)
                         .padding(.vertical, 2)
 
-                    // Content
-                    Group {
-                        if isStreaming {
-                            Text(message.content)
-                                .font(.carbonSerif(.body))
-                        } else {
-                            MarkdownView(text: message.content)
-                        }
-                    }
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .foregroundStyle(Color.carbonText)
-                    .padding(.leading, Carbon.spacingRelaxed)
-                    .padding(.trailing, Carbon.spacingTight)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    // Content — use MarkdownView for both streaming and final
+                    MarkdownView(text: message.content)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .foregroundStyle(Color.carbonText)
+                        .padding(.leading, Carbon.spacingRelaxed)
+                        .padding(.trailing, Carbon.spacingTight)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .contextMenu { messageContextMenu() }
             }
 
             if let toolCalls = message.toolCalls {
@@ -132,16 +130,23 @@ struct MessageView: View {
                 }
             }
 
-            if let onRegenerate {
-                Button {
-                    onRegenerate()
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.caption2)
-                        .foregroundStyle(Color.carbonTextTertiary)
-                        .padding(4)
+            HStack(spacing: 8) {
+                if let onRegenerate {
+                    Button {
+                        onRegenerate()
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.caption2)
+                            .foregroundStyle(Color.carbonTextTertiary)
+                            .padding(4)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
+                if !isStreaming, let usage = message.tokenUsage {
+                    Text("\(formatTokenCount(usage.completionTokens)) tokens")
+                        .font(.carbonMono(.caption2))
+                        .foregroundStyle(Color.carbonTextTertiary.opacity(0.7))
+                }
             }
         }
         .padding(.horizontal, Carbon.messagePaddingH)
@@ -450,6 +455,27 @@ struct MessageView: View {
     }
 
     // MARK: - Helpers
+
+    @ViewBuilder
+    private func messageContextMenu() -> some View {
+        if !message.content.isEmpty {
+            Button {
+                Haptics.copyToClipboard(message.content)
+            } label: {
+                Label("Copy", systemImage: "doc.on.doc")
+            }
+            ShareLink(item: message.content) {
+                Label("Share", systemImage: "square.and.arrow.up")
+            }
+        }
+        if let onDelete {
+            Button(role: .destructive) {
+                onDelete(message)
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+    }
 
     private func parseArgsSummary(_ json: String) -> String? {
         guard let data = json.data(using: .utf8),

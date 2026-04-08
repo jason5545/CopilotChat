@@ -192,6 +192,9 @@ final class CopilotService {
         for _ in 0..<Self.maxToolIterations {
             try await streamCompletion(updatingAt: currentIndex, tools: tools)
 
+            // Store per-message token usage snapshot
+            messages[currentIndex].tokenUsage = tokenUsage
+
             // Check if the assistant requested tool calls
             guard let toolCalls = messages[currentIndex].toolCalls, !toolCalls.isEmpty else {
                 break
@@ -534,7 +537,7 @@ final class CopilotService {
         let (messagesToProcess, answeredToolCallIds, currentTurnToolIds) = preparedMessages()
 
         var apiMessages: [APIMessage] = [
-            APIMessage(role: "system", content: Self.systemInstructions)
+            APIMessage(role: "system", content: systemInstructions)
         ]
 
         for msg in messagesToProcess {
@@ -589,7 +592,7 @@ final class CopilotService {
     func buildResponsesInput() -> (instructions: String, input: [ResponsesInputItem]) {
         let (messagesToProcess, answeredToolCallIds, currentTurnToolIds) = preparedMessages()
 
-        let instructions = Self.systemInstructions
+        let instructions = systemInstructions
         var input: [ResponsesInputItem] = []
 
         for msg in messagesToProcess {
@@ -711,7 +714,26 @@ final class CopilotService {
 
     // MARK: - Compaction
 
-    private static let systemInstructions = "You are a helpful AI assistant. Respond in the user's language."
+    private var systemInstructions: String {
+        let prompt = settingsStore.systemPrompt
+        return prompt.isEmpty ? SettingsStore.defaultSystemPrompt : prompt
+    }
+
+    // MARK: - Message Management
+
+    func deleteMessage(_ id: UUID) {
+        guard let index = messages.firstIndex(where: { $0.id == id }) else { return }
+        let msg = messages[index]
+        // Clean up tool call statuses for removed message
+        if let calls = msg.toolCalls {
+            for call in calls {
+                toolCallStatuses.removeValue(forKey: call.id)
+                toolCallServerNames.removeValue(forKey: call.id)
+            }
+        }
+        messages.remove(at: index)
+        if summaryMessageId == id { summaryMessageId = nil }
+    }
 
     private static let summarizerInstructions = """
         You are a helpful AI assistant tasked with summarizing conversations.

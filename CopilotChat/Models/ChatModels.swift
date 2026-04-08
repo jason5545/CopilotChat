@@ -21,8 +21,11 @@ struct ChatMessage: Identifiable, Equatable, Codable {
         case tool
     }
 
+    /// Per-message token usage snapshot (stored when assistant response completes).
+    var tokenUsage: TokenUsage?
+
     enum CodingKeys: String, CodingKey {
-        case id, role, content, toolCalls, toolCallId, toolName, timestamp
+        case id, role, content, toolCalls, toolCallId, toolName, timestamp, tokenUsage
     }
 
     init(
@@ -33,7 +36,8 @@ struct ChatMessage: Identifiable, Equatable, Codable {
         toolCallId: String? = nil,
         toolName: String? = nil,
         timestamp: Date = Date(),
-        imageData: Data? = nil
+        imageData: Data? = nil,
+        tokenUsage: TokenUsage? = nil
     ) {
         self.id = id
         self.role = role
@@ -43,6 +47,7 @@ struct ChatMessage: Identifiable, Equatable, Codable {
         self.toolName = toolName
         self.timestamp = timestamp
         self.imageData = imageData
+        self.tokenUsage = tokenUsage
     }
 
     static func == (lhs: ChatMessage, rhs: ChatMessage) -> Bool {

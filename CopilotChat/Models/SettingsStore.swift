@@ -33,7 +33,9 @@ final class SettingsStore {
     private static let alwaysAllowedKey = "mcpAlwaysAllowedServers"
     private static let toolOverridesKey = "mcpToolPermissionOverrides"
     private static let reasoningEffortKey = "reasoningEffort"
+    private static let systemPromptKey = "systemPrompt"
     private static let defaultModel = "claude-sonnet-4-6"
+    static let defaultSystemPrompt = "You are a helpful AI assistant. Respond in the user's language."
 
     var selectedModel: String {
         didSet { UserDefaults.standard.set(selectedModel, forKey: Self.modelsKey) }
@@ -44,6 +46,10 @@ final class SettingsStore {
             guard reasoningEffort != oldValue else { return }
             UserDefaults.standard.set(reasoningEffort.rawValue, forKey: Self.reasoningEffortKey)
         }
+    }
+
+    var systemPrompt: String {
+        didSet { UserDefaults.standard.set(systemPrompt, forKey: Self.systemPromptKey) }
     }
 
     var mcpServers: [MCPServerConfig] {
@@ -89,6 +95,7 @@ final class SettingsStore {
                   let effort = ReasoningEffort(rawValue: raw) else { return .high }
             return effort
         }()
+        self.systemPrompt = UserDefaults.standard.string(forKey: Self.systemPromptKey) ?? Self.defaultSystemPrompt
         self.mcpServers = Self.loadMCPServers()
         self.alwaysAllowedServers = Self.loadAlwaysAllowedServers()
         self.toolPermissionOverrides = Self.loadToolOverrides()

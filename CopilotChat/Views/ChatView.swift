@@ -14,6 +14,7 @@ struct ChatView: View {
     @State private var editingMessageId: UUID?
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var attachedImageData: Data?
+    @State private var clipboardHasImage = false
     @FocusState private var isInputFocused: Bool
 
     var body: some View {
@@ -125,10 +126,17 @@ struct ChatView: View {
                             editingMessageId = msg.id
                             inputText = msg.content
                             isInputFocused = true
+                            Haptics.impact(.light)
                         },
                         onRegenerate: (!copilotService.isStreaming && message.id == regenId) ? {
                             copilotService.regenerateLastResponse(tools: settingsStore.mcpTools)
-                        } : nil
+                            Haptics.impact(.medium)
+                        } : nil,
+                        onDelete: copilotService.isStreaming ? nil : { msg in
+                            copilotService.deleteMessage(msg.id)
+                            autoSaveConversation()
+                            Haptics.notification(.success)
+                        }
                     )
                     .flippedForChat()
                     .opacity(dimmedIds.contains(message.id) ? 0.45 : 1.0)
@@ -399,8 +407,24 @@ struct ChatView: View {
                         if let data = try? await newItem?.loadTransferable(type: Data.self),
                            let uiImage = UIImage(data: data) {
                             attachedImageData = uiImage.jpegData(compressionQuality: 0.7)
+                            Haptics.impact(.light)
                         }
                         selectedPhotoItem = nil
+                    }
+                }
+
+                if clipboardHasImage && attachedImageData == nil {
+                    Button {
+                        if let image = UIPasteboard.general.image {
+                            attachedImageData = image.jpegData(compressionQuality: 0.7)
+                            clipboardHasImage = false
+                            Haptics.impact(.light)
+                        }
+                    } label: {
+                        Image(systemName: "doc.on.clipboard")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.carbonAccent)
+                            .frame(width: 28, height: 28)
                     }
                 }
 
@@ -416,6 +440,7 @@ struct ChatView: View {
                 if copilotService.isStreaming {
                     Button {
                         copilotService.stopStreaming()
+                        Haptics.impact(.medium)
                     } label: {
                         RoundedRectangle(cornerRadius: 4)
                             .fill(Color.carbonError)
@@ -444,6 +469,10 @@ struct ChatView: View {
             .padding(.horizontal, Carbon.messagePaddingH)
             .padding(.vertical, Carbon.spacingRelaxed)
             .background(Color.carbonSurface)
+            .onAppear { checkClipboard() }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+                checkClipboard()
+            }
         }
     }
 
@@ -506,10 +535,15 @@ struct ChatView: View {
             && authManager.isAuthenticated
     }
 
+    private func checkClipboard() {
+        clipboardHasImage = UIPasteboard.general.hasImages
+    }
+
     private func sendCurrentMessage() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         let imageData = attachedImageData
         guard (!text.isEmpty || imageData != nil), !copilotService.isStreaming, authManager.isAuthenticated else { return }
+        Haptics.impact(.medium)
         inputText = ""
         attachedImageData = nil
 

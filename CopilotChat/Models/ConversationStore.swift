@@ -119,6 +119,16 @@ final class ConversationStore {
         }
     }
 
+    // MARK: - Rename
+
+    func renameConversation(_ id: UUID, to newTitle: String) {
+        guard let index = conversations.firstIndex(where: { $0.id == id }) else { return }
+        conversations[index].title = newTitle
+        conversations[index].updatedAt = Date()
+        let conv = conversations[index]
+        Task { await saveToDisk(conv) }
+    }
+
     // MARK: - Delete
 
     func deleteConversation(_ id: UUID) {

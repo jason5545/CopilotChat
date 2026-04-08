@@ -4,6 +4,7 @@ struct MarkdownView: View {
     let text: String
 
     @State private var blocks: [MarkdownBlock] = []
+    @State private var parseTask: Task<Void, Never>?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -11,8 +12,22 @@ struct MarkdownView: View {
                 renderBlock(block)
             }
         }
-        .onAppear { blocks = MarkdownParser.parse(text) }
-        .onChange(of: text) { blocks = MarkdownParser.parse(text) }
+        .tint(Color.carbonAccent)
+        .onAppear { scheduleParse(text, debounce: false) }
+        .onChange(of: text) { _, newText in scheduleParse(newText, debounce: true) }
+    }
+
+    private func scheduleParse(_ input: String, debounce: Bool) {
+        parseTask?.cancel()
+        parseTask = Task {
+            if debounce {
+                try? await Task.sleep(for: .milliseconds(80))
+                guard !Task.isCancelled else { return }
+            }
+            let parsed = await Task.detached { MarkdownParser.parse(input) }.value
+            guard !Task.isCancelled else { return }
+            blocks = parsed
+        }
     }
 
     // MARK: - Renderers
@@ -26,18 +41,27 @@ struct MarkdownView: View {
 
         case .codeBlock(let language, let code):
             VStack(alignment: .leading, spacing: 0) {
-                if let language {
-                    HStack {
+                HStack {
+                    if let language {
                         Text(language.uppercased())
                             .font(.carbonMono(.caption2, weight: .semibold))
                             .foregroundStyle(Color.carbonAccent.opacity(0.7))
                             .kerning(0.6)
-                        Spacer()
                     }
-                    .padding(.horizontal, 14)
-                    .padding(.top, 10)
-                    .padding(.bottom, 2)
+                    Spacer()
+                    Button {
+                        Haptics.copyToClipboard(code)
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                            .font(.caption2)
+                            .foregroundStyle(Color.carbonTextTertiary)
+                    }
+                    .buttonStyle(.plain)
                 }
+                .padding(.horizontal, 14)
+                .padding(.top, 10)
+                .padding(.bottom, 2)
+
                 ScrollView(.horizontal, showsIndicators: false) {
                     Text(code)
                         .font(.carbonMono(.callout))

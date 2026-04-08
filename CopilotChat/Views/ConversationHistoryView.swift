@@ -6,6 +6,16 @@ struct ConversationHistoryView: View {
     @Environment(SettingsStore.self) private var settingsStore
     @Environment(\.dismiss) private var dismiss
 
+    @State private var searchText = ""
+    @State private var renamingConversation: Conversation?
+    @State private var renameText = ""
+
+    private var filteredConversations: [Conversation] {
+        guard !searchText.isEmpty else { return store.conversations }
+        let query = searchText.lowercased()
+        return store.conversations.filter { $0.title.lowercased().contains(query) }
+    }
+
     var body: some View {
         NavigationStack {
             Group {
@@ -68,7 +78,7 @@ struct ConversationHistoryView: View {
 
     private var conversationList: some View {
         List {
-            ForEach(store.conversations) { conversation in
+            ForEach(filteredConversations) { conversation in
                 Button {
                     resumeConversation(conversation)
                 } label: {
@@ -79,16 +89,41 @@ struct ConversationHistoryView: View {
                 }
                 .buttonStyle(.plain)
                 .listRowBackground(Color.carbonSurface)
-            }
-            .onDelete { indexSet in
-                for index in indexSet {
-                    store.deleteConversation(store.conversations[index].id)
+                .swipeActions(edge: .trailing) {
+                    Button(role: .destructive) {
+                        store.deleteConversation(conversation.id)
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                    Button {
+                        renameText = conversation.title
+                        renamingConversation = conversation
+                    } label: {
+                        Label("Rename", systemImage: "pencil")
+                    }
+                    .tint(Color.carbonAccent)
                 }
             }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(Color.carbonBlack)
+        .searchable(text: $searchText, prompt: "Search conversations")
+        .alert("Rename Conversation", isPresented: Binding(
+            get: { renamingConversation != nil },
+            set: { if !$0 { renamingConversation = nil } }
+        )) {
+            TextField("Title", text: $renameText)
+            Button("Cancel", role: .cancel) { renamingConversation = nil }
+            Button("Save") {
+                if let conv = renamingConversation, !renameText.trimmingCharacters(in: .whitespaces).isEmpty {
+                    store.renameConversation(conv.id, to: renameText.trimmingCharacters(in: .whitespaces))
+                }
+                renamingConversation = nil
+            }
+        } message: {
+            Text("Enter a new name for this conversation.")
+        }
     }
 
     private func resumeConversation(_ conversation: Conversation) {

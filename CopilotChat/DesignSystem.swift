@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - Carbon Design System
 // A dark, refined aesthetic for developer-focused AI chat.
@@ -193,6 +194,27 @@ func formatTokenCount(_ tokens: Int) -> String {
         return String(format: "%.0fK", Double(tokens) / 1_000)
     }
     return "\(tokens)"
+}
+
+// MARK: - Haptic Feedback
+
+enum Haptics {
+    static func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle = .medium) {
+        UIImpactFeedbackGenerator(style: style).impactOccurred()
+    }
+
+    static func notification(_ type: UINotificationFeedbackGenerator.FeedbackType) {
+        UINotificationFeedbackGenerator().notificationOccurred(type)
+    }
+
+    static func selection() {
+        UISelectionFeedbackGenerator().selectionChanged()
+    }
+
+    static func copyToClipboard(_ text: String) {
+        UIPasteboard.general.string = text
+        notification(.success)
+    }
 }
 
 // MARK: - Context Window Ring

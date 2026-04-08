@@ -15,6 +15,7 @@ struct SettingsView: View {
             List {
                 accountSection
                 modelSection
+                systemPromptSection
                 apiKeysSection
                 mcpSection
                 mcpPermissionsSection
@@ -223,6 +224,45 @@ struct SettingsView: View {
             }
         } header: {
             CarbonSectionHeader(title: "Model")
+        }
+    }
+
+    // MARK: - System Prompt Section
+
+    private var systemPromptSection: some View {
+        Section {
+            @Bindable var store = settingsStore
+            VStack(alignment: .leading, spacing: 8) {
+                TextEditor(text: $store.systemPrompt)
+                    .font(.carbonSans(.subheadline))
+                    .foregroundStyle(Color.carbonText)
+                    .frame(minHeight: 80)
+                    .scrollContentBackground(.hidden)
+                    .tint(Color.carbonAccent)
+
+                if store.systemPrompt != SettingsStore.defaultSystemPrompt {
+                    Button {
+                        store.systemPrompt = SettingsStore.defaultSystemPrompt
+                    } label: {
+                        Text("Reset to Default")
+                            .font(.carbonMono(.caption2, weight: .medium))
+                            .foregroundStyle(Color.carbonTextSecondary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.carbonElevated)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.vertical, 4)
+            .listRowBackground(Color.carbonSurface)
+        } header: {
+            CarbonSectionHeader(title: "System Prompt")
+        } footer: {
+            Text("Instructions sent to the model at the start of every conversation.")
+                .font(.carbonMono(.caption2))
+                .foregroundStyle(Color.carbonTextTertiary)
         }
     }
 
