@@ -44,10 +44,12 @@ final class CopilotService {
 
     // MARK: - Context Window
 
+    private var selectedModelInfo: ModelsResponse.ModelInfo? {
+        availableModels.first { $0.id == settingsStore.selectedModel }
+    }
+
     var contextWindow: Int {
-        let model = availableModels.first { $0.id == settingsStore.selectedModel }
-        // Fallback covers the window before fetchModels() completes or if it fails.
-        return model?.maxPromptTokens ?? Self.defaultContextWindow
+        selectedModelInfo?.maxPromptTokens ?? Self.defaultContextWindow
     }
 
     private let authManager: AuthManager
@@ -379,7 +381,7 @@ final class CopilotService {
             }
             let request = ResponsesAPIRequest(
                 model: model, instructions: instructions, input: input,
-                stream: true, maxOutputTokens: 8192, temperature: 0.7,
+                stream: true, maxOutputTokens: maxOutputTokens, temperature: 0.7,
                 tools: apiTools, toolChoice: apiTools != nil ? "auto" : nil
             )
             let requestData = try JSONEncoder().encode(request)
@@ -398,7 +400,7 @@ final class CopilotService {
                 ? effort.rawValue : nil
             let request = ChatCompletionRequest(
                 model: model, messages: apiMessages, stream: true,
-                maxTokens: 8192, temperature: 0.7, tools: apiTools,
+                maxTokens: maxOutputTokens, temperature: 0.7, tools: apiTools,
                 toolChoice: apiTools != nil ? "auto" : nil,
                 streamOptions: .init(includeUsage: true),
                 reasoningEffort: reasoningValue
@@ -543,6 +545,17 @@ final class CopilotService {
     }
 
     private static let defaultContextWindow = 128_000
+    private static let outputTokenMax = 32_000
+
+    /// Dynamic output token limit: min(model's max_output_tokens, 32k).
+    /// GPT models omit the limit (nil) to let the API decide — matches OpenCode behavior.
+    private var maxOutputTokens: Int? {
+        if settingsStore.selectedModel.lowercased().hasPrefix("gpt") { return nil }
+        if let limit = selectedModelInfo?.capabilities?.limits?.maxOutputTokens {
+            return min(limit, Self.outputTokenMax)
+        }
+        return Self.outputTokenMax
+    }
 
     /// Max chars for historical (non-current-turn) tool results sent to the API.
     private static let maxHistoricalToolResultChars = 200
