@@ -82,6 +82,12 @@ enum ToolPermissionOverride: String, Codable, Sendable {
     case alwaysDeny
 }
 
+extension Data {
+    var jpegBase64DataURL: String {
+        "data:image/jpeg;base64,\(base64EncodedString())"
+    }
+}
+
 // MARK: - API Request Types
 
 struct ChatCompletionRequest: Encodable {
@@ -482,7 +488,7 @@ struct ResponsesAPIRequest: Encodable {
 }
 
 enum ResponsesInputItem: Encodable {
-    case userMessage(content: String)
+    case userMessage(content: String, imageData: Data? = nil)
     case assistantMessage(content: String)
     case functionCall(callId: String, name: String, arguments: String)
     case functionCallOutput(callId: String, output: String)
@@ -490,9 +496,18 @@ enum ResponsesInputItem: Encodable {
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: DynamicCodingKey.self)
         switch self {
-        case .userMessage(let content):
+        case .userMessage(let content, let imageData):
             try container.encode("user", forKey: .init("role"))
-            try container.encode(content, forKey: .init("content"))
+            if let imageData {
+                var parts: [[String: String]] = []
+                if !content.isEmpty {
+                    parts.append(["type": "input_text", "text": content])
+                }
+                parts.append(["type": "input_image", "image_url": imageData.jpegBase64DataURL])
+                try container.encode(parts, forKey: .init("content"))
+            } else {
+                try container.encode(content, forKey: .init("content"))
+            }
         case .assistantMessage(let content):
             try container.encode("message", forKey: .init("type"))
             try container.encode("assistant", forKey: .init("role"))

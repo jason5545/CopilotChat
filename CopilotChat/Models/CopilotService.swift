@@ -57,10 +57,40 @@ final class CopilotService {
 
     // MARK: - Chat
 
-    func sendMessage(_ content: String, tools: [MCPTool] = []) {
-        let userMessage = ChatMessage(role: .user, content: content)
+    func sendMessage(_ content: String, imageData: Data? = nil, tools: [MCPTool] = []) {
+        let userMessage = ChatMessage(role: .user, content: content, imageData: imageData)
         messages.append(userMessage)
         startCompletionLoop(tools: tools)
+    }
+
+    func editAndResend(_ messageId: UUID, newContent: String, tools: [MCPTool] = []) {
+        stopStreaming()
+        guard let index = messages.firstIndex(where: { $0.id == messageId }) else { return }
+        truncateMessages(from: index)
+        sendMessage(newContent, tools: tools)
+    }
+
+    func regenerateLastResponse(tools: [MCPTool] = []) {
+        stopStreaming()
+        guard let lastUserIndex = messages.lastIndex(where: { $0.role == .user }) else { return }
+        truncateMessages(from: lastUserIndex + 1)
+        startCompletionLoop(tools: tools)
+    }
+
+    private func truncateMessages(from index: Int) {
+        guard index < messages.count else { return }
+        for msg in messages[index...] {
+            if let calls = msg.toolCalls {
+                for call in calls {
+                    toolCallStatuses.removeValue(forKey: call.id)
+                    toolCallServerNames.removeValue(forKey: call.id)
+                }
+            }
+        }
+        messages.removeSubrange(index...)
+        if let sid = summaryMessageId, !messages.contains(where: { $0.id == sid }) {
+            summaryMessageId = nil
+        }
     }
 
     func retryToolCall(_ call: ToolCall, tools: [MCPTool] = []) {
@@ -512,7 +542,14 @@ final class CopilotService {
             case .system:
                 continue
             case .user:
-                apiMessages.append(APIMessage(role: "user", content: msg.content))
+                if let imageData = msg.imageData {
+                    var parts: [APIContentPart] = []
+                    if !msg.content.isEmpty { parts.append(.text(msg.content)) }
+                    parts.append(.imageURL(imageData.jpegBase64DataURL))
+                    apiMessages.append(APIMessage(role: "user", content: nil, contentParts: parts))
+                } else {
+                    apiMessages.append(APIMessage(role: "user", content: msg.content))
+                }
             case .assistant:
                 // Summary message is sent as user role to provide context
                 if msg.id == summaryMessageId {
@@ -536,10 +573,7 @@ final class CopilotService {
             case .tool:
                 let content = Self.resolvedToolContent(msg.content, callId: msg.toolCallId, currentTurnToolIds: currentTurnToolIds)
                 if let imageData = msg.imageData {
-                    // Multipart tool result with image for vision models
-                    let base64 = imageData.base64EncodedString()
-                    let dataURL = "data:image/jpeg;base64,\(base64)"
-                    let parts: [APIContentPart] = [.text(content), .imageURL(dataURL)]
+                    let parts: [APIContentPart] = [.text(content), .imageURL(imageData.jpegBase64DataURL)]
                     apiMessages.append(APIMessage(role: "tool", content: nil, toolCallId: msg.toolCallId, contentParts: parts))
                 } else {
                     apiMessages.append(APIMessage(role: "tool", content: content, toolCallId: msg.toolCallId))
@@ -563,7 +597,7 @@ final class CopilotService {
             case .system:
                 continue
             case .user:
-                input.append(.userMessage(content: msg.content))
+                input.append(.userMessage(content: msg.content, imageData: msg.imageData))
             case .assistant:
                 if msg.id == summaryMessageId {
                     input.append(.userMessage(content: msg.content))
@@ -585,8 +619,7 @@ final class CopilotService {
                     var output = Self.resolvedToolContent(msg.content, callId: callId, currentTurnToolIds: currentTurnToolIds)
                     // Responses API function_call_output is text-only; append image reference if available
                     if let imageData = msg.imageData {
-                        let base64 = imageData.base64EncodedString()
-                        output += "\n\n![screenshot](data:image/jpeg;base64,\(base64))"
+                        output += "\n\n![screenshot](\(imageData.jpegBase64DataURL))"
                     }
                     input.append(.functionCallOutput(callId: callId, output: output))
                 }

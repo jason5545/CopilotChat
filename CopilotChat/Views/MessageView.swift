@@ -7,6 +7,9 @@ struct MessageView: View {
     let isStreaming: Bool
     let onRetryToolCall: ((ToolCall) -> Void)?
     let onPermissionDecision: ((PermissionDecision) -> Void)?
+    let isSummary: Bool
+    let onEdit: ((ChatMessage) -> Void)?
+    let onRegenerate: (() -> Void)?
 
     init(
         message: ChatMessage,
@@ -14,7 +17,10 @@ struct MessageView: View {
         toolCallServerNames: [String: String] = [:],
         isStreaming: Bool = false,
         onRetryToolCall: ((ToolCall) -> Void)? = nil,
-        onPermissionDecision: ((PermissionDecision) -> Void)? = nil
+        onPermissionDecision: ((PermissionDecision) -> Void)? = nil,
+        isSummary: Bool = false,
+        onEdit: ((ChatMessage) -> Void)? = nil,
+        onRegenerate: (() -> Void)? = nil
     ) {
         self.message = message
         self.toolCallStatuses = toolCallStatuses
@@ -22,6 +28,9 @@ struct MessageView: View {
         self.isStreaming = isStreaming
         self.onRetryToolCall = onRetryToolCall
         self.onPermissionDecision = onPermissionDecision
+        self.isSummary = isSummary
+        self.onEdit = onEdit
+        self.onRegenerate = onRegenerate
     }
 
     var body: some View {
@@ -29,7 +38,11 @@ struct MessageView: View {
         case .user:
             userMessage
         case .assistant:
-            assistantMessage
+            if isSummary {
+                summaryCard
+            } else {
+                assistantMessage
+            }
         case .tool:
             toolResultMessage
         case .system:
@@ -40,11 +53,24 @@ struct MessageView: View {
     // MARK: - User Message
 
     private var userMessage: some View {
-        HStack {
-            Spacer(minLength: 72)
-            Text(message.content)
-                .font(.carbonSans(.body))
-                .foregroundStyle(Color.carbonText)
+        VStack(alignment: .trailing, spacing: 2) {
+            HStack {
+                Spacer(minLength: 72)
+                VStack(alignment: .trailing, spacing: 8) {
+                    if let imageData = message.imageData, let uiImage = UIImage(data: imageData) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxWidth: 200, maxHeight: 200)
+                            .clipShape(RoundedRectangle(cornerRadius: Carbon.radiusSmall))
+                    }
+                    if !message.content.isEmpty {
+                        Text(message.content)
+                            .font(.carbonSans(.body))
+                            .foregroundStyle(Color.carbonText)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+                }
                 .padding(.horizontal, Carbon.messagePaddingH)
                 .padding(.vertical, Carbon.messagePaddingV)
                 .background(Color.carbonUserBubble)
@@ -53,6 +79,18 @@ struct MessageView: View {
                     RoundedRectangle(cornerRadius: Carbon.radiusLarge)
                         .stroke(Color.carbonUserBorder, lineWidth: 0.5)
                 )
+            }
+            if let onEdit {
+                Button {
+                    onEdit(message)
+                } label: {
+                    Image(systemName: "pencil")
+                        .font(.caption2)
+                        .foregroundStyle(Color.carbonTextTertiary)
+                        .padding(4)
+                }
+                .buttonStyle(.plain)
+            }
         }
         .padding(.horizontal, Carbon.messagePaddingH)
         .padding(.vertical, Carbon.spacingTight)
@@ -93,7 +131,58 @@ struct MessageView: View {
                     toolCallCard(call)
                 }
             }
+
+            if let onRegenerate {
+                Button {
+                    onRegenerate()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.caption2)
+                        .foregroundStyle(Color.carbonTextTertiary)
+                        .padding(4)
+                }
+                .buttonStyle(.plain)
+            }
         }
+        .padding(.horizontal, Carbon.messagePaddingH)
+        .padding(.vertical, Carbon.spacingTight)
+    }
+
+    // MARK: - Summary Card
+
+    private var summaryCard: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .font(.caption)
+                    .foregroundStyle(Color.carbonWarning)
+                Text("CONTEXT COMPACTED")
+                    .font(.carbonMono(.caption2, weight: .bold))
+                    .kerning(0.8)
+                    .foregroundStyle(Color.carbonWarning)
+                Spacer()
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(Color.carbonWarning.opacity(0.06))
+
+            Rectangle()
+                .fill(Color.carbonWarning.opacity(0.12))
+                .frame(height: 0.5)
+
+            MarkdownView(text: message.content)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .foregroundStyle(Color.carbonText)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(14)
+        }
+        .background(Color.carbonSurface)
+        .clipShape(RoundedRectangle(cornerRadius: Carbon.radiusMedium))
+        .overlay(
+            RoundedRectangle(cornerRadius: Carbon.radiusMedium)
+                .stroke(Color.carbonWarning.opacity(0.2), lineWidth: 0.5)
+        )
         .padding(.horizontal, Carbon.messagePaddingH)
         .padding(.vertical, Carbon.spacingTight)
     }

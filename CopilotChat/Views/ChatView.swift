@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 
 struct ChatView: View {
@@ -10,6 +11,9 @@ struct ChatView: View {
     @State private var showToolPicker = false
     @State private var showSettings = false
     @State private var showHistory = false
+    @State private var editingMessageId: UUID?
+    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var attachedImageData: Data?
     @FocusState private var isInputFocused: Bool
 
     var body: some View {
@@ -99,8 +103,12 @@ struct ChatView: View {
                     streamingIndicator.flippedForChat()
                 }
 
+                let dimmedIds = outOfContextIds
+                let regenId = lastAssistantId
+
                 ForEach(copilotService.messages.reversed()) { message in
                     let isLast = message.id == copilotService.messages.last?.id
+                    let isSummary = message.id == copilotService.summaryMessageId
                     MessageView(
                         message: message,
                         toolCallStatuses: copilotService.toolCallStatuses,
@@ -111,10 +119,24 @@ struct ChatView: View {
                         },
                         onPermissionDecision: { decision in
                             copilotService.resolvePermission(decision)
-                        }
+                        },
+                        isSummary: isSummary,
+                        onEdit: copilotService.isStreaming ? nil : { msg in
+                            editingMessageId = msg.id
+                            inputText = msg.content
+                            isInputFocused = true
+                        },
+                        onRegenerate: (!copilotService.isStreaming && message.id == regenId) ? {
+                            copilotService.regenerateLastResponse(tools: settingsStore.mcpTools)
+                        } : nil
                     )
                     .flippedForChat()
+                    .opacity(dimmedIds.contains(message.id) ? 0.45 : 1.0)
                     .id(message.id)
+
+                    if isSummary {
+                        compactionDivider.flippedForChat()
+                    }
                 }
 
                 if copilotService.messages.isEmpty {
@@ -244,6 +266,92 @@ struct ChatView: View {
         .padding(.vertical, Carbon.spacingBase)
     }
 
+    // MARK: - Image Preview
+
+    private func imagePreview(_ image: UIImage) -> some View {
+        HStack {
+            ZStack(alignment: .topTrailing) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 60, height: 60)
+                    .clipShape(RoundedRectangle(cornerRadius: Carbon.radiusSmall))
+
+                Button {
+                    attachedImageData = nil
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(Color.carbonText)
+                        .background(Color.carbonBlack.clipShape(Circle()))
+                }
+                .buttonStyle(.plain)
+                .offset(x: 4, y: -4)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, Carbon.messagePaddingH)
+        .padding(.vertical, 6)
+        .background(Color.carbonSurface)
+    }
+
+    // MARK: - Edit & Regenerate
+
+    private var lastAssistantId: UUID? {
+        copilotService.messages.last { $0.role == .assistant && $0.id != copilotService.summaryMessageId }?.id
+    }
+
+    private var editingIndicator: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "pencil")
+                .font(.caption2)
+            Text("EDITING")
+                .font(.carbonMono(.caption2, weight: .semibold))
+                .kerning(0.8)
+            Spacer()
+            Button {
+                editingMessageId = nil
+                inputText = ""
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(Color.carbonTextSecondary)
+            }
+            .buttonStyle(.plain)
+        }
+        .foregroundStyle(Color.carbonAccent)
+        .padding(.horizontal, Carbon.messagePaddingH)
+        .padding(.vertical, 6)
+        .background(Color.carbonSurface)
+    }
+
+    // MARK: - Compaction UX
+
+    private var outOfContextIds: Set<UUID> {
+        guard let summaryId = copilotService.summaryMessageId,
+              let summaryIndex = copilotService.messages.firstIndex(where: { $0.id == summaryId })
+        else { return [] }
+        return Set(copilotService.messages[..<summaryIndex].map(\.id))
+    }
+
+    private var compactionDivider: some View {
+        HStack(spacing: 10) {
+            Rectangle()
+                .fill(Color.carbonBorder.opacity(0.3))
+                .frame(height: 0.5)
+            Text("NOT IN CONTEXT")
+                .font(.carbonMono(.caption2, weight: .medium))
+                .foregroundStyle(Color.carbonTextTertiary)
+                .kerning(0.8)
+                .fixedSize()
+            Rectangle()
+                .fill(Color.carbonBorder.opacity(0.3))
+                .frame(height: 0.5)
+        }
+        .padding(.horizontal, Carbon.messagePaddingH)
+        .padding(.vertical, Carbon.spacingBase)
+    }
+
     // MARK: - Input Bar
 
     private var showThinkingChip: Bool {
@@ -260,6 +368,14 @@ struct ChatView: View {
                 thinkingEffortBar
             }
 
+            if editingMessageId != nil {
+                editingIndicator
+            }
+
+            if let imageData = attachedImageData, let uiImage = UIImage(data: imageData) {
+                imagePreview(uiImage)
+            }
+
             HStack(alignment: .bottom, spacing: 10) {
                 if !settingsStore.mcpTools.isEmpty {
                     Button {
@@ -269,6 +385,22 @@ struct ChatView: View {
                             .font(.subheadline)
                             .foregroundStyle(Color.carbonTextTertiary)
                             .frame(width: 28, height: 28)
+                    }
+                }
+
+                PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+                    Image(systemName: "photo")
+                        .font(.subheadline)
+                        .foregroundStyle(attachedImageData != nil ? Color.carbonAccent : Color.carbonTextTertiary)
+                        .frame(width: 28, height: 28)
+                }
+                .onChange(of: selectedPhotoItem) { _, newItem in
+                    Task {
+                        if let data = try? await newItem?.loadTransferable(type: Data.self),
+                           let uiImage = UIImage(data: data) {
+                            attachedImageData = uiImage.jpegData(compressionQuality: 0.7)
+                        }
+                        selectedPhotoItem = nil
                     }
                 }
 
@@ -367,21 +499,30 @@ struct ChatView: View {
     }
 
     private var canSend: Bool {
-        !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        && !copilotService.isStreaming
-        && authManager.isAuthenticated
+        let hasText = !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let hasImage = attachedImageData != nil
+        return (hasText || hasImage)
+            && !copilotService.isStreaming
+            && authManager.isAuthenticated
     }
 
     private func sendCurrentMessage() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, !copilotService.isStreaming, authManager.isAuthenticated else { return }
+        let imageData = attachedImageData
+        guard (!text.isEmpty || imageData != nil), !copilotService.isStreaming, authManager.isAuthenticated else { return }
         inputText = ""
+        attachedImageData = nil
 
         if conversationStore.currentConversationId == nil {
             conversationStore.createConversation()
         }
 
-        copilotService.sendMessage(text, tools: settingsStore.mcpTools)
+        if let editId = editingMessageId {
+            editingMessageId = nil
+            copilotService.editAndResend(editId, newContent: text, tools: settingsStore.mcpTools)
+        } else {
+            copilotService.sendMessage(text, imageData: imageData, tools: settingsStore.mcpTools)
+        }
     }
 
     private func startNewConversation() {
