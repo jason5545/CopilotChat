@@ -39,6 +39,9 @@ final class ProviderRegistry {
     /// Loading state
     var isLoadingProviders = false
 
+    /// OpenAI Codex OAuth
+    let codexAuth = OpenAICodexAuth()
+
     private let authManager: AuthManager
 
     init(authManager: AuthManager) {
@@ -52,15 +55,63 @@ final class ProviderRegistry {
     func loadProviders() async {
         isLoadingProviders = true
         modelsDevProviders = await ModelsDev.shared.providers()
+        modelsDevProviders.merge(Self.hardcodedProviders) { $1 }
         loadConfiguredProviders()
         isLoadingProviders = false
     }
 
     func refreshProviders() async {
         isLoadingProviders = true
-        modelsDevProviders = await ModelsDev.shared.refresh()
+        var fresh = await ModelsDev.shared.refresh()
+        fresh.merge(Self.hardcodedProviders) { $1 }
+        modelsDevProviders = fresh
         isLoadingProviders = false
     }
+
+    // MARK: - Hardcoded Providers
+
+    /// Provider entries not available from models.dev API.
+    private static let hardcodedProviders: [String: ModelsDevProvider] = {
+        let codexModels: [String: ModelsDevModel] = [
+            "codex-mini-latest": ModelsDevModel(
+                id: "codex-mini-latest", name: "Codex Mini",
+                reasoning: true, attachment: true, toolCall: true, temperature: false,
+                cost: ModelsDevCost(input: 1.5, output: 6, cacheRead: 0.375, cacheWrite: nil),
+                limit: ModelsDevLimit(context: 200_000, output: 100_000, input: nil),
+                releaseDate: "2025-05-16", status: nil
+            ),
+            "gpt-5.1-codex": ModelsDevModel(
+                id: "gpt-5.1-codex", name: "GPT-5.1 Codex",
+                reasoning: true, attachment: true, toolCall: true, temperature: false,
+                cost: ModelsDevCost(input: 1.25, output: 10, cacheRead: 0.125, cacheWrite: nil),
+                limit: ModelsDevLimit(context: 400_000, output: 128_000, input: 272_000),
+                releaseDate: "2025-11-13", status: nil
+            ),
+            "gpt-5.3-codex": ModelsDevModel(
+                id: "gpt-5.3-codex", name: "GPT-5.3 Codex",
+                reasoning: true, attachment: true, toolCall: true, temperature: false,
+                cost: ModelsDevCost(input: 1.75, output: 14, cacheRead: 0.175, cacheWrite: nil),
+                limit: ModelsDevLimit(context: 400_000, output: 128_000, input: 272_000),
+                releaseDate: "2026-02-05", status: nil
+            ),
+            "gpt-5.3-codex-spark": ModelsDevModel(
+                id: "gpt-5.3-codex-spark", name: "GPT-5.3 Codex Spark",
+                reasoning: true, attachment: true, toolCall: true, temperature: false,
+                cost: ModelsDevCost(input: 1.75, output: 14, cacheRead: 0.175, cacheWrite: nil),
+                limit: ModelsDevLimit(context: 128_000, output: 32_000, input: 100_000),
+                releaseDate: "2026-02-05", status: nil
+            ),
+        ]
+        return [
+            "openai-codex": ModelsDevProvider(
+                id: "openai-codex", name: "OpenAI Codex",
+                env: [], npm: nil,
+                api: "https://chatgpt.com/backend-api/codex",
+                doc: "https://openai.com/codex",
+                models: codexModels
+            )
+        ]
+    }()
 
     // MARK: - Provider Resolution
 
@@ -79,9 +130,15 @@ final class ProviderRegistry {
             })
         }
 
-        // Special case: OpenAI Codex (OAuth)
+        // Special case: OpenAI Codex (OAuth or API key)
         if providerId == "openai-codex" {
-            // TODO: Wire OpenAICodexAuth instance
+            if codexAuth.isAuthenticated {
+                return OpenAICodexProvider(auth: codexAuth)
+            }
+            if let mdProvider = modelsDevProviders[providerId],
+               let apiKey = loadAPIKey(for: providerId) {
+                return OpenAICompatibleProvider(provider: mdProvider, apiKey: apiKey)
+            }
             return nil
         }
 
@@ -160,9 +217,14 @@ final class ProviderRegistry {
         if authManager.isAuthenticated, let copilot = modelsDevProviders["github-copilot"] {
             result.append(copilot)
         }
+        // Show Codex if authenticated (OAuth or API key)
+        if codexAuth.isAuthenticated || loadAPIKey(for: "openai-codex") != nil,
+           let codex = modelsDevProviders["openai-codex"] {
+            result.append(codex)
+        }
         // Then configured providers
         for id in configuredProviderIds.sorted() {
-            if id == "github-copilot" { continue }
+            if id == "github-copilot" || id == "openai-codex" { continue }
             if let p = modelsDevProviders[id] { result.append(p) }
         }
         return result
@@ -217,6 +279,7 @@ final class ProviderRegistry {
 
     func hasAPIKey(for providerId: String) -> Bool {
         if providerId == "github-copilot" { return authManager.isAuthenticated }
+        if providerId == "openai-codex" { return codexAuth.isAuthenticated || loadAPIKey(for: providerId) != nil }
         return loadAPIKey(for: providerId) != nil
     }
 

@@ -240,7 +240,49 @@ struct SettingsView: View {
 
                             Spacer()
 
-                            if provider.id != "github-copilot" {
+                            if provider.id == "openai-codex" {
+                                if registry.codexAuth.isAuthenticated {
+                                    // OAuth — sign out
+                                    Button {
+                                        registry.codexAuth.signOut()
+                                    } label: {
+                                        Image(systemName: "rectangle.portrait.and.arrow.right")
+                                            .font(.caption2)
+                                            .foregroundStyle(Color.carbonTextTertiary)
+                                            .padding(6)
+                                            .background(Color.carbonElevated)
+                                            .clipShape(Circle())
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                if registry.loadAPIKey(for: provider.id) != nil {
+                                    // Also has API key — edit & remove
+                                    Button {
+                                        selectedProviderForKey = provider
+                                    } label: {
+                                        Image(systemName: "key")
+                                            .font(.caption2)
+                                            .foregroundStyle(Color.carbonTextTertiary)
+                                            .padding(6)
+                                            .background(Color.carbonElevated)
+                                            .clipShape(Circle())
+                                    }
+                                    .buttonStyle(.plain)
+
+                                    Button {
+                                        registry.removeAPIKey(for: provider.id)
+                                    } label: {
+                                        Image(systemName: "trash")
+                                            .font(.caption2)
+                                            .foregroundStyle(Color.carbonTextTertiary)
+                                            .padding(6)
+                                            .background(Color.carbonElevated)
+                                            .clipShape(Circle())
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            } else if provider.id != "github-copilot" {
+                                // API key provider — edit key & remove
                                 Button {
                                     selectedProviderForKey = provider
                                 } label: {
@@ -1295,6 +1337,67 @@ struct ProviderPickerView: View {
                 .listRowBackground(Color.carbonSurface)
             } header: {
                 CarbonSectionHeader(title: "API Key")
+            }
+
+            // OAuth option (for providers that support it)
+            if provider.id == "openai-codex" {
+                Section {
+                    if registry?.codexAuth.isAuthenticating == true {
+                        HStack(spacing: 10) {
+                            ProgressView()
+                                .tint(Color.carbonAccent)
+                                .scaleEffect(0.8)
+                            VStack(alignment: .leading, spacing: 2) {
+                                if let code = registry?.codexAuth.deviceUserCode {
+                                    Text("Code: \(code)")
+                                        .font(.carbonMono(.subheadline, weight: .bold))
+                                        .foregroundStyle(Color.carbonAccent)
+                                    Text("Copied to clipboard — paste it in the browser")
+                                        .font(.carbonMono(.caption2))
+                                        .foregroundStyle(Color.carbonTextTertiary)
+                                } else {
+                                    Text("Starting OAuth flow...")
+                                        .font(.carbonSans(.subheadline))
+                                        .foregroundStyle(Color.carbonTextSecondary)
+                                }
+                            }
+                        }
+                        .listRowBackground(Color.carbonSurface)
+                    } else {
+                        Button {
+                            Task {
+                                await registry?.codexAuth.startDeviceFlow()
+                                if registry?.codexAuth.isAuthenticated == true {
+                                    registry?.activeProviderId = provider.id
+                                    dismiss()
+                                }
+                            }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Spacer()
+                                Image(systemName: "person.badge.key")
+                                    .font(.subheadline.weight(.medium))
+                                Text("Sign in with OpenAI")
+                                    .font(.carbonSans(.subheadline, weight: .semibold))
+                                Spacer()
+                            }
+                            .foregroundStyle(Color.carbonBlack)
+                            .padding(.vertical, 6)
+                            .background(Color.carbonAccent)
+                            .clipShape(RoundedRectangle(cornerRadius: Carbon.radiusSmall))
+                        }
+                        .listRowBackground(Color.carbonSurface)
+                    }
+
+                    if let error = registry?.codexAuth.authError {
+                        Text(error)
+                            .font(.carbonMono(.caption2))
+                            .foregroundStyle(Color.carbonWarning)
+                            .listRowBackground(Color.carbonSurface)
+                    }
+                } header: {
+                    CarbonSectionHeader(title: "Or Sign In")
+                }
             }
 
             // Model preview

@@ -1,0 +1,121 @@
+{
+  "" : {
+    "const-values" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/CopilotChat-primary.swiftconstvalues",
+    "dependencies" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/CopilotChat-primary.d",
+    "diagnostics" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/CopilotChat-primary.dia",
+    "emit-module-dependencies" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/CopilotChat-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/CopilotChat-primary-emit-module.dia",
+    "pch" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/CopilotChat-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/CopilotChat-primary.swiftdeps"
+  },
+  "/Users/jianruicheng/GitHub/CopilotChat/CopilotChat/ContentView.swift" : {
+    "index-unit-output-path" : "/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/ContentView.o",
+    "llvm-bc" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/ContentView.bc",
+    "object" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/ContentView.o"
+  },
+  "/Users/jianruicheng/GitHub/CopilotChat/CopilotChat/CopilotChatApp.swift" : {
+    "index-unit-output-path" : "/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/CopilotChatApp.o",
+    "llvm-bc" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/CopilotChatApp.bc",
+    "object" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/CopilotChatApp.o"
+  },
+  "/Users/jianruicheng/GitHub/CopilotChat/CopilotChat/DesignSystem.swift" : {
+    "index-unit-output-path" : "/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/DesignSystem.o",
+    "llvm-bc" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/DesignSystem.bc",
+    "object" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/DesignSystem.o"
+  },
+  "/Users/jianruicheng/GitHub/CopilotChat/CopilotChat/Models/AuthManager.swift" : {
+    "index-unit-output-path" : "/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/AuthManager.o",
+    "llvm-bc" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/AuthManager.bc",
+    "object" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/AuthManager.o"
+  },
+  "/Users/jianruicheng/GitHub/CopilotChat/CopilotChat/Models/BuiltInTools.swift" : {
+    "index-unit-output-path" : "/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/BuiltInTools.o",
+    "llvm-bc" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/BuiltInTools.bc",
+    "object" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/BuiltInTools.o"
+  },
+  "/Users/jianruicheng/GitHub/CopilotChat/CopilotChat/Models/ChatModels.swift" : {
+    "index-unit-output-path" : "/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/ChatModels.o",
+    "llvm-bc" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/ChatModels.bc",
+    "object" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/ChatModels.o"
+  },
+  "/Users/jianruicheng/GitHub/CopilotChat/CopilotChat/Models/Conversation.swift" : {
+    "index-unit-output-path" : "/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/Conversation.o",
+    "llvm-bc" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/Conversation.bc",
+    "object" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/Conversation.o"
+  },
+  "/Users/jianruicheng/GitHub/CopilotChat/CopilotChat/Models/ConversationStore.swift" : {
+    "index-unit-output-path" : "/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/ConversationStore.o",
+    "llvm-bc" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/ConversationStore.bc",
+    "object" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/ConversationStore.o"
+  },
+  "/Users/jianruicheng/GitHub/CopilotChat/CopilotChat/Models/CopilotService.swift" : {
+    "index-unit-output-path" : "/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/CopilotService.o",
+    "llvm-bc" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/CopilotService.bc",
+    "object" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/CopilotService.o"
+  },
+  "/Users/jianruicheng/GitHub/CopilotChat/CopilotChat/Models/MCPClient.swift" : {
+    "index-unit-output-path" : "/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/MCPClient.o",
+    "llvm-bc" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/MCPClient.bc",
+    "object" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/MCPClient.o"
+  },
+  "/Users/jianruicheng/GitHub/CopilotChat/CopilotChat/Models/MarkdownParser.swift" : {
+    "index-unit-output-path" : "/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/MarkdownParser.o",
+    "llvm-bc" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/MarkdownParser.bc",
+    "object" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/MarkdownParser.o"
+  },
+  "/Users/jianruicheng/GitHub/CopilotChat/CopilotChat/Models/SettingsStore.swift" : {
+    "index-unit-output-path" : "/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/SettingsStore.o",
+    "llvm-bc" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/SettingsStore.bc",
+    "object" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/SettingsStore.o"
+  },
+  "/Users/jianruicheng/GitHub/CopilotChat/CopilotChat/Models/WebFetchService.swift" : {
+    "index-unit-output-path" : "/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/WebFetchService.o",
+    "llvm-bc" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/WebFetchService.bc",
+    "object" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/WebFetchService.o"
+  },
+  "/Users/jianruicheng/GitHub/CopilotChat/CopilotChat/Utilities/KeychainHelper.swift" : {
+    "index-unit-output-path" : "/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/KeychainHelper.o",
+    "llvm-bc" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/KeychainHelper.bc",
+    "object" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/KeychainHelper.o"
+  },
+  "/Users/jianruicheng/GitHub/CopilotChat/CopilotChat/Views/ChatView.swift" : {
+    "index-unit-output-path" : "/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/ChatView.o",
+    "llvm-bc" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/ChatView.bc",
+    "object" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/ChatView.o"
+  },
+  "/Users/jianruicheng/GitHub/CopilotChat/CopilotChat/Views/ConversationHistoryView.swift" : {
+    "index-unit-output-path" : "/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/ConversationHistoryView.o",
+    "llvm-bc" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/ConversationHistoryView.bc",
+    "object" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/ConversationHistoryView.o"
+  },
+  "/Users/jianruicheng/GitHub/CopilotChat/CopilotChat/Views/MCPSettingsView.swift" : {
+    "index-unit-output-path" : "/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/MCPSettingsView.o",
+    "llvm-bc" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/MCPSettingsView.bc",
+    "object" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/MCPSettingsView.o"
+  },
+  "/Users/jianruicheng/GitHub/CopilotChat/CopilotChat/Views/MarkdownView.swift" : {
+    "index-unit-output-path" : "/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/MarkdownView.o",
+    "llvm-bc" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/MarkdownView.bc",
+    "object" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/MarkdownView.o"
+  },
+  "/Users/jianruicheng/GitHub/CopilotChat/CopilotChat/Views/MessageView.swift" : {
+    "index-unit-output-path" : "/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/MessageView.o",
+    "llvm-bc" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/MessageView.bc",
+    "object" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/MessageView.o"
+  },
+  "/Users/jianruicheng/GitHub/CopilotChat/CopilotChat/Views/ModelPickerView.swift" : {
+    "index-unit-output-path" : "/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/ModelPickerView.o",
+    "llvm-bc" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/ModelPickerView.bc",
+    "object" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/ModelPickerView.o"
+  },
+  "/Users/jianruicheng/GitHub/CopilotChat/CopilotChat/Views/SettingsView.swift" : {
+    "index-unit-output-path" : "/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/SettingsView.o",
+    "llvm-bc" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/SettingsView.bc",
+    "object" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/SettingsView.o"
+  },
+  "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/DerivedSources/GeneratedAssetSymbols.swift" : {
+    "index-unit-output-path" : "/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "llvm-bc" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/GeneratedAssetSymbols.bc",
+    "object" : "/Users/jianruicheng/GitHub/CopilotChat/build/CopilotChat.build/Release-iphoneos/CopilotChat.build/Objects-normal/arm64/GeneratedAssetSymbols.o"
+  }
+}
