@@ -383,7 +383,19 @@ struct ChatView: View {
     // MARK: - Input Bar
 
     private var showThinkingChip: Bool {
-        ReasoningEffort.isSupported(model: settingsStore.selectedModel)
+        !availableEffortLevels.isEmpty
+    }
+
+    /// Effort levels available for the current model/provider, from ProviderTransform.
+    private var availableEffortLevels: [ReasoningEffort] {
+        let modelId = copilotService.providerRegistry?.activeModelId
+            ?? settingsStore.selectedModel
+        let registry = copilotService.providerRegistry
+        let providerId = registry?.activeProviderId ?? ""
+        let mdProvider = registry?.modelsDevProviders[providerId]
+        let efforts = ProviderTransform.availableEfforts(
+            modelId: modelId, npm: mdProvider?.npm, model: mdProvider?.models[modelId])
+        return efforts.isEmpty ? [] : [.off] + efforts
     }
 
     private var inputBar: some View {
@@ -500,51 +512,102 @@ struct ChatView: View {
 
     private var thinkingEffortBar: some View {
         @Bindable var store = settingsStore
-        return HStack(spacing: 6) {
-            Image(systemName: "brain")
-                .font(.caption2)
-                .foregroundStyle(
-                    store.reasoningEffort == .off
-                        ? Color.carbonTextTertiary
-                        : Color.carbonAccent
-                )
+        let levels = availableEffortLevels
+        let isActive = store.reasoningEffort != .off
+        let activeEfforts = levels.filter { $0 != .off }
 
-            Text("THINKING")
-                .font(.carbonMono(.caption2, weight: .semibold))
-                .foregroundStyle(Color.carbonTextTertiary)
-                .kerning(0.8)
+        return HStack(spacing: 0) {
+            thinkingToggleButton(isActive: isActive, activeEfforts: activeEfforts)
 
-            ForEach(ReasoningEffort.allCases, id: \.self) { effort in
-                let isSelected = store.reasoningEffort == effort
-                Button {
-                    withAnimation(.easeOut(duration: 0.15)) {
-                        store.reasoningEffort = effort
-                    }
-                } label: {
-                    Text(effort.label)
-                        .font(.carbonMono(.caption2, weight: isSelected ? .bold : .medium))
-                        .foregroundStyle(
-                            isSelected
-                                ? (effort == .off ? Color.carbonTextSecondary : Color.carbonBlack)
-                                : Color.carbonTextTertiary
-                        )
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(
-                            isSelected
-                                ? (effort == .off ? Color.carbonElevated : Color.carbonAccent)
-                                : Color.clear
-                        )
-                        .clipShape(Capsule())
-                }
-                .buttonStyle(.plain)
+            if isActive {
+                effortSegments(activeEfforts: activeEfforts)
             }
 
             Spacer()
         }
         .padding(.horizontal, Carbon.messagePaddingH)
-        .padding(.vertical, 6)
+        .padding(.vertical, 5)
         .background(Color.carbonSurface)
+        .onChange(of: levels) {
+            if !levels.contains(store.reasoningEffort) {
+                store.reasoningEffort = .off
+            }
+        }
+    }
+
+    private func thinkingToggleButton(
+        isActive: Bool, activeEfforts: [ReasoningEffort]
+    ) -> some View {
+        Button {
+            withAnimation(.easeOut(duration: 0.2)) {
+                if isActive {
+                    settingsStore.reasoningEffort = .off
+                } else {
+                    let fallback: ReasoningEffort = activeEfforts.contains(.medium) ? .medium
+                        : (activeEfforts.contains(.high) ? .high : activeEfforts.first ?? .off)
+                    settingsStore.reasoningEffort = fallback
+                }
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "brain.head.profile")
+                    .font(.system(size: 11, weight: .medium))
+                if !isActive {
+                    Text("THINK")
+                        .font(.carbonMono(.caption2, weight: .semibold))
+                        .kerning(0.6)
+                }
+            }
+            .foregroundStyle(isActive ? Color.carbonBlack : Color.carbonTextTertiary)
+            .padding(.horizontal, isActive ? 7 : 10)
+            .padding(.vertical, 5)
+            .background(isActive ? Color.carbonAccent : Color.carbonElevated)
+            .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func effortSegments(
+        activeEfforts: [ReasoningEffort]
+    ) -> some View {
+        HStack(spacing: 2) {
+            ForEach(activeEfforts, id: \.self) { effort in
+                effortButton(effort: effort, activeEfforts: activeEfforts)
+            }
+        }
+        .clipShape(Capsule())
+        .overlay(Capsule().stroke(Color.carbonBorder.opacity(0.5), lineWidth: 0.5))
+        .padding(.leading, 6)
+        .transition(.asymmetric(
+            insertion: .move(edge: .leading).combined(with: .opacity),
+            removal: .opacity
+        ))
+    }
+
+    private func effortButton(
+        effort: ReasoningEffort, activeEfforts: [ReasoningEffort]
+    ) -> some View {
+        let isSelected = settingsStore.reasoningEffort == effort
+        let idx = activeEfforts.firstIndex(of: effort) ?? 0
+        let total = activeEfforts.count
+        let intensity = Double(idx) / Double(max(total - 1, 1))
+
+        return Button {
+            withAnimation(.easeOut(duration: 0.15)) {
+                settingsStore.reasoningEffort = effort
+                Haptics.impact(.light)
+            }
+        } label: {
+            Text(effort.label)
+                .font(.carbonMono(.caption2, weight: isSelected ? .bold : .medium))
+                .kerning(0.3)
+                .foregroundStyle(isSelected ? Color.carbonBlack : Color.carbonTextTertiary)
+                .frame(minWidth: 28)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 5)
+                .background(isSelected ? Color.carbonAccent : Color.carbonAccent.opacity(0.04 + intensity * 0.08))
+        }
+        .buttonStyle(.plain)
     }
 
     private var canSend: Bool {
@@ -593,7 +656,10 @@ struct ChatView: View {
         conversationStore.updateCurrentConversation(
             messages: copilotService.messages,
             summaryMessageId: copilotService.summaryMessageId,
-            reasoningEffort: settingsStore.reasoningEffort
+            reasoningEffort: settingsStore.reasoningEffort,
+            autoTitle: copilotService.autoGeneratedTitle,
+            providerId: copilotService.providerRegistry?.activeProviderId,
+            modelId: copilotService.providerRegistry?.activeModelId
         )
     }
 }

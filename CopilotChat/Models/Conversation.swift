@@ -9,6 +9,8 @@ struct Conversation: Identifiable, Codable {
     var userMessageCount: Int
     var summaryMessageId: UUID?
     var reasoningEffort: ReasoningEffort?
+    var providerId: String?
+    var modelId: String?
     let createdAt: Date
     var updatedAt: Date
 
@@ -18,6 +20,8 @@ struct Conversation: Identifiable, Codable {
         messages: [ChatMessage] = [],
         summaryMessageId: UUID? = nil,
         reasoningEffort: ReasoningEffort? = nil,
+        providerId: String? = nil,
+        modelId: String? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
@@ -27,13 +31,22 @@ struct Conversation: Identifiable, Codable {
         self.userMessageCount = messages.filter { $0.role == .user }.count
         self.summaryMessageId = summaryMessageId
         self.reasoningEffort = reasoningEffort
+        self.providerId = providerId
+        self.modelId = modelId
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
 
+    /// Fallback title from first user message. Prefer LLM-generated title via `setTitle(_:)`.
     mutating func generateTitle() {
         guard let firstUserMessage = messages.first(where: { $0.role == .user }) else { return }
         let text = firstUserMessage.content
         title = text.count > 50 ? String(text.prefix(50)) + "..." : text
+    }
+
+    /// Set an LLM-generated title.
+    mutating func setTitle(_ newTitle: String) {
+        guard !newTitle.isEmpty else { return }
+        title = newTitle
     }
 }

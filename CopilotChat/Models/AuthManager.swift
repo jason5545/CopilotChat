@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import UIKit
 
 @Observable
 @MainActor
@@ -65,6 +66,12 @@ final class AuthManager {
             let deviceCode = try await requestDeviceCode()
             deviceFlowUserCode = deviceCode.userCode
             deviceFlowVerificationURL = deviceCode.verificationUri
+
+            // Auto-copy code to clipboard and open browser
+            UIPasteboard.general.string = deviceCode.userCode
+            if let url = URL(string: deviceCode.verificationUri) {
+                await UIApplication.shared.open(url)
+            }
 
             let token = try await pollForAccessToken(deviceCode: deviceCode)
             saveToken(token)

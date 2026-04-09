@@ -138,6 +138,13 @@ struct ConversationHistoryView: View {
         if let effort = result.reasoningEffort {
             settingsStore.reasoningEffort = effort
         }
+        // Restore provider/model if conversation has them
+        if let providerId = result.providerId, let registry = copilotService.providerRegistry {
+            registry.activeProviderId = providerId
+        }
+        if let modelId = result.modelId, let registry = copilotService.providerRegistry {
+            registry.activeModelId = modelId
+        }
         dismiss()
     }
 }

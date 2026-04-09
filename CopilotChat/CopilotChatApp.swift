@@ -6,6 +6,7 @@ struct CopilotChatApp: App {
     @State private var settingsStore = SettingsStore()
     @State private var conversationStore = ConversationStore()
     @State private var copilotService: CopilotService?
+    @State private var providerRegistry: ProviderRegistry?
 
     var body: some Scene {
         WindowGroup {
@@ -26,7 +27,15 @@ struct CopilotChatApp: App {
             }
             .task {
                 if copilotService == nil {
-                    copilotService = CopilotService(authManager: authManager, settingsStore: settingsStore)
+                    let registry = ProviderRegistry(authManager: authManager)
+                    providerRegistry = registry
+
+                    let service = CopilotService(authManager: authManager, settingsStore: settingsStore)
+                    service.setProviderRegistry(registry)
+                    copilotService = service
+
+                    // Load models.dev providers in background
+                    await registry.loadProviders()
                 }
             }
             .preferredColorScheme(.dark)

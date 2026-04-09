@@ -113,17 +113,50 @@ struct ChatCompletionRequest: Encodable {
     let stream: Bool
     let maxTokens: Int?
     let temperature: Double?
+    let topP: Double?
+    let topK: Int?
     let tools: [APITool]?
     let toolChoice: String?
     let streamOptions: StreamOptions?
     let reasoningEffort: String?
+    /// Provider-specific extra fields (e.g., thinking, enable_thinking, thinkingConfig)
+    let extraFields: [String: AnyCodable]?
 
-    enum CodingKeys: String, CodingKey {
-        case model, messages, stream, temperature, tools
-        case maxTokens = "max_tokens"
-        case toolChoice = "tool_choice"
-        case streamOptions = "stream_options"
-        case reasoningEffort = "reasoning_effort"
+    init(
+        model: String, messages: [APIMessage], stream: Bool,
+        maxTokens: Int? = nil, temperature: Double? = nil,
+        topP: Double? = nil, topK: Int? = nil,
+        tools: [APITool]? = nil, toolChoice: String? = nil,
+        streamOptions: StreamOptions? = nil, reasoningEffort: String? = nil,
+        extraFields: [String: AnyCodable]? = nil
+    ) {
+        self.model = model; self.messages = messages; self.stream = stream
+        self.maxTokens = maxTokens; self.temperature = temperature
+        self.topP = topP; self.topK = topK
+        self.tools = tools; self.toolChoice = toolChoice
+        self.streamOptions = streamOptions; self.reasoningEffort = reasoningEffort
+        self.extraFields = extraFields
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: DynamicCodingKey.self)
+        try container.encode(model, forKey: .init("model"))
+        try container.encode(messages, forKey: .init("messages"))
+        try container.encode(stream, forKey: .init("stream"))
+        try container.encodeIfPresent(maxTokens, forKey: .init("max_tokens"))
+        try container.encodeIfPresent(temperature, forKey: .init("temperature"))
+        try container.encodeIfPresent(topP, forKey: .init("top_p"))
+        try container.encodeIfPresent(topK, forKey: .init("top_k"))
+        try container.encodeIfPresent(tools, forKey: .init("tools"))
+        try container.encodeIfPresent(toolChoice, forKey: .init("tool_choice"))
+        try container.encodeIfPresent(streamOptions, forKey: .init("stream_options"))
+        try container.encodeIfPresent(reasoningEffort, forKey: .init("reasoning_effort"))
+        // Encode extra provider-specific fields at the top level
+        if let extra = extraFields {
+            for (key, value) in extra {
+                try container.encode(value, forKey: .init(key))
+            }
+        }
     }
 
     struct StreamOptions: Encodable {
@@ -132,6 +165,15 @@ struct ChatCompletionRequest: Encodable {
         enum CodingKeys: String, CodingKey {
             case includeUsage = "include_usage"
         }
+    }
+
+    /// Dynamic coding key for encoding provider-specific fields.
+    private struct DynamicCodingKey: CodingKey {
+        var stringValue: String
+        var intValue: Int? { nil }
+        init(_ key: String) { self.stringValue = key }
+        init?(stringValue: String) { self.stringValue = stringValue }
+        init?(intValue: Int) { return nil }
     }
 }
 
@@ -202,12 +244,12 @@ enum APIContentPart: Encodable {
     }
 }
 
-struct APIToolCall: Encodable {
+struct APIToolCall: Codable {
     let id: String
     let type: String
     let function: APIFunctionCall
 
-    struct APIFunctionCall: Encodable {
+    struct APIFunctionCall: Codable {
         let name: String
         let arguments: String
     }
@@ -344,21 +386,36 @@ struct ModelsResponse: Decodable {
     }
 }
 
-// MARK: - Non-Streaming Response (for compaction)
+// MARK: - Non-Streaming Response (shared by all OpenAI-compatible providers)
 
-struct NonStreamingResponse: Decodable {
+struct OpenAIChatResponse: Decodable {
     let choices: [Choice]
     let usage: TokenUsage?
 
     struct Choice: Decodable {
         let message: Message
+        let finishReason: String?
 
-        struct Message: Decodable {
-            let role: String
-            let content: String?
+        enum CodingKeys: String, CodingKey {
+            case message
+            case finishReason = "finish_reason"
+        }
+    }
+
+    struct Message: Decodable {
+        let role: String?
+        let content: String?
+        let toolCalls: [APIToolCall]?
+
+        enum CodingKeys: String, CodingKey {
+            case role, content
+            case toolCalls = "tool_calls"
         }
     }
 }
+
+/// Legacy alias
+typealias NonStreamingResponse = OpenAIChatResponse
 
 // MARK: - Device Flow Types
 

@@ -9,11 +9,15 @@ struct SettingsView: View {
     @State private var showAddMCPServer = false
     @State private var braveAPIKeyInput = ""
     @State private var isBraveKeyVisible = false
+    @State private var showProviderPicker = false
+    @State private var providerAPIKeyInput = ""
+    @State private var selectedProviderForKey: ModelsDevProvider?
 
     var body: some View {
         NavigationStack {
             List {
                 accountSection
+                providerSection
                 modelSection
                 systemPromptSection
                 apiKeysSection
@@ -179,6 +183,118 @@ struct SettingsView: View {
             }
         } header: {
             CarbonSectionHeader(title: "Account")
+        }
+    }
+
+    // MARK: - Provider Section
+
+    private var providerSection: some View {
+        Section {
+            if let registry = copilotService.providerRegistry {
+                // Configured providers
+                ForEach(registry.configuredProviders) { provider in
+                    let isActive = registry.activeProviderId == provider.id
+                    Button {
+                        registry.activeProviderId = provider.id
+                    } label: {
+                        HStack(spacing: 12) {
+                            // Radio indicator with subtle glow when active
+                            ZStack {
+                                Circle()
+                                    .stroke(isActive ? Color.carbonAccent : Color.carbonBorder, lineWidth: 1.5)
+                                    .frame(width: 18, height: 18)
+                                if isActive {
+                                    Circle()
+                                        .fill(Color.carbonAccent)
+                                        .frame(width: 10, height: 10)
+                                }
+                            }
+
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(provider.name)
+                                    .font(.carbonSans(.subheadline, weight: .medium))
+                                    .foregroundStyle(isActive ? Color.carbonText : Color.carbonTextSecondary)
+                                HStack(spacing: 6) {
+                                    Text("\(provider.models.count) MODELS")
+                                        .font(.carbonMono(.caption2, weight: .medium))
+                                        .kerning(0.4)
+                                        .foregroundStyle(Color.carbonTextTertiary)
+                                    if provider.isCodingPlan {
+                                        Text("CODING PLAN")
+                                            .font(.carbonMono(.caption2, weight: .bold))
+                                            .kerning(0.3)
+                                            .foregroundStyle(Color.carbonAccent)
+                                            .padding(.horizontal, 5)
+                                            .padding(.vertical, 1)
+                                            .background(Color.carbonAccentMuted)
+                                            .clipShape(RoundedRectangle(cornerRadius: 3))
+                                    }
+                                }
+                            }
+
+                            Spacer()
+
+                            if provider.id != "github-copilot" {
+                                Button {
+                                    registry.removeAPIKey(for: provider.id)
+                                } label: {
+                                    Image(systemName: "trash")
+                                        .font(.caption2)
+                                        .foregroundStyle(Color.carbonTextTertiary)
+                                        .padding(6)
+                                        .background(Color.carbonElevated)
+                                        .clipShape(Circle())
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                    .listRowBackground(
+                        isActive
+                            ? Color.carbonAccent.opacity(0.06)
+                            : Color.carbonSurface
+                    )
+                }
+
+                // Add provider
+                Button {
+                    showProviderPicker = true
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "plus")
+                            .font(.caption)
+                            .fontWeight(.bold)
+                            .foregroundStyle(Color.carbonBlack)
+                            .frame(width: 18, height: 18)
+                            .background(Color.carbonAccent)
+                            .clipShape(Circle())
+                        Text("Add Provider")
+                            .font(.carbonSans(.subheadline, weight: .medium))
+                            .foregroundStyle(Color.carbonAccent)
+                        Spacer()
+                        Text("120+")
+                            .font(.carbonMono(.caption2, weight: .medium))
+                            .foregroundStyle(Color.carbonTextTertiary)
+                    }
+                }
+                .listRowBackground(Color.carbonSurface)
+            } else {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .tint(Color.carbonAccent)
+                        .scaleEffect(0.7)
+                    Text("Loading providers...")
+                        .font(.carbonMono(.caption))
+                        .foregroundStyle(Color.carbonTextTertiary)
+                }
+                .listRowBackground(Color.carbonSurface)
+            }
+        } header: {
+            CarbonSectionHeader(title: "Provider")
+        }
+        .sheet(isPresented: $showProviderPicker) {
+            ProviderPickerSheet(registry: copilotService.providerRegistry)
         }
     }
 
@@ -897,6 +1013,307 @@ struct MCPServerEditView: View {
                             .foregroundStyle(Color.carbonAccent)
                     }
                     .disabled(name.isEmpty || url.isEmpty)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Provider Picker Sheet
+
+struct ProviderPickerSheet: View {
+    let registry: ProviderRegistry?
+    @Environment(\.dismiss) private var dismiss
+    @State private var searchText = ""
+    @State private var apiKeyInput = ""
+    @State private var selectedProvider: ModelsDevProvider?
+    @State private var isKeyVisible = false
+
+    private var filteredProviders: [ModelsDevProvider] {
+        guard let registry else { return [] }
+        let all = registry.allProvidersSorted
+        if searchText.isEmpty { return all }
+        return all.filter {
+            $0.name.localizedCaseInsensitiveContains(searchText) ||
+            $0.id.localizedCaseInsensitiveContains(searchText)
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if let selected = selectedProvider {
+                    apiKeyEntryView(for: selected)
+                } else {
+                    providerListView
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(Color.carbonBlack)
+            .toolbarBackground(Color.carbonSurface, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text(selectedProvider != nil ? "CONNECT" : "PROVIDERS")
+                        .font(.carbonMono(.caption, weight: .bold))
+                        .kerning(2.5)
+                        .foregroundStyle(Color.carbonText)
+                }
+                ToolbarItem(placement: .topBarLeading) {
+                    if selectedProvider != nil {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                selectedProvider = nil
+                                apiKeyInput = ""
+                                isKeyVisible = false
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "chevron.left")
+                                    .font(.caption2.weight(.semibold))
+                                Text("Back")
+                            }
+                            .font(.carbonSans(.subheadline))
+                            .foregroundStyle(Color.carbonAccent)
+                        }
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                        .font(.carbonSans(.subheadline, weight: .medium))
+                        .foregroundStyle(Color.carbonAccent)
+                }
+            }
+        }
+    }
+
+    // MARK: - Provider List
+
+    private var providerListView: some View {
+        List {
+            ForEach(filteredProviders) { provider in
+                let isConfigured = registry?.hasAPIKey(for: provider.id) ?? false
+                Button {
+                    if isConfigured {
+                        registry?.activeProviderId = provider.id
+                        dismiss()
+                    } else {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            selectedProvider = provider
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 12) {
+                        // Provider icon placeholder — accent initial
+                        Text(String(provider.name.prefix(1)).uppercased())
+                            .font(.carbonMono(.caption2, weight: .bold))
+                            .foregroundStyle(isConfigured ? Color.carbonBlack : Color.carbonAccent)
+                            .frame(width: 28, height: 28)
+                            .background(isConfigured ? Color.carbonAccent : Color.carbonAccentMuted)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(provider.name)
+                                .font(.carbonSans(.subheadline, weight: .medium))
+                                .foregroundStyle(Color.carbonText)
+                            HStack(spacing: 6) {
+                                Text("\(provider.models.count)")
+                                    .font(.carbonMono(.caption2, weight: .medium))
+                                    .foregroundStyle(Color.carbonTextTertiary)
+                                + Text(" models")
+                                    .font(.carbonMono(.caption2))
+                                    .foregroundStyle(Color.carbonTextTertiary)
+
+                                if provider.isCodingPlan {
+                                    Text("CODING PLAN")
+                                        .font(.carbonMono(.caption2, weight: .bold))
+                                        .kerning(0.3)
+                                        .foregroundStyle(Color.carbonAccent)
+                                        .padding(.horizontal, 5)
+                                        .padding(.vertical, 1)
+                                        .background(Color.carbonAccentMuted)
+                                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                                }
+                                if provider.isChinaRegion {
+                                    Text("CN")
+                                        .font(.carbonMono(.caption2, weight: .bold))
+                                        .foregroundStyle(Color.carbonWarning)
+                                        .padding(.horizontal, 4)
+                                        .padding(.vertical, 1)
+                                        .background(Color.carbonWarning.opacity(0.12))
+                                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                                }
+                            }
+                        }
+
+                        Spacer()
+
+                        if isConfigured {
+                            HStack(spacing: 4) {
+                                Circle()
+                                    .fill(Color.carbonSuccess)
+                                    .frame(width: 6, height: 6)
+                                Text("ACTIVE")
+                                    .font(.carbonMono(.caption2, weight: .medium))
+                                    .kerning(0.3)
+                                    .foregroundStyle(Color.carbonSuccess)
+                            }
+                        } else {
+                            Image(systemName: "chevron.right")
+                                .font(.caption2.weight(.medium))
+                                .foregroundStyle(Color.carbonTextTertiary)
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+                .listRowBackground(isConfigured ? Color.carbonAccent.opacity(0.04) : Color.carbonSurface)
+            }
+        }
+        .searchable(text: $searchText, prompt: "Search 120+ providers...")
+    }
+
+    // MARK: - API Key Entry
+
+    private func apiKeyEntryView(for provider: ModelsDevProvider) -> some View {
+        List {
+            // Provider header card
+            Section {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 12) {
+                        Text(String(provider.name.prefix(1)).uppercased())
+                            .font(.carbonMono(.body, weight: .bold))
+                            .foregroundStyle(Color.carbonAccent)
+                            .frame(width: 40, height: 40)
+                            .background(Color.carbonAccentMuted)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(provider.name)
+                                .font(.carbonSans(.headline, weight: .semibold))
+                                .foregroundStyle(Color.carbonText)
+                            Text("\(provider.models.count) models available")
+                                .font(.carbonMono(.caption2))
+                                .foregroundStyle(Color.carbonTextTertiary)
+                        }
+                    }
+
+                    if !provider.env.isEmpty {
+                        HStack(spacing: 4) {
+                            Image(systemName: "key")
+                                .font(.caption2)
+                                .foregroundStyle(Color.carbonTextTertiary)
+                            Text(provider.env.joined(separator: " · "))
+                                .font(.carbonMono(.caption2))
+                                .foregroundStyle(Color.carbonTextTertiary)
+                        }
+                    }
+                }
+                .padding(.vertical, 4)
+                .listRowBackground(Color.carbonSurface)
+            }
+
+            // API Key input
+            Section {
+                HStack {
+                    Group {
+                        if isKeyVisible {
+                            TextField("sk-...", text: $apiKeyInput)
+                        } else {
+                            SecureField("Paste your API key", text: $apiKeyInput)
+                        }
+                    }
+                    .font(.carbonMono(.subheadline))
+                    .foregroundStyle(Color.carbonText)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+
+                    Button {
+                        isKeyVisible.toggle()
+                    } label: {
+                        Image(systemName: isKeyVisible ? "eye.slash" : "eye")
+                            .font(.caption)
+                            .foregroundStyle(Color.carbonTextTertiary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .listRowBackground(Color.carbonSurface)
+
+                Button {
+                    guard let registry, !apiKeyInput.isEmpty else { return }
+                    registry.saveAPIKey(apiKeyInput, for: provider.id)
+                    registry.activeProviderId = provider.id
+                    dismiss()
+                } label: {
+                    HStack(spacing: 6) {
+                        Spacer()
+                        Image(systemName: "checkmark.circle")
+                            .font(.subheadline.weight(.medium))
+                        Text("Connect")
+                            .font(.carbonSans(.subheadline, weight: .semibold))
+                        Spacer()
+                    }
+                    .foregroundStyle(apiKeyInput.isEmpty ? Color.carbonTextTertiary : Color.carbonBlack)
+                    .padding(.vertical, 6)
+                    .background(apiKeyInput.isEmpty ? Color.carbonElevated : Color.carbonAccent)
+                    .clipShape(RoundedRectangle(cornerRadius: Carbon.radiusSmall))
+                }
+                .disabled(apiKeyInput.isEmpty)
+                .listRowBackground(Color.carbonSurface)
+            } header: {
+                CarbonSectionHeader(title: "API Key")
+            }
+
+            // Model preview
+            if !provider.sortedModels.isEmpty {
+                Section {
+                    ForEach(Array(provider.sortedModels.prefix(5))) { model in
+                        HStack(spacing: 0) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(model.name)
+                                    .font(.carbonSans(.subheadline))
+                                    .foregroundStyle(Color.carbonText)
+                                HStack(spacing: 5) {
+                                    // Context window badge
+                                    Label(model.displayContextWindow, systemImage: "text.word.spacing")
+                                        .font(.carbonMono(.caption2))
+                                        .foregroundStyle(Color.carbonTextTertiary)
+
+                                    if model.reasoning {
+                                        Text("REASON")
+                                            .font(.carbonMono(.caption2, weight: .bold))
+                                            .kerning(0.2)
+                                            .foregroundStyle(Color.carbonAccent)
+                                    }
+                                    if model.toolCall {
+                                        Text("TOOLS")
+                                            .font(.carbonMono(.caption2, weight: .bold))
+                                            .kerning(0.2)
+                                            .foregroundStyle(Color.carbonSuccess)
+                                    }
+                                    if model.attachment {
+                                        Image(systemName: "photo")
+                                            .font(.caption2)
+                                            .foregroundStyle(Color.carbonTextTertiary)
+                                    }
+                                }
+                            }
+
+                            Spacer()
+
+                            Text(model.displayCost)
+                                .font(.carbonMono(.caption2, weight: .medium))
+                                .foregroundStyle(model.isFree ? Color.carbonSuccess : Color.carbonTextTertiary)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(model.isFree ? Color.carbonSuccess.opacity(0.1) : Color.clear)
+                                .clipShape(RoundedRectangle(cornerRadius: 4))
+                        }
+                        .padding(.vertical, 2)
+                        .listRowBackground(Color.carbonSurface)
+                    }
+                } header: {
+                    CarbonSectionHeader(title: "Models")
                 }
             }
         }

@@ -47,12 +47,12 @@ final class ConversationStore {
     }
 
     /// Save current messages (if any), then switch to another conversation and return its full state.
-    func switchToConversation(_ id: UUID, currentMessages: [ChatMessage], currentSummaryId: UUID? = nil, currentReasoningEffort: ReasoningEffort? = nil) -> (messages: [ChatMessage], summaryMessageId: UUID?, reasoningEffort: ReasoningEffort?) {
+    func switchToConversation(_ id: UUID, currentMessages: [ChatMessage], currentSummaryId: UUID? = nil, currentReasoningEffort: ReasoningEffort? = nil) -> (messages: [ChatMessage], summaryMessageId: UUID?, reasoningEffort: ReasoningEffort?, providerId: String?, modelId: String?) {
         saveCurrentIfNeeded(messages: currentMessages, summaryMessageId: currentSummaryId, reasoningEffort: currentReasoningEffort)
         currentConversationId = id
         let msgs = loadMessages(for: id)
         let conv = conversations.first { $0.id == id }
-        return (msgs, conv?.summaryMessageId, conv?.reasoningEffort)
+        return (msgs, conv?.summaryMessageId, conv?.reasoningEffort, conv?.providerId, conv?.modelId)
     }
 
     /// Save current messages (if any), then start a fresh conversation.
@@ -64,8 +64,17 @@ final class ConversationStore {
     // MARK: - Update
 
     /// Schedule a debounced save of the current conversation's messages.
-    func updateCurrentConversation(messages: [ChatMessage], summaryMessageId: UUID? = nil, reasoningEffort: ReasoningEffort? = nil) {
-        applyMessagesToCurrentConversation(messages, summaryMessageId: summaryMessageId, reasoningEffort: reasoningEffort)
+    func updateCurrentConversation(
+        messages: [ChatMessage],
+        summaryMessageId: UUID? = nil,
+        reasoningEffort: ReasoningEffort? = nil,
+        autoTitle: String? = nil,
+        providerId: String? = nil,
+        modelId: String? = nil
+    ) {
+        applyMessagesToCurrentConversation(
+            messages, summaryMessageId: summaryMessageId, reasoningEffort: reasoningEffort,
+            autoTitle: autoTitle, providerId: providerId, modelId: modelId)
 
         saveTask?.cancel()
         saveTask = Task {
@@ -88,12 +97,24 @@ final class ConversationStore {
         }
     }
 
-    private func applyMessagesToCurrentConversation(_ messages: [ChatMessage], summaryMessageId: UUID? = nil, reasoningEffort: ReasoningEffort? = nil) {
+    private func applyMessagesToCurrentConversation(
+        _ messages: [ChatMessage],
+        summaryMessageId: UUID? = nil,
+        reasoningEffort: ReasoningEffort? = nil,
+        autoTitle: String? = nil,
+        providerId: String? = nil,
+        modelId: String? = nil
+    ) {
         guard let id = currentConversationId,
               let index = conversations.firstIndex(where: { $0.id == id }) else {
             if !messages.isEmpty {
-                var conv = Conversation(messages: messages, summaryMessageId: summaryMessageId, reasoningEffort: reasoningEffort)
-                conv.generateTitle()
+                var conv = Conversation(messages: messages, summaryMessageId: summaryMessageId,
+                                        reasoningEffort: reasoningEffort, providerId: providerId, modelId: modelId)
+                if let autoTitle, !autoTitle.isEmpty {
+                    conv.setTitle(autoTitle)
+                } else {
+                    conv.generateTitle()
+                }
                 conversations.insert(conv, at: 0)
                 currentConversationId = conv.id
                 Task { await self.saveToDisk(conv) }
@@ -107,10 +128,17 @@ final class ConversationStore {
         if conversations[index].reasoningEffort != reasoningEffort {
             conversations[index].reasoningEffort = reasoningEffort
         }
+        if let providerId { conversations[index].providerId = providerId }
+        if let modelId { conversations[index].modelId = modelId }
         conversations[index].updatedAt = Date()
 
+        // Use LLM-generated title if available, otherwise fallback to truncation
         if conversations[index].title == Conversation.defaultTitle {
-            conversations[index].generateTitle()
+            if let autoTitle, !autoTitle.isEmpty {
+                conversations[index].setTitle(autoTitle)
+            } else {
+                conversations[index].generateTitle()
+            }
         }
 
         if index != 0 {

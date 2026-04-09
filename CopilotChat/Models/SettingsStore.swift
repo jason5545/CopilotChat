@@ -5,23 +5,36 @@ import Observation
 
 enum ReasoningEffort: String, CaseIterable, Codable, Sendable {
     case off
+    case none
+    case minimal
     case low
     case medium
     case high
+    case xhigh
     case max
 
     var label: String {
         switch self {
         case .off: "Off"
+        case .none: "None"
+        case .minimal: "Min"
         case .low: "Low"
         case .medium: "Med"
         case .high: "High"
+        case .xhigh: "XHigh"
         case .max: "Max"
         }
     }
 
+    /// Check if the model supports reasoning effort.
+    /// Uses models.dev data when available, otherwise falls back to heuristics.
     static func isSupported(model: String) -> Bool {
-        model.lowercased().contains("claude")
+        ProviderTransform.supportsReasoningEffort(model: nil, modelId: model, npm: nil)
+    }
+
+    /// Check with full models.dev metadata.
+    static func isSupported(model: String, modelInfo: ModelsDevModel?, npm: String?) -> Bool {
+        ProviderTransform.supportsReasoningEffort(model: modelInfo, modelId: model, npm: npm)
     }
 }
 
