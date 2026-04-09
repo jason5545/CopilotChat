@@ -68,7 +68,7 @@ struct OpenAICompatibleProvider: LLMProvider, @unchecked Sendable {
                     let request = ChatCompletionRequest(
                         model: model, messages: messages, stream: true,
                         maxTokens: options.maxOutputTokens,
-                        temperature: options.temperature ?? 0.7,
+                        temperature: options.temperature,
                         topP: options.topP, topK: options.topK,
                         tools: tools,
                         toolChoice: tools != nil ? (options.toolChoice ?? "auto") : nil,
@@ -110,7 +110,7 @@ struct OpenAICompatibleProvider: LLMProvider, @unchecked Sendable {
         let request = ChatCompletionRequest(
             model: model, messages: messages, stream: false,
             maxTokens: options.maxOutputTokens,
-            temperature: options.temperature ?? 0.7,
+            temperature: options.temperature,
             topP: options.topP, topK: options.topK,
             tools: tools, toolChoice: nil,
             streamOptions: nil, reasoningEffort: options.reasoningEffort,

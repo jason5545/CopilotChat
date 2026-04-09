@@ -53,7 +53,7 @@ struct OpenAICodexProvider: LLMProvider, @unchecked Sendable {
                         model: model, instructions: options.systemPrompt ?? "",
                         input: input, stream: true,
                         maxOutputTokens: options.maxOutputTokens,
-                        temperature: options.temperature ?? 0.7,
+                        temperature: options.temperature,
                         tools: apiTools,
                         toolChoice: apiTools != nil ? (options.toolChoice ?? "auto") : nil,
                         reasoning: reasoning
@@ -111,7 +111,7 @@ struct OpenAICodexProvider: LLMProvider, @unchecked Sendable {
             model: model, instructions: options.systemPrompt ?? "",
             input: input, stream: false,
             maxOutputTokens: options.maxOutputTokens,
-            temperature: options.temperature ?? 0.7,
+            temperature: options.temperature,
             tools: nil, toolChoice: nil,
             reasoning: reasoning
         )

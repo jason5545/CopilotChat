@@ -564,7 +564,10 @@ final class CopilotService {
         let reasoningValue: String? = (supportsReasoning && effort != .off) ? effort.rawValue : nil
 
         // Model-specific temperature (from OpenCode transform.ts)
-        let temp = ProviderTransform.temperature(modelId: model) ?? 0.7
+        // nil = don't send (some models like GPT-5.4 reject temperature param)
+        // Only fall back to 0.7 if the model explicitly supports temperature
+        let temp: Double? = ProviderTransform.temperature(modelId: model)
+            ?? (modelInfo?.temperature == true ? 0.7 : nil)
 
         // Model-specific max output tokens
         let maxOut = ProviderTransform.maxOutputTokens(model: modelInfo, modelId: model)

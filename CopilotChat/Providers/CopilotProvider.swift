@@ -94,7 +94,7 @@ struct CopilotProvider: LLMProvider, @unchecked Sendable {
         let apiTools = tools
         let request = ChatCompletionRequest(
             model: model, messages: messages, stream: false,
-            maxTokens: options.maxOutputTokens, temperature: options.temperature ?? 0.7,
+            maxTokens: options.maxOutputTokens, temperature: options.temperature,
             tools: apiTools, toolChoice: nil,
             streamOptions: nil, reasoningEffort: options.reasoningEffort
         )
@@ -134,7 +134,7 @@ struct CopilotProvider: LLMProvider, @unchecked Sendable {
     ) async throws -> AsyncThrowingStream<ProviderEvent, Error> {
         let request = ChatCompletionRequest(
             model: model, messages: messages, stream: true,
-            maxTokens: options.maxOutputTokens, temperature: options.temperature ?? 0.7,
+            maxTokens: options.maxOutputTokens, temperature: options.temperature,
             tools: tools, toolChoice: tools != nil ? (options.toolChoice ?? "auto") : nil,
             streamOptions: .init(includeUsage: true),
             reasoningEffort: options.reasoningEffort
@@ -173,7 +173,7 @@ struct CopilotProvider: LLMProvider, @unchecked Sendable {
         let request = ResponsesAPIRequest(
             model: model, instructions: options.systemPrompt ?? "",
             input: input, stream: true, maxOutputTokens: options.maxOutputTokens,
-            temperature: options.temperature ?? 0.7,
+            temperature: options.temperature,
             tools: apiTools, toolChoice: apiTools != nil ? (options.toolChoice ?? "auto") : nil,
             reasoning: reasoning
         )

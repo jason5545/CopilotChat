@@ -115,7 +115,7 @@ struct GeminiProvider: LLMProvider, @unchecked Sendable {
             },
             generationConfig: GeminiGenerationConfig(
                 maxOutputTokens: options.maxOutputTokens ?? 8192,
-                temperature: options.temperature ?? 0.7,
+                temperature: options.temperature ?? 1.0,
                 topP: options.topP,
                 topK: options.topK
             ),
