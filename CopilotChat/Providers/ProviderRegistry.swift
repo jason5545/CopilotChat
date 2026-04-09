@@ -16,7 +16,19 @@ final class ProviderRegistry {
 
     /// Currently active provider ID
     var activeProviderId: String {
-        didSet { UserDefaults.standard.set(activeProviderId, forKey: "activeProviderId") }
+        didSet {
+            UserDefaults.standard.set(activeProviderId, forKey: "activeProviderId")
+            // Reset model when provider changes — pick first available or clear
+            if oldValue != activeProviderId {
+                let firstModel = modelsDevProviders[activeProviderId]?.models.values
+                    .max { a, b in
+                        a.limit.context != b.limit.context
+                            ? a.limit.context < b.limit.context
+                            : a.name > b.name
+                    }?.id ?? ""
+                activeModelId = firstModel
+            }
+        }
     }
 
     /// Currently active model ID
@@ -92,6 +104,35 @@ final class ProviderRegistry {
         case .openaiCodex:
             return nil
         }
+    }
+
+    // MARK: - Copilot Limits Overlay
+
+    /// Overlay Copilot API's actual limits onto the models.dev data for github-copilot.
+    func overlayCopilotLimits(from copilotModels: [ModelsResponse.ModelInfo]) {
+        guard let copilotProvider = modelsDevProviders["github-copilot"] else { return }
+        var updated = copilotProvider.models
+        for apiModel in copilotModels {
+            guard let mdModel = updated[apiModel.id] else { continue }
+            let prompt = apiModel.capabilities?.limits?.maxPromptTokens
+            let output = apiModel.capabilities?.limits?.maxOutputTokens
+            if let prompt, let output {
+                let newLimit = ModelsDevLimit(context: prompt + output, output: output, input: prompt)
+                updated[apiModel.id] = ModelsDevModel(
+                    id: mdModel.id, name: mdModel.name,
+                    reasoning: mdModel.reasoning, attachment: mdModel.attachment,
+                    toolCall: mdModel.toolCall, temperature: mdModel.temperature,
+                    cost: mdModel.cost, limit: newLimit,
+                    releaseDate: mdModel.releaseDate, status: mdModel.status
+                )
+            }
+        }
+        modelsDevProviders["github-copilot"] = ModelsDevProvider(
+            id: copilotProvider.id, name: copilotProvider.name,
+            env: copilotProvider.env, npm: copilotProvider.npm,
+            api: copilotProvider.api, doc: copilotProvider.doc,
+            models: updated
+        )
     }
 
     // MARK: - Models

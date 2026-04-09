@@ -252,7 +252,7 @@ struct ChatView: View {
                     .padding(.top, 4)
                 }
 
-                Text(settingsStore.selectedModel)
+                Text(copilotService.providerRegistry?.activeModelId ?? settingsStore.selectedModel)
                     .font(.carbonMono(.caption2))
                     .foregroundStyle(Color.carbonTextTertiary)
                     .padding(.top, 2)

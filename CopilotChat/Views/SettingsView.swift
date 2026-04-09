@@ -48,6 +48,12 @@ struct SettingsView: View {
                     }
                 }
             }
+            .navigationDestination(isPresented: $showProviderPicker) {
+                ProviderPickerView(registry: copilotService.providerRegistry)
+            }
+            .navigationDestination(item: $selectedProviderForKey) { provider in
+                ProviderKeyEditView(provider: provider, registry: copilotService.providerRegistry)
+            }
             .sheet(isPresented: $showAddMCPServer) {
                 MCPServerEditView(server: nil) { server in
                     settingsStore.addServer(server)
@@ -236,6 +242,18 @@ struct SettingsView: View {
 
                             if provider.id != "github-copilot" {
                                 Button {
+                                    selectedProviderForKey = provider
+                                } label: {
+                                    Image(systemName: "key")
+                                        .font(.caption2)
+                                        .foregroundStyle(Color.carbonTextTertiary)
+                                        .padding(6)
+                                        .background(Color.carbonElevated)
+                                        .clipShape(Circle())
+                                }
+                                .buttonStyle(.plain)
+
+                                Button {
                                     registry.removeAPIKey(for: provider.id)
                                 } label: {
                                     Image(systemName: "trash")
@@ -293,51 +311,68 @@ struct SettingsView: View {
         } header: {
             CarbonSectionHeader(title: "Provider")
         }
-        .sheet(isPresented: $showProviderPicker) {
-            ProviderPickerSheet(registry: copilotService.providerRegistry)
-        }
     }
 
     // MARK: - Model Section
 
     private var modelSection: some View {
         Section {
-            @Bindable var store = settingsStore
-
-            if copilotService.availableModels.isEmpty {
-                HStack {
-                    Text(settingsStore.selectedModel)
-                        .font(.carbonMono(.subheadline))
-                        .foregroundStyle(Color.carbonText)
-                    Spacer()
-                    if authManager.isAuthenticated {
-                        Button {
-                            Task { await copilotService.fetchModels() }
-                        } label: {
-                            Text("REFRESH")
-                                .font(.carbonMono(.caption2, weight: .bold))
-                                .kerning(0.6)
-                                .foregroundStyle(Color.carbonAccent)
+            if let registry = copilotService.providerRegistry,
+               let provider = registry.modelsDevProviders[registry.activeProviderId] {
+                let models = provider.sortedModels
+                ForEach(models) { model in
+                    Button {
+                        registry.activeModelId = model.id
+                        // Sync to settingsStore for Copilot provider compatibility
+                        if registry.activeProviderId == "github-copilot" {
+                            settingsStore.selectedModel = model.id
+                        }
+                    } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(model.name)
+                                    .font(.carbonSans(.subheadline))
+                                    .foregroundStyle(Color.carbonText)
+                                HStack(spacing: 6) {
+                                    Text(model.displayContextWindow)
+                                        .font(.carbonMono(.caption2))
+                                        .foregroundStyle(Color.carbonTextTertiary)
+                                    Text(model.displayCost)
+                                        .font(.carbonMono(.caption2))
+                                        .foregroundStyle(Color.carbonTextTertiary)
+                                    if model.reasoning {
+                                        Text("REASON")
+                                            .font(.carbonMono(.caption2, weight: .bold))
+                                            .kerning(0.2)
+                                            .foregroundStyle(Color.carbonAccent)
+                                    }
+                                    if model.toolCall {
+                                        Text("TOOLS")
+                                            .font(.carbonMono(.caption2, weight: .bold))
+                                            .kerning(0.2)
+                                            .foregroundStyle(Color.carbonSuccess)
+                                    }
+                                }
+                            }
+                            Spacer()
+                            if registry.activeModelId == model.id {
+                                Image(systemName: "checkmark")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(Color.carbonAccent)
+                            }
                         }
                     }
+                    .listRowBackground(
+                        registry.activeModelId == model.id
+                            ? Color.carbonAccent.opacity(0.06)
+                            : Color.carbonSurface
+                    )
                 }
-                .listRowBackground(Color.carbonSurface)
             } else {
-                Picker("Model", selection: $store.selectedModel) {
-                    ForEach(copilotService.availableModels) { model in
-                        if let tokens = model.displayContextWindowTokens, tokens > 0 {
-                            Text("\(model.displayName)  (\(formatTokenCount(tokens)))")
-                                .font(.carbonSans(.subheadline))
-                                .tag(model.id)
-                        } else {
-                            Text(model.displayName)
-                                .font(.carbonSans(.subheadline))
-                                .tag(model.id)
-                        }
-                    }
-                }
-                .tint(Color.carbonAccent)
-                .listRowBackground(Color.carbonSurface)
+                Text(settingsStore.selectedModel)
+                    .font(.carbonMono(.subheadline))
+                    .foregroundStyle(Color.carbonText)
+                    .listRowBackground(Color.carbonSurface)
             }
         } header: {
             CarbonSectionHeader(title: "Model")
@@ -1021,7 +1056,7 @@ struct MCPServerEditView: View {
 
 // MARK: - Provider Picker Sheet
 
-struct ProviderPickerSheet: View {
+struct ProviderPickerView: View {
     let registry: ProviderRegistry?
     @Environment(\.dismiss) private var dismiss
     @State private var searchText = ""
@@ -1040,49 +1075,47 @@ struct ProviderPickerSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if let selected = selectedProvider {
-                    apiKeyEntryView(for: selected)
-                } else {
-                    providerListView
-                }
+        Group {
+            if let selected = selectedProvider {
+                apiKeyEntryView(for: selected)
+            } else {
+                providerListView
             }
-            .scrollContentBackground(.hidden)
-            .background(Color.carbonBlack)
-            .toolbarBackground(Color.carbonSurface, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Text(selectedProvider != nil ? "CONNECT" : "PROVIDERS")
-                        .font(.carbonMono(.caption, weight: .bold))
-                        .kerning(2.5)
-                        .foregroundStyle(Color.carbonText)
-                }
-                ToolbarItem(placement: .topBarLeading) {
-                    if selectedProvider != nil {
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                selectedProvider = nil
-                                apiKeyInput = ""
-                                isKeyVisible = false
-                            }
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "chevron.left")
-                                    .font(.caption2.weight(.semibold))
-                                Text("Back")
-                            }
-                            .font(.carbonSans(.subheadline))
-                            .foregroundStyle(Color.carbonAccent)
+        }
+        .scrollContentBackground(.hidden)
+        .background(Color.carbonBlack)
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(Color.carbonSurface, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarColorScheme(.dark, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text(selectedProvider != nil ? "CONNECT" : "PROVIDERS")
+                    .font(.carbonMono(.caption, weight: .bold))
+                    .kerning(2.5)
+                    .foregroundStyle(Color.carbonText)
+            }
+        }
+        .navigationBarBackButtonHidden(selectedProvider != nil)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                if selectedProvider != nil {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            selectedProvider = nil
+                            apiKeyInput = ""
+                            isKeyVisible = false
                         }
-                    }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
-                        .font(.carbonSans(.subheadline, weight: .medium))
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chevron.left")
+                                .font(.caption2.weight(.semibold))
+                            Text("Back")
+                        }
+                        .font(.carbonSans(.subheadline))
                         .foregroundStyle(Color.carbonAccent)
+                    }
                 }
             }
         }
@@ -1265,9 +1298,10 @@ struct ProviderPickerSheet: View {
             }
 
             // Model preview
-            if !provider.sortedModels.isEmpty {
+            let previewModels = provider.sortedModels
+            if !previewModels.isEmpty {
                 Section {
-                    ForEach(Array(provider.sortedModels.prefix(5))) { model in
+                    ForEach(Array(previewModels.prefix(5))) { model in
                         HStack(spacing: 0) {
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(model.name)
@@ -1315,6 +1349,114 @@ struct ProviderPickerSheet: View {
                 } header: {
                     CarbonSectionHeader(title: "Models")
                 }
+            }
+        }
+    }
+}
+
+// MARK: - Provider Key Edit View
+
+struct ProviderKeyEditView: View {
+    let provider: ModelsDevProvider
+    let registry: ProviderRegistry?
+    @Environment(\.dismiss) private var dismiss
+    @State private var apiKeyInput = ""
+    @State private var isKeyVisible = false
+
+    var body: some View {
+        List {
+            Section {
+                HStack(spacing: 12) {
+                    Text(String(provider.name.prefix(1)).uppercased())
+                        .font(.carbonMono(.body, weight: .bold))
+                        .foregroundStyle(Color.carbonAccent)
+                        .frame(width: 40, height: 40)
+                        .background(Color.carbonAccentMuted)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(provider.name)
+                            .font(.carbonSans(.headline, weight: .semibold))
+                            .foregroundStyle(Color.carbonText)
+                        if !provider.env.isEmpty {
+                            Text(provider.env.joined(separator: " · "))
+                                .font(.carbonMono(.caption2))
+                                .foregroundStyle(Color.carbonTextTertiary)
+                        }
+                    }
+                }
+                .padding(.vertical, 4)
+                .listRowBackground(Color.carbonSurface)
+            }
+
+            Section {
+                HStack {
+                    Group {
+                        if isKeyVisible {
+                            TextField("sk-...", text: $apiKeyInput)
+                        } else {
+                            SecureField("Paste your API key", text: $apiKeyInput)
+                        }
+                    }
+                    .font(.carbonMono(.subheadline))
+                    .foregroundStyle(Color.carbonText)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+
+                    Button {
+                        isKeyVisible.toggle()
+                    } label: {
+                        Image(systemName: isKeyVisible ? "eye.slash" : "eye")
+                            .font(.caption)
+                            .foregroundStyle(Color.carbonTextTertiary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .listRowBackground(Color.carbonSurface)
+
+                Button {
+                    guard let registry, !apiKeyInput.isEmpty else { return }
+                    registry.saveAPIKey(apiKeyInput, for: provider.id)
+                    dismiss()
+                } label: {
+                    HStack(spacing: 6) {
+                        Spacer()
+                        Image(systemName: "checkmark.circle")
+                            .font(.subheadline.weight(.medium))
+                        Text("Save")
+                            .font(.carbonSans(.subheadline, weight: .semibold))
+                        Spacer()
+                    }
+                    .foregroundStyle(apiKeyInput.isEmpty ? Color.carbonTextTertiary : Color.carbonBlack)
+                    .padding(.vertical, 6)
+                    .background(apiKeyInput.isEmpty ? Color.carbonElevated : Color.carbonAccent)
+                    .clipShape(RoundedRectangle(cornerRadius: Carbon.radiusSmall))
+                }
+                .disabled(apiKeyInput.isEmpty)
+                .listRowBackground(Color.carbonSurface)
+            } header: {
+                CarbonSectionHeader(title: "API Key")
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .background(Color.carbonBlack)
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(Color.carbonSurface, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarColorScheme(.dark, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text("EDIT KEY")
+                    .font(.carbonMono(.caption, weight: .bold))
+                    .kerning(2.5)
+                    .foregroundStyle(Color.carbonText)
+            }
+        }
+        .onAppear {
+            // Pre-fill with existing key (masked)
+            if let existing = registry?.loadAPIKey(for: provider.id) {
+                apiKeyInput = existing
             }
         }
     }

@@ -49,11 +49,15 @@ final class CopilotService {
     }
 
     var contextWindow: Int {
-        // Prefer Copilot API model info, then models.dev, then default
+        // Copilot API: exact prompt limit (most accurate for Copilot provider)
         if let copilotInfo = selectedModelInfo?.maxPromptTokens, copilotInfo > 0 {
             return copilotInfo
         }
-        // models.dev context window will be checked asynchronously — use cached value
+        // models.dev: synchronous in-memory lookup (works for all providers)
+        if let registry = providerRegistry,
+           let modelInfo = registry.activeModelInfo() {
+            return modelInfo.contextWindow
+        }
         return Self.defaultContextWindow
     }
 
@@ -82,16 +86,21 @@ final class CopilotService {
         self.providerRegistry = registry
     }
 
-    /// Resolve the current LLM provider from the registry, falling back to built-in CopilotProvider.
+    /// Resolve the current LLM provider from the registry.
+    /// Only falls back to built-in CopilotProvider when Copilot is the active provider.
     private func resolveProvider() -> (any LLMProvider)? {
+        let activeId = providerRegistry?.activeProviderId ?? "github-copilot"
         if let registry = providerRegistry, let provider = registry.activeProvider() {
             return provider
         }
-        // Fallback: direct Copilot provider
-        guard authManager.isAuthenticated else { return nil }
-        return CopilotProvider(tokenProvider: { [weak authManager] in
-            await MainActor.run { authManager?.token }
-        })
+        // Only fall back to Copilot if that's what the user selected
+        if activeId == "github-copilot", authManager.isAuthenticated {
+            return CopilotProvider(tokenProvider: { [weak authManager] in
+                await MainActor.run { authManager?.token }
+            })
+        }
+        // Non-Copilot provider failed to resolve — don't silently switch
+        return nil
     }
 
     /// Get the current model ID — from registry if available, otherwise from settings.
@@ -405,6 +414,12 @@ final class CopilotService {
             return
         }
 
+        // Non-Copilot provider failed — don't silently fall back
+        let activeId = providerRegistry?.activeProviderId ?? "github-copilot"
+        if activeId != "github-copilot" {
+            throw CopilotError.providerNotConfigured(activeId)
+        }
+
         // Legacy fallback: direct Copilot API
         guard let token = authManager.token else {
             throw CopilotError.notAuthenticated
@@ -505,7 +520,6 @@ final class CopilotService {
 
     private func streamWithProvider(_ provider: any LLMProvider, updatingAt index: Int, tools: [MCPTool]) async throws {
         let model = currentModelId
-
         // Merge built-in tools with MCP tools
         let allTools: [MCPTool]
         if settingsStore.toolAccessMode == .loadWhenNeeded && !tools.isEmpty {
@@ -1116,6 +1130,8 @@ final class CopilotService {
             var seen = Set<String>()
             let unique = modelsResponse.data.filter { seen.insert($0.id).inserted }
             availableModels = unique.sorted { $0.id < $1.id }
+            // Overlay Copilot API's actual limits onto models.dev data
+            providerRegistry?.overlayCopilotLimits(from: unique)
         } catch {
             // Non-critical
         }
@@ -1127,12 +1143,14 @@ final class CopilotService {
         case notAuthenticated
         case invalidResponse
         case httpError(Int, String)
+        case providerNotConfigured(String)
 
         var errorDescription: String? {
             switch self {
             case .notAuthenticated: "Not authenticated. Please sign in to GitHub."
             case .invalidResponse: "Invalid response from server."
             case .httpError(let code, let body): "HTTP \(code): \(body)"
+            case .providerNotConfigured(let id): "Provider \"\(id)\" is not configured. Check your API key in Settings."
             }
         }
     }

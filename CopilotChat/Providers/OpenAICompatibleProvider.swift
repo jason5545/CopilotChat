@@ -77,8 +77,9 @@ struct OpenAICompatibleProvider: LLMProvider, @unchecked Sendable {
                         extraFields: options.extraFields
                     )
                     let requestData = try JSONEncoder().encode(request)
+                    let url = try chatCompletionsURL()
                     let urlRequest = SSEParser.buildRequest(
-                        url: try chatCompletionsURL(),
+                        url: url,
                         apiKey: apiKey,
                         body: requestData,
                         extraHeaders: extraHeaders

@@ -95,7 +95,10 @@ actor ModelsDev {
 
 // MARK: - Data Models
 
-struct ModelsDevProvider: Codable, Sendable, Identifiable {
+struct ModelsDevProvider: Codable, Sendable, Identifiable, Hashable {
+    static func == (lhs: ModelsDevProvider, rhs: ModelsDevProvider) -> Bool { lhs.id == rhs.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
+
     let id: String
     let name: String
     let env: [String]
@@ -134,7 +137,6 @@ struct ModelsDevModel: Codable, Sendable, Identifiable {
     let limit: ModelsDevLimit
     let releaseDate: String?
     let status: String?
-    let experimental: Bool?
 
     var contextWindow: Int { limit.context }
     var maxOutputTokens: Int { limit.output }
@@ -210,7 +212,6 @@ private struct ModelsDevRawModel: Codable {
     let limit: ModelsDevRawLimit?
     let releaseDate: String?
     let status: String?
-    let experimental: Bool?
 
     struct ModelsDevRawLimit: Codable {
         let context: Int?
@@ -219,7 +220,7 @@ private struct ModelsDevRawModel: Codable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, reasoning, attachment, temperature, cost, limit, status, experimental
+        case id, name, reasoning, attachment, temperature, cost, limit, status
         case toolCall = "tool_call"
         case releaseDate = "release_date"
     }
@@ -239,8 +240,7 @@ private struct ModelsDevRawModel: Codable {
             cost: cost,
             limit: ModelsDevLimit(context: ctx, output: out, input: limit?.input),
             releaseDate: releaseDate,
-            status: status,
-            experimental: experimental
+            status: status
         )
     }
 }
