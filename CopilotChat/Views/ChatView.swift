@@ -266,10 +266,22 @@ struct ChatView: View {
 
     // MARK: - Streaming Indicator
 
+    /// Label for the streaming indicator based on actual model state.
+    private var streamingLabel: String {
+        if copilotService.isCompacting { return "Compacting" }
+        if let last = copilotService.messages.last,
+           last.role == .assistant,
+           last.reasoning != nil,
+           last.content.isEmpty {
+            return "Thinking"
+        }
+        return "Responding"
+    }
+
     private var streamingIndicator: some View {
         HStack(spacing: 10) {
             ThinkingIndicator()
-            Text(copilotService.isCompacting ? "Compacting" : "Thinking")
+            Text(streamingLabel)
                 .font(.carbonMono(.caption2, weight: .medium))
                 .foregroundStyle(copilotService.isCompacting ? Color.carbonWarning : Color.carbonTextTertiary)
             Spacer()

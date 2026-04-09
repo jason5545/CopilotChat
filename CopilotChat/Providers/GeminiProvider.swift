@@ -227,7 +227,11 @@ struct GeminiProvider: LLMProvider, @unchecked Sendable {
                            let parts = candidate.content?.parts {
                             for part in parts {
                                 if let text = part.text, !text.isEmpty {
-                                    continuation.yield(.contentDelta(text))
+                                    if part.thought == true {
+                                        continuation.yield(.thinkingDelta(text))
+                                    } else {
+                                        continuation.yield(.contentDelta(text))
+                                    }
                                 }
                                 if let fc = part.functionCall {
                                     let args = try? JSONEncoder().encode(fc.args)
@@ -289,6 +293,7 @@ private struct GeminiContent: Codable {
 
 private struct GeminiPart: Codable {
     var text: String?
+    var thought: Bool?
     var functionCall: GeminiFunctionCall?
     var functionResponse: GeminiFunctionResponse?
 }

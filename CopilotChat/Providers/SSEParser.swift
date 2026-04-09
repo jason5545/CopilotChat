@@ -39,6 +39,11 @@ enum SSEParser {
                             continuation.yield(.contentDelta(content))
                         }
 
+                        // reasoning_content (DeepSeek, Z.AI) or reasoning_text (Copilot Claude)
+                        if let reasoning = choice.delta.reasoningContent ?? choice.delta.reasoningText {
+                            continuation.yield(.thinkingDelta(reasoning))
+                        }
+
                         if let toolCallDeltas = choice.delta.toolCalls {
                             for delta in toolCallDeltas {
                                 if let id = delta.id {
@@ -100,6 +105,13 @@ enum SSEParser {
                             if let evt = try? decoder.decode(ResponsesStreamEvent.self, from: data),
                                let delta = evt.delta {
                                 continuation.yield(.contentDelta(delta))
+                            }
+
+                        case "response.reasoning_text.delta",
+                             "response.reasoning_summary_text.delta":
+                            if let evt = try? decoder.decode(ResponsesStreamEvent.self, from: data),
+                               let delta = evt.delta {
+                                continuation.yield(.thinkingDelta(delta))
                             }
 
                         case "response.output_item.added":

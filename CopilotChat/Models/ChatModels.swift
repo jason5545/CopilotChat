@@ -315,10 +315,15 @@ struct StreamChunk: Decodable {
     struct StreamDelta: Decodable {
         let role: String?
         let content: String?
+        let reasoningContent: String?
+        /// GitHub Copilot API uses `reasoning_text` for Claude thinking tokens.
+        let reasoningText: String?
         let toolCalls: [StreamToolCall]?
 
         enum CodingKeys: String, CodingKey {
             case role, content
+            case reasoningContent = "reasoning_content"
+            case reasoningText = "reasoning_text"
             case toolCalls = "tool_calls"
         }
     }

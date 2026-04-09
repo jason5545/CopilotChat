@@ -393,6 +393,7 @@ final class CopilotService {
     /// Parsed SSE event from the Copilot API.
     private enum SSEEvent: Sendable, CustomStringConvertible {
         case contentDelta(String)
+        case thinkingDelta(String)
         case toolCallDelta(index: Int, id: String?, name: String?, arguments: String?)
         case usage(TokenUsage)
         case finish(reason: String)
@@ -400,6 +401,7 @@ final class CopilotService {
         var description: String {
             switch self {
             case .contentDelta(let s): "contentDelta(\(s.prefix(50)))"
+            case .thinkingDelta(let s): "thinkingDelta(\(s.prefix(50)))"
             case .toolCallDelta(let i, let id, let n, _): "toolCallDelta(idx=\(i), id=\(id ?? "nil"), name=\(n ?? "nil"))"
             case .usage(let u): "usage(prompt=\(u.promptTokens), completion=\(u.completionTokens))"
             case .finish(let r): "finish(\(r))"
@@ -488,6 +490,11 @@ final class CopilotService {
             switch event {
             case .contentDelta(let text):
                 messages[index].content += text
+                contentRevision &+= 1
+
+            case .thinkingDelta(let text):
+                if messages[index].reasoning == nil { messages[index].reasoning = "" }
+                messages[index].reasoning! += text
                 contentRevision &+= 1
 
             case .toolCallDelta(let idx, let id, let name, let arguments):
@@ -589,6 +596,7 @@ final class CopilotService {
             case .thinkingDelta(let text):
                 if messages[index].reasoning == nil { messages[index].reasoning = "" }
                 messages[index].reasoning! += text
+                contentRevision &+= 1
 
             case .toolCallStart(let idx, let id, let name):
                 let key = "\(idx)"
@@ -724,6 +732,10 @@ final class CopilotService {
 
                         if let content = choice.delta.content {
                             continuation.yield(.contentDelta(content))
+                        }
+
+                        if let reasoning = choice.delta.reasoningContent ?? choice.delta.reasoningText {
+                            continuation.yield(.thinkingDelta(reasoning))
                         }
 
                         if let toolCallDeltas = choice.delta.toolCalls {
@@ -945,9 +957,16 @@ final class CopilotService {
                                 continuation.yield(.contentDelta(delta))
                             }
 
+                        case "response.reasoning_text.delta",
+                             "response.reasoning_summary_text.delta":
+                            if let evt = try? decoder.decode(ResponsesStreamEvent.self, from: data),
+                               let delta = evt.delta {
+                                continuation.yield(.thinkingDelta(delta))
+                            }
+
                         case "response.output_item.added":
                             if let evt = try? decoder.decode(ResponsesStreamEvent.self, from: data),
-                               let item = evt.item, item.type == "function_call" {
+                                let item = evt.item, item.type == "function_call" {
                                 let idx = evt.outputIndex ?? 0
                                 hasToolCalls = true
                                 continuation.yield(.toolCallDelta(
