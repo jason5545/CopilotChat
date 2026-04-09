@@ -1,5 +1,9 @@
 import Foundation
 
+enum TableAlignment: Equatable {
+    case left, center, right
+}
+
 enum MarkdownBlock: Equatable {
     case paragraph(String)
     case codeBlock(language: String?, code: String)
@@ -8,6 +12,7 @@ enum MarkdownBlock: Equatable {
     case orderedList([(Int, String)])
     case blockquote(String)
     case horizontalRule
+    case table(headers: [String], alignments: [TableAlignment], rows: [[String]])
 
     static func == (lhs: MarkdownBlock, rhs: MarkdownBlock) -> Bool {
         switch (lhs, rhs) {
@@ -19,6 +24,8 @@ enum MarkdownBlock: Equatable {
             a.count == b.count && zip(a, b).allSatisfy { $0.0 == $1.0 && $0.1 == $1.1 }
         case (.blockquote(let a), .blockquote(let b)): a == b
         case (.horizontalRule, .horizontalRule): true
+        case (.table(let ha, let aa, let ra), .table(let hb, let ab, let rb)):
+            ha == hb && aa == ab && ra == rb
         default: false
         }
     }
@@ -105,6 +112,21 @@ enum MarkdownParser {
                 continue
             }
 
+            // Table
+            if isTableStart(lines, at: i) {
+                let headers = splitTableRow(trimmed)
+                let sepLine = lines[i + 1].trimmingCharacters(in: .whitespaces)
+                let alignments = parseTableSeparator(sepLine)!  // safe: isTableStart validated
+                i += 2
+                var dataRows: [[String]] = []
+                while i < lines.count, lines[i].trimmingCharacters(in: .whitespaces).hasPrefix("|") {
+                    dataRows.append(splitTableRow(lines[i].trimmingCharacters(in: .whitespaces)))
+                    i += 1
+                }
+                blocks.append(.table(headers: headers, alignments: alignments, rows: dataRows))
+                continue
+            }
+
             // Empty line
             if trimmed.isEmpty {
                 i += 1
@@ -117,7 +139,8 @@ enum MarkdownParser {
                 let pTrimmed = lines[i].trimmingCharacters(in: .whitespaces)
                 if pTrimmed.isEmpty || pTrimmed.hasPrefix("```") || pTrimmed.hasPrefix("#")
                     || pTrimmed.hasPrefix(">") || isHorizontalRule(pTrimmed)
-                    || isUnorderedListItem(pTrimmed) || isOrderedListItem(pTrimmed) {
+                    || isUnorderedListItem(pTrimmed) || isOrderedListItem(pTrimmed)
+                    || (pTrimmed.hasPrefix("|") && isTableStart(lines, at: i)) {
                     break
                 }
                 paraLines.append(pTrimmed)
@@ -177,5 +200,45 @@ enum MarkdownParser {
         let afterDot = trimmed.index(after: dotIdx)
         guard afterDot < trimmed.endIndex, trimmed[afterDot] == " " else { return String(line) }
         return String(trimmed[trimmed.index(after: afterDot)...])
+    }
+
+    // MARK: - Table Helpers
+
+    static func splitTableRow(_ line: String) -> [String] {
+        var result = line.split(separator: Character("|"), omittingEmptySubsequences: false)
+            .map { String($0).trimmingCharacters(in: .whitespaces) }
+        if result.first?.isEmpty == true { result.removeFirst() }
+        if result.last?.isEmpty == true { result.removeLast() }
+        return result
+    }
+
+    static func isTableSeparator(_ line: String) -> Bool {
+        parseTableSeparator(line) != nil
+    }
+
+    /// Validates separator and returns alignments in one pass (single `splitTableRow`).
+    static func parseTableSeparator(_ line: String) -> [TableAlignment]? {
+        guard line.hasPrefix("|") else { return nil }
+        let cells = splitTableRow(line)
+        guard !cells.isEmpty else { return nil }
+        var alignments: [TableAlignment] = []
+        for cell in cells {
+            guard !cell.isEmpty else { return nil }
+            let hasLeft = cell.hasPrefix(":")
+            let hasRight = cell.hasSuffix(":")
+            let stripped = hasLeft ? String(cell.dropFirst()) : cell
+            let stripped2 = stripped.hasSuffix(":") ? String(stripped.dropLast()) : stripped
+            guard !stripped2.isEmpty, stripped2.allSatisfy({ $0 == "-" }) else { return nil }
+            if hasLeft && hasRight { alignments.append(.center) }
+            else if hasRight { alignments.append(.right) }
+            else { alignments.append(.left) }
+        }
+        return alignments
+    }
+
+    static func isTableStart(_ lines: [String], at index: Int) -> Bool {
+        let trimmed = lines[index].trimmingCharacters(in: .whitespaces)
+        guard trimmed.hasPrefix("|"), index + 1 < lines.count else { return false }
+        return parseTableSeparator(lines[index + 1].trimmingCharacters(in: .whitespaces)) != nil
     }
 }

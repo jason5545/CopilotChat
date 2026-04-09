@@ -570,8 +570,9 @@ final class CopilotService {
                 messages[index].content += text
                 contentRevision &+= 1
 
-            case .thinkingDelta:
-                break // Not displayed in current UI
+            case .thinkingDelta(let text):
+                if messages[index].reasoning == nil { messages[index].reasoning = "" }
+                messages[index].reasoning! += text
 
             case .toolCallStart(let idx, let id, let name):
                 let key = "\(idx)"

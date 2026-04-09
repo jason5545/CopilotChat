@@ -149,8 +149,76 @@ struct MarkdownView: View {
                 .fill(Color.carbonBorder.opacity(0.3))
                 .frame(height: 0.5)
                 .padding(.vertical, 4)
+
+        case .table(let headers, let alignments, let rows):
+            tableBlock(headers: headers, alignments: alignments, rows: rows)
         }
     }
+
+    // MARK: - Table
+
+    @ViewBuilder
+    private func tableBlock(headers: [String], alignments: [TableAlignment], rows: [[String]]) -> some View {
+        let colCount = headers.count
+
+        ScrollView(.horizontal) {
+            Grid(horizontalSpacing: 0, verticalSpacing: 0) {
+                // Header
+                GridRow {
+                    ForEach(0..<colCount, id: \.self) { col in
+                        inlineMarkdown(headers[col])
+                            .font(.carbonMono(.caption, weight: .semibold))
+                            .foregroundStyle(Color.carbonAccent)
+                            .fixedSize(horizontal: true, vertical: false)
+                            .frame(maxWidth: .infinity, alignment: tableSwiftUIAlignment(alignments, col))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 9)
+                            .background(Color.carbonAccent.opacity(0.08))
+                    }
+                }
+
+                // Accent separator
+                GridRow {
+                    Color.carbonAccent.opacity(0.25)
+                        .frame(height: 1)
+                        .gridCellColumns(colCount)
+                }
+
+                // Data rows
+                ForEach(Array(rows.enumerated()), id: \.offset) { rowIdx, row in
+                    GridRow {
+                        ForEach(0..<colCount, id: \.self) { col in
+                            inlineMarkdown(col < row.count ? row[col] : "")
+                                .font(.carbonMono(.caption))
+                                .foregroundStyle(Color.carbonText.opacity(0.85))
+                                .fixedSize(horizontal: true, vertical: false)
+                                .frame(maxWidth: .infinity, alignment: tableSwiftUIAlignment(alignments, col))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 7)
+                                .background(rowIdx.isMultiple(of: 2) ? Color.carbonCodeBg : Color.carbonSurface.opacity(0.4))
+                        }
+                    }
+                }
+            }
+            .background(Color.carbonCodeBg)
+            .clipShape(RoundedRectangle(cornerRadius: Carbon.radiusSmall))
+            .overlay(
+                RoundedRectangle(cornerRadius: Carbon.radiusSmall)
+                    .stroke(Color.carbonBorder.opacity(0.3), lineWidth: 0.5)
+            )
+        }
+    }
+
+    private func tableSwiftUIAlignment(_ alignments: [TableAlignment], _ col: Int) -> Alignment {
+        guard col < alignments.count else { return .leading }
+        switch alignments[col] {
+        case .left: return .leading
+        case .center: return .center
+        case .right: return .trailing
+        }
+    }
+
+    // MARK: - Inline
 
     private func inlineMarkdown(_ text: String) -> Text {
         if let attributed = try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
@@ -198,6 +266,12 @@ struct MarkdownView: View {
         > spanning multiple lines
 
         ---
+
+        | Model | Context | Price |
+        |-------|:-------:|------:|
+        | GPT-4 | 128K | $30/M |
+        | Claude 3.5 | 200K | $15/M |
+        | Gemini 1.5 | 1M | $7/M |
 
         [Link example](https://example.com)
         """)

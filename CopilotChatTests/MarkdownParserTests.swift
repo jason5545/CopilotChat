@@ -154,6 +154,74 @@ struct MarkdownParserTests {
         #expect(blocks[6] == .paragraph("End."))
     }
 
+    // MARK: - Tables
+
+    @Test("Parses basic table")
+    func basicTable() {
+        let input = "| A | B |\n|---|---|\n| 1 | 2 |"
+        let blocks = MarkdownParser.parse(input)
+        #expect(blocks == [.table(
+            headers: ["A", "B"],
+            alignments: [.left, .left],
+            rows: [["1", "2"]]
+        )])
+    }
+
+    @Test("Parses table alignments")
+    func tableAlignments() {
+        let input = "| Left | Center | Right |\n|:---|:---:|---:|\n| a | b | c |"
+        let blocks = MarkdownParser.parse(input)
+        if case .table(_, let alignments, _) = blocks.first {
+            #expect(alignments == [.left, .center, .right])
+        } else {
+            Issue.record("Expected table")
+        }
+    }
+
+    @Test("Parses table with multiple rows")
+    func tableMultipleRows() {
+        let input = "| H1 | H2 |\n|---|---|\n| a | b |\n| c | d |\n| e | f |"
+        let blocks = MarkdownParser.parse(input)
+        if case .table(let headers, _, let rows) = blocks.first {
+            #expect(headers == ["H1", "H2"])
+            #expect(rows.count == 3)
+            #expect(rows[2] == ["e", "f"])
+        } else {
+            Issue.record("Expected table")
+        }
+    }
+
+    @Test("Table in mixed content")
+    func tableInMixedContent() {
+        let input = "# Title\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\nEnd."
+        let blocks = MarkdownParser.parse(input)
+        #expect(blocks.count == 3)
+        #expect(blocks[0] == .heading(level: 1, text: "Title"))
+        if case .table = blocks[1] {} else { Issue.record("Expected table at index 1") }
+        #expect(blocks[2] == .paragraph("End."))
+    }
+
+    @Test("Pipe line without separator is not a table")
+    func pipeLineNotTable() {
+        let input = "| not a table"
+        let blocks = MarkdownParser.parse(input)
+        #expect(blocks == [.paragraph("| not a table")])
+    }
+
+    @Test("splitTableRow helper")
+    func splitTableRow() {
+        #expect(MarkdownParser.splitTableRow("| A | B | C |") == ["A", "B", "C"])
+        #expect(MarkdownParser.splitTableRow("| A |  | C |") == ["A", "", "C"])
+    }
+
+    @Test("isTableSeparator helper")
+    func tableSeparator() {
+        #expect(MarkdownParser.isTableSeparator("|---|---|"))
+        #expect(MarkdownParser.isTableSeparator("| :---: | ---: |"))
+        #expect(!MarkdownParser.isTableSeparator("| not | sep |"))
+        #expect(!MarkdownParser.isTableSeparator("just text"))
+    }
+
     // MARK: - Edge Cases
 
     @Test("Handles empty string")

@@ -31,7 +31,10 @@ struct MessageView: View {
         self.isSummary = isSummary
         self.onEdit = onEdit
         self.onRegenerate = onRegenerate
+        _isReasoningExpanded = State(initialValue: message.content.isEmpty)
     }
+
+    @State private var isReasoningExpanded: Bool
 
     var body: some View {
         switch message.role {
@@ -74,6 +77,85 @@ struct MessageView: View {
         .padding(.vertical, Carbon.spacingTight)
     }
 
+    // MARK: - Reasoning Block
+
+    /// Whether the model is actively receiving thinking tokens (no content yet).
+    private var isActivelyThinking: Bool {
+        isStreaming && message.reasoning != nil && message.content.isEmpty
+    }
+
+    private var reasoningBlock: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header — tappable to toggle
+            Button {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    isReasoningExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    if isActivelyThinking {
+                        ThinkingIndicator()
+                    } else {
+                        Image(systemName: "brain.head.profile")
+                            .font(.caption2)
+                            .foregroundStyle(Color.carbonTextTertiary)
+                    }
+
+                    Text("REASONING")
+                        .font(.carbonMono(.caption2, weight: .semibold))
+                        .kerning(0.8)
+                        .foregroundStyle(Color.carbonTextTertiary)
+
+                    if !isReasoningExpanded, let reasoning = message.reasoning {
+                        Text("·")
+                            .foregroundStyle(Color.carbonBorder)
+                        Text("\(reasoning.count) chars")
+                            .font(.carbonMono(.caption2))
+                            .foregroundStyle(Color.carbonTextTertiary.opacity(0.5))
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(Color.carbonTextTertiary.opacity(0.4))
+                        .rotationEffect(.degrees(isReasoningExpanded ? 90 : 0))
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+            }
+            .buttonStyle(.plain)
+
+            if isReasoningExpanded, let reasoning = message.reasoning, !reasoning.isEmpty {
+                Rectangle()
+                    .fill(Color.carbonBorder.opacity(0.15))
+                    .frame(height: 0.5)
+
+                Text(reasoning)
+                    .font(.carbonMono(.caption2))
+                    .foregroundStyle(Color.carbonTextTertiary)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .background(Color.carbonSurface.opacity(0.6))
+        .clipShape(RoundedRectangle(cornerRadius: Carbon.radiusSmall))
+        .overlay(
+            RoundedRectangle(cornerRadius: Carbon.radiusSmall)
+                .stroke(Color.carbonBorder.opacity(0.15), lineWidth: 0.5)
+        )
+        .onChange(of: message.content.isEmpty) { wasEmpty, isEmpty in
+            // Auto-collapse when content starts arriving
+            if wasEmpty && !isEmpty {
+                withAnimation(.easeOut(duration: 0.25)) {
+                    isReasoningExpanded = false
+                }
+            }
+        }
+    }
+
     // MARK: - Assistant Message
 
     private var assistantContentBlock: some View {
@@ -95,6 +177,10 @@ struct MessageView: View {
 
     private var assistantMessage: some View {
         VStack(alignment: .leading, spacing: Carbon.spacingBase) {
+            if message.reasoning != nil {
+                reasoningBlock
+            }
+
             if !message.content.isEmpty {
                 assistantContentBlock
             }

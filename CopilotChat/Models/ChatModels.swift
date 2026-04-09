@@ -11,6 +11,9 @@ struct ChatMessage: Identifiable, Equatable, Codable {
     var toolName: String?
     let timestamp: Date
 
+    /// Accumulated reasoning/thinking tokens from the model. Not persisted to JSON.
+    var reasoning: String?
+
     /// Optional image data (e.g. web screenshot). Not persisted to JSON.
     var imageData: Data?
 
@@ -63,7 +66,7 @@ struct ChatMessage: Identifiable, Equatable, Codable {
     }
 
     static func == (lhs: ChatMessage, rhs: ChatMessage) -> Bool {
-        lhs.id == rhs.id && lhs.content == rhs.content
+        lhs.id == rhs.id && lhs.content == rhs.content && lhs.reasoning == rhs.reasoning
     }
 }
 
