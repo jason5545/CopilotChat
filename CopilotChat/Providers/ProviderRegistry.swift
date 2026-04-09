@@ -18,22 +18,29 @@ final class ProviderRegistry {
     var activeProviderId: String {
         didSet {
             UserDefaults.standard.set(activeProviderId, forKey: "activeProviderId")
-            // Reset model when provider changes — pick first available or clear
             if oldValue != activeProviderId {
-                let firstModel = modelsDevProviders[activeProviderId]?.models.values
-                    .max { a, b in
-                        a.limit.context != b.limit.context
-                            ? a.limit.context < b.limit.context
-                            : a.name > b.name
-                    }?.id ?? ""
-                activeModelId = firstModel
+                let remembered = UserDefaults.standard.string(forKey: "providerModel-\(activeProviderId)")
+                if let remembered, modelsDevProviders[activeProviderId]?.models[remembered] != nil {
+                    activeModelId = remembered
+                } else {
+                    let firstModel = modelsDevProviders[activeProviderId]?.models.values
+                        .max { a, b in
+                            a.limit.context != b.limit.context
+                                ? a.limit.context < b.limit.context
+                                : a.name > b.name
+                        }?.id ?? ""
+                    activeModelId = firstModel
+                }
             }
         }
     }
 
     /// Currently active model ID
     var activeModelId: String {
-        didSet { UserDefaults.standard.set(activeModelId, forKey: "activeModelId") }
+        didSet {
+            UserDefaults.standard.set(activeModelId, forKey: "activeModelId")
+            UserDefaults.standard.set(activeModelId, forKey: "providerModel-\(activeProviderId)")
+        }
     }
 
     /// Loading state
