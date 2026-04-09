@@ -452,7 +452,8 @@ final class CopilotService {
             )
             let requestData = try JSONEncoder().encode(request)
             let urlRequest = Self.buildURLRequest(
-                url: URL(string: Self.responsesEndpoint)!, token: token, body: requestData)
+                url: URL(string: Self.responsesEndpoint)!, token: token, body: requestData,
+                messages: buildAPIMessages(mcpTools: tools))
             stream = try await Self.openResponsesSSEStream(urlRequest: urlRequest)
         } else {
             // Chat Completions path
@@ -473,7 +474,8 @@ final class CopilotService {
             )
             let requestData = try JSONEncoder().encode(request)
             let urlRequest = Self.buildURLRequest(
-                url: URL(string: Self.chatEndpoint)!, token: token, body: requestData)
+                url: URL(string: Self.chatEndpoint)!, token: token, body: requestData,
+                messages: apiMessages)
             stream = try await Self.openSSEStream(urlRequest: urlRequest)
         }
 
@@ -653,13 +655,22 @@ final class CopilotService {
     }
 
     /// Build the URL request with headers matching OpenCode TS version.
-    private static func buildURLRequest(url: URL, token: String, body: Data) -> URLRequest {
+    private static func buildURLRequest(
+        url: URL, token: String, body: Data,
+        messages: [APIMessage] = [],
+        agentInitiated: Bool = false
+    ) -> URLRequest {
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         urlRequest.setValue(userAgent, forHTTPHeaderField: "User-Agent")
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         urlRequest.setValue("conversation-edits", forHTTPHeaderField: "Openai-Intent")
+
+        let initiator = agentInitiated ? "agent"
+            : (messages.last?.role != "user" ? "agent" : "user")
+        urlRequest.setValue(initiator, forHTTPHeaderField: "x-initiator")
+
         urlRequest.httpBody = body
         return urlRequest
     }
@@ -1056,7 +1067,7 @@ final class CopilotService {
             url = URL(string: Self.chatEndpoint)!
         }
 
-        let urlRequest = Self.buildURLRequest(url: url, token: token, body: requestData)
+        let urlRequest = Self.buildURLRequest(url: url, token: token, body: requestData, agentInitiated: true)
 
         let (data, response) = try await Self.urlSession.data(for: urlRequest)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
@@ -1097,7 +1108,8 @@ final class CopilotService {
         let options = ProviderOptions(
             maxOutputTokens: AgentConfig.summarizer.maxOutputTokens,
             temperature: AgentConfig.summarizer.temperature,
-            systemPrompt: AgentConfig.summarizer.systemPrompt
+            systemPrompt: AgentConfig.summarizer.systemPrompt,
+            agentInitiated: true
         )
 
         let response = try await provider.sendCompletion(

@@ -71,7 +71,8 @@ enum TitleGenerator {
 
         let options = ProviderOptions(
             maxOutputTokens: AgentConfig.title.maxOutputTokens,
-            temperature: AgentConfig.title.temperature
+            temperature: AgentConfig.title.temperature,
+            agentInitiated: true
         )
 
         do {

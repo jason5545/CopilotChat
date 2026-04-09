@@ -91,7 +91,6 @@ struct CopilotProvider: LLMProvider, @unchecked Sendable {
             throw ProviderError.noAPIKey
         }
 
-        // Non-streaming: use Chat Completions with stream=false
         let apiTools = tools
         let request = ChatCompletionRequest(
             model: model, messages: messages, stream: false,
@@ -102,7 +101,7 @@ struct CopilotProvider: LLMProvider, @unchecked Sendable {
         let requestData = try JSONEncoder().encode(request)
         let urlRequest = buildURLRequest(
             url: URL(string: Self.chatEndpoint)!, token: token, body: requestData,
-            model: model, messages: messages)
+            model: model, messages: messages, agentInitiated: options.agentInitiated)
 
         let (data, response) = try await SSEParser.urlSession.data(for: urlRequest)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
@@ -143,7 +142,7 @@ struct CopilotProvider: LLMProvider, @unchecked Sendable {
         let requestData = try JSONEncoder().encode(request)
         let urlRequest = buildURLRequest(
             url: URL(string: Self.chatEndpoint)!, token: token, body: requestData,
-            model: model, messages: messages)
+            model: model, messages: messages, agentInitiated: options.agentInitiated)
         let bytes = try await SSEParser.validatedBytes(for: urlRequest, session: SSEParser.urlSession)
         return SSEParser.parseChatCompletionsStream(bytes: bytes)
     }
@@ -168,7 +167,7 @@ struct CopilotProvider: LLMProvider, @unchecked Sendable {
         let requestData = try JSONEncoder().encode(request)
         let urlRequest = buildURLRequest(
             url: URL(string: Self.responsesEndpoint)!, token: token, body: requestData,
-            model: model, messages: messages)
+            model: model, messages: messages, agentInitiated: options.agentInitiated)
         let bytes = try await SSEParser.validatedBytes(for: urlRequest, session: SSEParser.urlSession)
         return SSEParser.parseResponsesStream(bytes: bytes)
     }
@@ -179,7 +178,7 @@ struct CopilotProvider: LLMProvider, @unchecked Sendable {
     /// Uses raw GitHub OAuth token directly (no token exchange needed).
     private func buildURLRequest(
         url: URL, token: String, body: Data,
-        model: String = "", messages: [APIMessage] = []
+        model: String = "", messages: [APIMessage] = [], agentInitiated: Bool = false
     ) -> URLRequest {
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = "POST"
@@ -188,8 +187,7 @@ struct CopilotProvider: LLMProvider, @unchecked Sendable {
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         urlRequest.setValue("conversation-edits", forHTTPHeaderField: "Openai-Intent")
 
-        // Agent vs user initiator (TS version behavior)
-        let initiator = Self.isAgentInitiated(messages: messages) ? "agent" : "user"
+        let initiator = agentInitiated ? "agent" : (Self.isAgentInitiated(messages: messages) ? "agent" : "user")
         urlRequest.setValue(initiator, forHTTPHeaderField: "x-initiator")
 
         // Vision header when images are present

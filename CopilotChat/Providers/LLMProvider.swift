@@ -46,6 +46,8 @@ struct ProviderOptions: Sendable {
     var toolChoice: String?
     /// Provider-specific extra fields for the request body (e.g., thinking, enable_thinking)
     var extraFields: [String: AnyCodable]?
+    /// Force x-initiator: agent header (for title generation, compaction, etc.)
+    var agentInitiated: Bool
 
     init(
         maxOutputTokens: Int? = nil,
@@ -55,7 +57,8 @@ struct ProviderOptions: Sendable {
         reasoningEffort: String? = nil,
         systemPrompt: String? = nil,
         toolChoice: String? = nil,
-        extraFields: [String: AnyCodable]? = nil
+        extraFields: [String: AnyCodable]? = nil,
+        agentInitiated: Bool = false
     ) {
         self.maxOutputTokens = maxOutputTokens
         self.temperature = temperature
@@ -65,6 +68,7 @@ struct ProviderOptions: Sendable {
         self.systemPrompt = systemPrompt
         self.toolChoice = toolChoice
         self.extraFields = extraFields
+        self.agentInitiated = agentInitiated
     }
 }
 
