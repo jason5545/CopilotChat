@@ -158,11 +158,24 @@ struct CopilotProvider: LLMProvider, @unchecked Sendable {
             ResponsesAPITool(type: "function", name: tool.function.name,
                              description: tool.function.description, parameters: tool.function.parameters)
         }
+        let reasoning: ResponsesReasoning? = {
+            if let effort = options.reasoningEffort {
+                return ResponsesReasoning(effort: effort, summary: "auto")
+            }
+            // Always request reasoning summary for reasoning-capable models
+            let model = model.lowercased()
+            if model.hasPrefix("o1") || model.hasPrefix("o3") || model.hasPrefix("o4")
+                || model.hasPrefix("gpt-5") || model.hasPrefix("gpt-4") {
+                return ResponsesReasoning(effort: nil, summary: "auto")
+            }
+            return nil
+        }()
         let request = ResponsesAPIRequest(
             model: model, instructions: options.systemPrompt ?? "",
             input: input, stream: true, maxOutputTokens: options.maxOutputTokens,
             temperature: options.temperature ?? 0.7,
-            tools: apiTools, toolChoice: apiTools != nil ? (options.toolChoice ?? "auto") : nil
+            tools: apiTools, toolChoice: apiTools != nil ? (options.toolChoice ?? "auto") : nil,
+            reasoning: reasoning
         )
         let requestData = try JSONEncoder().encode(request)
         let urlRequest = buildURLRequest(

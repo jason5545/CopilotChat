@@ -38,13 +38,25 @@ struct OpenAICodexProvider: LLMProvider, @unchecked Sendable {
                                          description: tool.function.description,
                                          parameters: tool.function.parameters?.mapValues { $0 })
                     }
+                    let reasoning: ResponsesReasoning? = {
+                        if let effort = options.reasoningEffort {
+                            return ResponsesReasoning(effort: effort, summary: "auto")
+                        }
+                        let m = model.lowercased()
+                        if m.hasPrefix("o1") || m.hasPrefix("o3") || m.hasPrefix("o4")
+                            || m.hasPrefix("gpt-5") || m.hasPrefix("gpt-4") {
+                            return ResponsesReasoning(effort: nil, summary: "auto")
+                        }
+                        return nil
+                    }()
                     let request = ResponsesAPIRequest(
                         model: model, instructions: options.systemPrompt ?? "",
                         input: input, stream: true,
                         maxOutputTokens: options.maxOutputTokens,
                         temperature: options.temperature ?? 0.7,
                         tools: apiTools,
-                        toolChoice: apiTools != nil ? (options.toolChoice ?? "auto") : nil
+                        toolChoice: apiTools != nil ? (options.toolChoice ?? "auto") : nil,
+                        reasoning: reasoning
                     )
                     let requestData = try JSONEncoder().encode(request)
 
@@ -84,12 +96,24 @@ struct OpenAICodexProvider: LLMProvider, @unchecked Sendable {
         let token = try await auth.validAccessToken()
 
         let input = Self.convertToResponsesInput(messages: messages, systemPrompt: options.systemPrompt)
+        let reasoning: ResponsesReasoning? = {
+            if let effort = options.reasoningEffort {
+                return ResponsesReasoning(effort: effort, summary: "auto")
+            }
+            let m = model.lowercased()
+            if m.hasPrefix("o1") || m.hasPrefix("o3") || m.hasPrefix("o4")
+                || m.hasPrefix("gpt-5") || m.hasPrefix("gpt-4") {
+                return ResponsesReasoning(effort: nil, summary: "auto")
+            }
+            return nil
+        }()
         let request = ResponsesAPIRequest(
             model: model, instructions: options.systemPrompt ?? "",
             input: input, stream: false,
             maxOutputTokens: options.maxOutputTokens,
             temperature: options.temperature ?? 0.7,
-            tools: nil, toolChoice: nil
+            tools: nil, toolChoice: nil,
+            reasoning: reasoning
         )
         let requestData = try JSONEncoder().encode(request)
 

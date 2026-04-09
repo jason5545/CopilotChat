@@ -447,10 +447,19 @@ final class CopilotService {
                 ResponsesAPITool(type: "function", name: tool.name,
                                  description: tool.description, parameters: tool.inputSchema)
             }
+            let reasoning: ResponsesReasoning? = {
+                let m = model.lowercased()
+                if m.hasPrefix("o1") || m.hasPrefix("o3") || m.hasPrefix("o4")
+                    || m.hasPrefix("gpt-5") || m.hasPrefix("gpt-4") {
+                    return ResponsesReasoning(effort: nil, summary: "auto")
+                }
+                return nil
+            }()
             let request = ResponsesAPIRequest(
                 model: model, instructions: instructions, input: input,
                 stream: true, maxOutputTokens: maxOutputTokens, temperature: 0.7,
-                tools: apiTools, toolChoice: apiTools != nil ? "auto" : nil
+                tools: apiTools, toolChoice: apiTools != nil ? "auto" : nil,
+                reasoning: reasoning
             )
             let requestData = try JSONEncoder().encode(request)
             let urlRequest = Self.buildURLRequest(
@@ -1066,7 +1075,7 @@ final class CopilotService {
                 model: model, instructions: Self.summarizerInstructions,
                 input: fullInput, stream: false,
                 maxOutputTokens: 4096, temperature: 0.5,
-                tools: nil, toolChoice: nil
+                tools: nil, toolChoice: nil, reasoning: nil
             )
             requestData = try JSONEncoder().encode(request)
             url = URL(string: Self.responsesEndpoint)!

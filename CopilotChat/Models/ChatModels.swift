@@ -561,11 +561,21 @@ struct ResponsesAPIRequest: Encodable {
     let temperature: Double?
     let tools: [ResponsesAPITool]?
     let toolChoice: String?
+    let reasoning: ResponsesReasoning?
 
     enum CodingKeys: String, CodingKey {
-        case model, instructions, input, stream, temperature, tools
+        case model, instructions, input, stream, temperature, tools, reasoning
         case maxOutputTokens = "max_output_tokens"
         case toolChoice = "tool_choice"
+    }
+}
+
+struct ResponsesReasoning: Encodable {
+    let effort: String?
+    let summary: String?
+
+    enum CodingKeys: String, CodingKey {
+        case effort, summary
     }
 }
 
