@@ -10,7 +10,6 @@ struct MessageView: View {
     let isSummary: Bool
     let onEdit: ((ChatMessage) -> Void)?
     let onRegenerate: (() -> Void)?
-    let onDelete: ((ChatMessage) -> Void)?
 
     init(
         message: ChatMessage,
@@ -21,8 +20,7 @@ struct MessageView: View {
         onPermissionDecision: ((PermissionDecision) -> Void)? = nil,
         isSummary: Bool = false,
         onEdit: ((ChatMessage) -> Void)? = nil,
-        onRegenerate: (() -> Void)? = nil,
-        onDelete: ((ChatMessage) -> Void)? = nil
+        onRegenerate: (() -> Void)? = nil
     ) {
         self.message = message
         self.toolCallStatuses = toolCallStatuses
@@ -33,7 +31,6 @@ struct MessageView: View {
         self.isSummary = isSummary
         self.onEdit = onEdit
         self.onRegenerate = onRegenerate
-        self.onDelete = onDelete
     }
 
     var body: some View {
@@ -59,30 +56,7 @@ struct MessageView: View {
         VStack(alignment: .trailing, spacing: 2) {
             HStack {
                 Spacer(minLength: 72)
-                VStack(alignment: .trailing, spacing: 8) {
-                    if let imageData = message.imageData, let uiImage = UIImage(data: imageData) {
-                        Image(uiImage: uiImage)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxWidth: 200, maxHeight: 200)
-                            .clipShape(RoundedRectangle(cornerRadius: Carbon.radiusSmall))
-                    }
-                    if !message.content.isEmpty {
-                        Text(message.content)
-                            .font(.carbonSans(.body))
-                            .foregroundStyle(Color.carbonText)
-                            .multilineTextAlignment(.trailing)
-                    }
-                }
-                .padding(.horizontal, Carbon.messagePaddingH)
-                .padding(.vertical, Carbon.messagePaddingV)
-                .background(Color.carbonUserBubble)
-                .clipShape(RoundedRectangle(cornerRadius: Carbon.radiusLarge))
-                .overlay(
-                    RoundedRectangle(cornerRadius: Carbon.radiusLarge)
-                        .stroke(Color.carbonUserBorder, lineWidth: 0.5)
-                )
-                .contextMenu { messageContextMenu() }
+                UserBubbleView(message: message)
             }
             if let onEdit {
                 Button {
@@ -102,26 +76,27 @@ struct MessageView: View {
 
     // MARK: - Assistant Message
 
+    private var assistantContentBlock: some View {
+        HStack(alignment: .top, spacing: 0) {
+            RoundedRectangle(cornerRadius: 1)
+                .fill(Color.carbonAccent.opacity(0.5))
+                .frame(width: Carbon.accentBarWidth)
+                .padding(.vertical, 2)
+
+            MarkdownView(text: message.content)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .foregroundStyle(Color.carbonText)
+                .padding(.leading, Carbon.spacingRelaxed)
+                .padding(.trailing, Carbon.spacingTight)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
     private var assistantMessage: some View {
         VStack(alignment: .leading, spacing: Carbon.spacingBase) {
             if !message.content.isEmpty {
-                HStack(alignment: .top, spacing: 0) {
-                    // Accent bar
-                    RoundedRectangle(cornerRadius: 1)
-                        .fill(Color.carbonAccent.opacity(0.5))
-                        .frame(width: Carbon.accentBarWidth)
-                        .padding(.vertical, 2)
-
-                    // Content — use MarkdownView for both streaming and final
-                    MarkdownView(text: message.content)
-                        .textSelection(.enabled)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .foregroundStyle(Color.carbonText)
-                        .padding(.leading, Carbon.spacingRelaxed)
-                        .padding(.trailing, Carbon.spacingTight)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .contextMenu { messageContextMenu() }
+                assistantContentBlock
             }
 
             if let toolCalls = message.toolCalls {
@@ -470,27 +445,6 @@ struct MessageView: View {
 
     // MARK: - Helpers
 
-    @ViewBuilder
-    private func messageContextMenu() -> some View {
-        if !message.content.isEmpty {
-            Button {
-                Haptics.copyToClipboard(message.content)
-            } label: {
-                Label("Copy", systemImage: "doc.on.doc")
-            }
-            ShareLink(item: message.content) {
-                Label("Share", systemImage: "square.and.arrow.up")
-            }
-        }
-        if let onDelete {
-            Button(role: .destructive) {
-                onDelete(message)
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
-        }
-    }
-
     private func parseArgsSummary(_ json: String) -> String? {
         guard let data = json.data(using: .utf8),
               let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -498,5 +452,82 @@ struct MessageView: View {
         }
         let pairs = dict.map { "\($0.key): \($0.value)" }
         return pairs.joined(separator: ", ")
+    }
+}
+
+// MARK: - User Bubble (shared between message list and context menu preview)
+
+struct UserBubbleView: View {
+    let message: ChatMessage
+    var lineLimit: Int? = nil
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 8) {
+            if let imageData = message.imageData, let uiImage = UIImage(data: imageData) {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: 200, maxHeight: 200)
+                    .clipShape(RoundedRectangle(cornerRadius: Carbon.radiusSmall))
+            }
+            if !message.content.isEmpty {
+                Text(message.content)
+                    .font(.carbonSans(.body))
+                    .foregroundStyle(Color.carbonText)
+                    .multilineTextAlignment(.trailing)
+                    .lineLimit(lineLimit)
+            }
+        }
+        .padding(.horizontal, Carbon.messagePaddingH)
+        .padding(.vertical, Carbon.messagePaddingV)
+        .background(Color.carbonUserBubble)
+        .clipShape(RoundedRectangle(cornerRadius: Carbon.radiusLarge))
+        .overlay(
+            RoundedRectangle(cornerRadius: Carbon.radiusLarge)
+                .stroke(Color.carbonUserBorder, lineWidth: 0.5)
+        )
+    }
+}
+
+// MARK: - Context Menu Preview
+
+/// Standalone preview for context menu — rendered outside the flipped ScrollView
+/// so it is not affected by the parent's rotationEffect/scaleEffect transforms.
+struct MessageContextPreview: View {
+    let message: ChatMessage
+
+    var body: some View {
+        switch message.role {
+        case .user:    UserBubbleView(message: message, lineLimit: 12)
+        case .assistant: assistantPreview
+        default:       fallbackPreview
+        }
+    }
+
+    private var assistantPreview: some View {
+        HStack(alignment: .top, spacing: 0) {
+            RoundedRectangle(cornerRadius: 1)
+                .fill(Color.carbonAccent.opacity(0.5))
+                .frame(width: Carbon.accentBarWidth)
+                .padding(.vertical, 2)
+            MarkdownView(text: String(message.content.prefix(800)))
+                .foregroundStyle(Color.carbonText)
+                .padding(.leading, Carbon.spacingRelaxed)
+                .padding(.trailing, Carbon.spacingTight)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxWidth: 360)
+        .padding(.vertical, Carbon.spacingTight)
+        .background(Color.carbonBlack)
+    }
+
+    private var fallbackPreview: some View {
+        Text(message.content.prefix(200))
+            .font(.carbonMono(.caption2))
+            .foregroundStyle(Color.carbonTextSecondary)
+            .lineLimit(8)
+            .padding(Carbon.spacingRelaxed)
+            .background(Color.carbonSurface)
+            .clipShape(RoundedRectangle(cornerRadius: Carbon.radiusSmall))
     }
 }

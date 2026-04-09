@@ -131,14 +131,34 @@ struct ChatView: View {
                         onRegenerate: (!copilotService.isStreaming && message.id == regenId) ? {
                             copilotService.regenerateLastResponse(tools: settingsStore.mcpTools)
                             Haptics.impact(.medium)
-                        } : nil,
-                        onDelete: copilotService.isStreaming ? nil : { msg in
-                            copilotService.deleteMessage(msg.id)
-                            autoSaveConversation()
-                            Haptics.notification(.success)
-                        }
+                        } : nil
                     )
                     .flippedForChat()
+                    .contextMenu {
+                        if message.role == .user || message.role == .assistant {
+                            if !message.content.isEmpty {
+                                Button {
+                                    Haptics.copyToClipboard(message.content)
+                                } label: {
+                                    Label("Copy", systemImage: "doc.on.doc")
+                                }
+                                ShareLink(item: message.content) {
+                                    Label("Share", systemImage: "square.and.arrow.up")
+                                }
+                            }
+                            if !copilotService.isStreaming {
+                                Button(role: .destructive) {
+                                    copilotService.deleteMessage(message.id)
+                                    autoSaveConversation()
+                                    Haptics.notification(.success)
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
+                        }
+                    } preview: {
+                        MessageContextPreview(message: message)
+                    }
                     .opacity(dimmedIds.contains(message.id) ? 0.45 : 1.0)
                     .id(message.id)
 
