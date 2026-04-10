@@ -36,6 +36,9 @@ struct CopilotChatApp: App {
 
                     // Load models.dev providers in background
                     await registry.loadProviders()
+
+                    // Initialize plugin system
+                    await PluginRegistry.shared.loadPlugins()
                 }
             }
             .preferredColorScheme(.dark)

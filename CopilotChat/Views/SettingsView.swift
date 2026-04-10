@@ -24,6 +24,7 @@ struct SettingsView: View {
                 mcpSection
                 toolAccessModeSection
                 mcpPermissionsSection
+                pluginsSection
                 aboutSection
             }
             .scrollContentBackground(.hidden)
@@ -733,6 +734,35 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Plugins Section
+
+    private var pluginsSection: some View {
+        Section {
+            NavigationLink {
+                PluginPermissionsView()
+            } label: {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Built-in Plugins")
+                            .font(.carbonSans(.subheadline, weight: .medium))
+                            .foregroundStyle(Color.carbonText)
+                        Text("\(PluginRegistry.shared.pluginCount) plugin(s)")
+                            .font(.carbonMono(.caption2))
+                            .foregroundStyle(Color.carbonTextTertiary)
+                    }
+                    Spacer()
+                }
+            }
+            .listRowBackground(Color.carbonSurface)
+        } header: {
+            CarbonSectionHeader(title: "Plugins")
+        } footer: {
+            Text("\(PluginRegistry.shared.allTools.count) tool(s) available")
+                .font(.carbonMono(.caption2))
+                .foregroundStyle(Color.carbonTextTertiary)
+        }
+    }
+
     // MARK: - About Section
 
     private var aboutSection: some View {
@@ -749,6 +779,68 @@ struct SettingsView: View {
             .listRowBackground(Color.carbonSurface)
         } header: {
             CarbonSectionHeader(title: "About")
+        }
+    }
+}
+
+// MARK: - Plugin Permissions View
+
+struct PluginPermissionsView: View {
+    var body: some View {
+        List {
+            Section {
+                ForEach(PluginRegistry.shared.registeredPlugins, id: \.id) { plugin in
+                    pluginRow(plugin)
+                        .listRowBackground(Color.carbonSurface)
+                }
+
+                if PluginRegistry.shared.pluginCount == 0 {
+                    HStack(spacing: 8) {
+                        Image(systemName: "puzzlepiece.extension")
+                            .font(.caption)
+                            .foregroundStyle(Color.carbonTextTertiary)
+                        Text("No plugins loaded")
+                            .font(.carbonSans(.caption))
+                            .foregroundStyle(Color.carbonTextTertiary)
+                    }
+                    .listRowBackground(Color.carbonSurface)
+                }
+            } header: {
+                CarbonSectionHeader(title: "Plugins")
+            } footer: {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("\(PluginRegistry.shared.pluginCount) plugin(s)")
+                        .font(.carbonMono(.caption2))
+                        .foregroundStyle(Color.carbonTextTertiary)
+                    Text("\(PluginRegistry.shared.allTools.count) tool(s) available")
+                        .font(.carbonMono(.caption2))
+                        .foregroundStyle(Color.carbonTextTertiary)
+                }
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .background(Color.carbonBlack)
+        .navigationTitle("Built-in Plugins")
+        .toolbarColorScheme(.dark, for: .navigationBar)
+    }
+
+    private func pluginRow(_ plugin: any Plugin) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(plugin.name)
+                    .font(.carbonSans(.subheadline, weight: .medium))
+                    .foregroundStyle(Color.carbonText)
+                Text("\(PluginRegistry.shared.hooks(for: plugin.id)?.tools.count ?? 0) tools")
+                    .font(.carbonMono(.caption2))
+                    .foregroundStyle(Color.carbonTextTertiary)
+            }
+            Spacer()
+            Toggle("", isOn: Binding(
+                get: { PluginRegistry.shared.isEnabled(pluginId: plugin.id) },
+                set: { PluginRegistry.shared.setEnabled(pluginId: plugin.id, enabled: $0) }
+            ))
+            .tint(Color.carbonAccent)
+            .labelsHidden()
         }
     }
 }

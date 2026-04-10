@@ -389,13 +389,9 @@ final class CopilotService {
                 discoveredMCPTools.formUnion(matchedNames)
                 text = resultText
                 imageData = nil
-            } else if BuiltInTools.isBuiltIn(call.function.name) {
-                let result = try await BuiltInTools.execute(
-                    name: call.function.name,
-                    argumentsJSON: call.function.arguments
-                )
-                text = result.text
-                imageData = result.imageData
+            } else if let pluginResult = try? await executePluginTool(call.function.name, argumentsJSON: call.function.arguments) {
+                text = pluginResult.text
+                imageData = pluginResult.imageData
             } else {
                 text = try await settingsStore.callTool(
                     name: call.function.name,
@@ -426,6 +422,23 @@ final class CopilotService {
         }
         let maxResults = args["max_results"] as? Int ?? 5
         return (query, maxResults)
+    }
+
+    private func executePluginTool(_ name: String, argumentsJSON: String) async throws -> BuiltInTools.ToolResult {
+        for (pluginId, hooks) in hooksMap {
+            if hooks.tools.contains(where: { $0.name == name }) {
+                return try await PluginRegistry.shared.executeTool(pluginId: pluginId, toolName: name, argumentsJSON: argumentsJSON)
+            }
+        }
+        throw PluginRegistry.PluginError.unknownTool(name)
+    }
+
+    private var hooksMap: [String: PluginHooks] {
+        var map: [String: PluginHooks] = [:]
+        if let browserHooks = PluginRegistry.shared.hooks(for: "com.copilotchat.browser") {
+            map["com.copilotchat.browser"] = browserHooks
+        }
+        return map
     }
 
     // MARK: - Streaming Implementation
@@ -472,12 +485,12 @@ final class CopilotService {
 
         // Merge built-in tools with MCP tools (filtered by access mode)
         let allTools: [MCPTool]
+        let pluginTools = await PluginRegistry.shared.allTools
         if settingsStore.toolAccessMode == .loadWhenNeeded && !tools.isEmpty {
-            // Deferred mode: only include discovered MCP tools + tool_search
             let discovered = tools.filter { discoveredMCPTools.contains($0.name) }
-            allTools = BuiltInTools.tools + [BuiltInTools.toolSearchTool] + discovered
+            allTools = BuiltInTools.tools + pluginTools + [BuiltInTools.toolSearchTool] + discovered
         } else {
-            allTools = BuiltInTools.tools + tools
+            allTools = BuiltInTools.tools + pluginTools + tools
         }
 
         if Self.useResponsesAPI(model: model) {
@@ -580,11 +593,12 @@ final class CopilotService {
         let model = currentModelId
         // Merge built-in tools with MCP tools
         let allTools: [MCPTool]
+        let pluginTools = await PluginRegistry.shared.allTools
         if settingsStore.toolAccessMode == .loadWhenNeeded && !tools.isEmpty {
             let discovered = tools.filter { discoveredMCPTools.contains($0.name) }
-            allTools = BuiltInTools.tools + [BuiltInTools.toolSearchTool] + discovered
+            allTools = BuiltInTools.tools + pluginTools + [BuiltInTools.toolSearchTool] + discovered
         } else {
-            allTools = BuiltInTools.tools + tools
+            allTools = BuiltInTools.tools + pluginTools + tools
         }
 
         let apiMessages = buildAPIMessages(mcpTools: tools)

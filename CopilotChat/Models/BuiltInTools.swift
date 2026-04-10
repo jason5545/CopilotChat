@@ -22,38 +22,7 @@ enum BuiltInTools {
     private nonisolated(unsafe) static var _cachedTools: [MCPTool]?
 
     /// Base tools that are always available.
-    private static let baseTools: [MCPTool] = [
-        MCPTool(
-            name: "web_fetch",
-            description: "Fetch the text content of a web page. Provide a URL and receive the page's text content with HTML tags stripped. Useful for reading articles, documentation, or any public web page.",
-            inputSchema: [
-                "type": AnyCodable("object"),
-                "properties": AnyCodable([
-                    "url": [
-                        "type": "string",
-                        "description": "The URL of the web page to fetch (must start with http:// or https://)",
-                    ] as [String: Any],
-                ] as [String: Any]),
-                "required": AnyCodable(["url"]),
-            ],
-            serverName: serverName
-        ),
-        MCPTool(
-            name: "web_screenshot",
-            description: "Take a visual screenshot of a web page. Returns an image of the rendered page as seen in a mobile browser. Useful for seeing page layout, visual design, charts, or any content that requires visual inspection.",
-            inputSchema: [
-                "type": AnyCodable("object"),
-                "properties": AnyCodable([
-                    "url": [
-                        "type": "string",
-                        "description": "The URL of the web page to screenshot (must start with http:// or https://)",
-                    ] as [String: Any],
-                ] as [String: Any]),
-                "required": AnyCodable(["url"]),
-            ],
-            serverName: serverName
-        ),
-    ]
+    private static let baseTools: [MCPTool] = []
 
     private static let braveSearchTool = MCPTool(
         name: "brave_web_search",
