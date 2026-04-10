@@ -124,11 +124,11 @@ struct AugmentProvider: LLMProvider, @unchecked Sendable {
         tools: [APITool]?,
         options: ProviderOptions
     ) -> [String: Any] {
-        let (message, chatHistory, nodes) = convertMessages(messages)
+        let (chatHistory, nodes) = convertMessages(messages)
 
-        var body: [String: Any] = [
+        let body: [String: Any] = [
             "model": model,
-            "message": message,
+            "message": "",  // Always empty — user text goes in nodes as type 0 text_node
             "chat_history": chatHistory,
             "mode": "CHAT",
             "blobs": ["checkpoint_id": NSNull(), "added_blobs": [], "deleted_blobs": []],
@@ -143,84 +143,170 @@ struct AugmentProvider: LLMProvider, @unchecked Sendable {
             "feature_detection_flags": ["support_tool_use_start": true, "support_parallel_tool_use": false] as [String: Any],
         ]
 
-
         return body
     }
 
     // MARK: - Message Conversion
 
-    /// Convert APIMessages to Augment's format:
-    /// - Last user message becomes the top-level "message" field
-    /// - All previous messages become "chat_history" entries
-    /// - Tool call assistant messages and tool result messages become "nodes"
-    private func convertMessages(_ messages: [APIMessage]) -> (String, [[String: String]], [[String: Any]]) {
-        var chatHistory: [[String: String]] = []
-        var nodes: [[String: Any]] = []
-        var lastUserMessage = ""
+    /// Convert APIMessages to Augment's exchange-based chat_history format.
+    ///
+    /// Key rules (verified against actual Augment API):
+    /// - `message` is ALWAYS "" (empty string); user text goes in a type 0 text_node in `nodes`
+    /// - `chat_history` entries are exchange objects with request_nodes / response_nodes
+    /// - Tool calls from the assistant become response_nodes with type 5 tool_use nodes
+    /// - Tool results become type 1 tool_result_node entries in the current request's `nodes`
+    private func convertMessages(_ messages: [APIMessage]) -> (chatHistory: [[String: Any]], nodes: [[String: Any]]) {
+        var chatHistory: [[String: Any]] = []
+        var currentNodes: [[String: Any]] = []
         var nodeId = 1
 
-        for msg in messages {
-            let text = msg.content ?? ""
-            switch msg.role {
-            case "system":
-                break  // Augment manages its own system prompt
-            case "user":
-                // If we already have a user message queued, push it to history
-                if !lastUserMessage.isEmpty {
-                    chatHistory.append(["role": "user", "message": lastUserMessage])
-                }
-                lastUserMessage = text
-            case "assistant":
-                // Add text content to chat_history if present
-                if !text.isEmpty {
-                    chatHistory.append(["role": "assistant", "message": text])
-                }
-                // Convert tool calls to nodes
-                if let toolCalls = msg.toolCalls {
-                    for call in toolCalls {
-                        let node: [String: Any] = [
-                            "id": nodeId,
-                            "type": 2,
-                            "content": "",
-                            "tool_use": [
-                                "tool_use_id": call.id,
-                                "tool_name": call.function.name,
-                                "input_json": call.function.arguments,
-                            ] as [String: Any],
-                            "thinking": NSNull(),
-                            "billing_metadata": NSNull(),
-                            "metadata": NSNull(),
-                            "token_usage": NSNull(),
-                        ]
-                        nodes.append(node)
-                        nodeId += 1
-                    }
-                }
-            case "tool":
-                // Tool results become tool_result nodes — do NOT add to chat_history
-                let node: [String: Any] = [
-                    "id": nodeId,
-                    "type": 1,
-                    "content": "",
-                    "tool_result_node": [
-                        "tool_use_id": msg.toolCallId ?? "",
-                        "content": text,
-                        "is_error": false,
-                    ] as [String: Any],
-                    "tool_use": NSNull(),
-                    "thinking": NSNull(),
-                    "billing_metadata": NSNull(),
-                    "metadata": NSNull(),
-                    "token_usage": NSNull(),
-                ]
-                nodes.append(node)
-                nodeId += 1
-            default:
-                chatHistory.append(["role": msg.role, "message": text])
+        var i = 0
+        while i < messages.count {
+            let msg = messages[i]
+
+            if msg.role == "system" {
+                i += 1
+                continue
             }
+
+            if msg.role == "user" {
+                let userText = msg.content ?? ""
+                let userNode: [String: Any] = ["id": nodeId, "type": 0, "text_node": ["content": userText]]
+                nodeId += 1
+
+                // Check if next message is assistant (this user+assistant pair becomes a chat_history exchange)
+                if i + 1 < messages.count && messages[i + 1].role == "assistant" {
+                    let assistant = messages[i + 1]
+                    let assistantText = assistant.content ?? ""
+
+                    if let toolCalls = assistant.toolCalls, !toolCalls.isEmpty {
+                        // Assistant responded with tool calls → build response_nodes with type 5 tool_use
+                        var responseNodes: [[String: Any]] = []
+                        if !assistantText.isEmpty {
+                            responseNodes.append(["id": nodeId, "type": 0, "content": assistantText,
+                                                   "thinking": NSNull(), "billing_metadata": NSNull(),
+                                                   "metadata": NSNull(), "token_usage": NSNull()])
+                            nodeId += 1
+                        }
+                        for tc in toolCalls {
+                            let toolNode: [String: Any] = [
+                                "id": nodeId, "type": 5, "content": "",
+                                "tool_use": [
+                                    "tool_use_id": tc.id,
+                                    "tool_name": tc.function.name,
+                                    "input_json": tc.function.arguments,
+                                    "is_partial": false,
+                                ] as [String: Any],
+                                "thinking": NSNull(), "billing_metadata": NSNull(),
+                                "metadata": NSNull(), "token_usage": NSNull(),
+                            ]
+                            responseNodes.append(toolNode)
+                            nodeId += 1
+                        }
+
+                        chatHistory.append([
+                            "request_message": "",
+                            "response_text": assistantText,
+                            "request_id": UUID().uuidString,
+                            "request_nodes": [userNode],
+                            "response_nodes": responseNodes,
+                            "token_usage": ["input_tokens": 0, "output_tokens": 0],
+                            "total_tokens": 0,
+                        ] as [String: Any])
+
+                        // Process subsequent tool result messages
+                        i += 2  // skip user + assistant
+                        while i < messages.count && messages[i].role == "tool" {
+                            let toolMsg = messages[i]
+                            let toolResultNode: [String: Any] = [
+                                "id": nodeId, "type": 1,
+                                "tool_result_node": [
+                                    "tool_use_id": toolMsg.toolCallId ?? "",
+                                    "content": toolMsg.content ?? "",
+                                    "is_error": false,
+                                ] as [String: Any],
+                            ]
+                            nodeId += 1
+
+                            // If a tool result is followed by an assistant, they form another exchange
+                            if i + 1 < messages.count && messages[i + 1].role == "assistant" {
+                                let nextAssistant = messages[i + 1]
+                                let nextText = nextAssistant.content ?? ""
+
+                                // Build response_nodes for this exchange (may also have tool calls)
+                                var nextResponseNodes: [[String: Any]] = []
+                                if let nextTCs = nextAssistant.toolCalls, !nextTCs.isEmpty {
+                                    if !nextText.isEmpty {
+                                        nextResponseNodes.append(["id": nodeId, "type": 0, "content": nextText,
+                                                                   "thinking": NSNull(), "billing_metadata": NSNull(),
+                                                                   "metadata": NSNull(), "token_usage": NSNull()])
+                                        nodeId += 1
+                                    }
+                                    for tc in nextTCs {
+                                        nextResponseNodes.append([
+                                            "id": nodeId, "type": 5, "content": "",
+                                            "tool_use": [
+                                                "tool_use_id": tc.id,
+                                                "tool_name": tc.function.name,
+                                                "input_json": tc.function.arguments,
+                                                "is_partial": false,
+                                            ] as [String: Any],
+                                            "thinking": NSNull(), "billing_metadata": NSNull(),
+                                            "metadata": NSNull(), "token_usage": NSNull(),
+                                        ])
+                                        nodeId += 1
+                                    }
+                                }
+
+                                chatHistory.append([
+                                    "request_message": "",
+                                    "response_text": nextText,
+                                    "request_id": UUID().uuidString,
+                                    "request_nodes": [toolResultNode],
+                                    "response_nodes": nextResponseNodes,
+                                    "token_usage": ["input_tokens": 0, "output_tokens": 0],
+                                    "total_tokens": 0,
+                                ] as [String: Any])
+                                i += 2  // skip tool + assistant
+                            } else {
+                                // Last tool result(s) → current request nodes
+                                currentNodes.append(toolResultNode)
+                                i += 1
+                            }
+                        }
+                        continue
+                    } else {
+                        // Normal user+assistant exchange (no tool calls)
+                        chatHistory.append([
+                            "request_message": "",
+                            "response_text": assistantText,
+                            "request_id": UUID().uuidString,
+                            "request_nodes": [userNode],
+                            "response_nodes": [] as [[String: Any]],
+                            "token_usage": ["input_tokens": 0, "output_tokens": 0],
+                            "total_tokens": 0,
+                        ] as [String: Any])
+                        i += 2
+                        continue
+                    }
+                } else {
+                    // Last user message (current turn) → goes into nodes as text_node
+                    currentNodes.insert(userNode, at: 0)
+                    i += 1
+                    continue
+                }
+            }
+
+            // Skip any orphan messages
+            i += 1
         }
 
-        return (lastUserMessage, chatHistory, nodes)
+        // Ensure we always have at least one node
+        if currentNodes.isEmpty {
+            currentNodes.append(["id": 1, "type": 0, "text_node": ["content": ""]])
+        }
+
+        return (chatHistory, currentNodes)
     }
 
     /// Convert APITools to Augment's tool_definitions format.
