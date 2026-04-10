@@ -432,7 +432,8 @@ final class CopilotService {
 
         // Merge built-in tools with MCP tools (filtered by access mode)
         let allTools: [MCPTool]
-        if settingsStore.toolAccessMode == .loadWhenNeeded && !tools.isEmpty {
+        let activeProviderIdForTools = providerRegistry?.activeProviderId ?? "github-copilot"
+        if settingsStore.toolAccessMode == .loadWhenNeeded && !tools.isEmpty && activeProviderIdForTools != "augment" {
             // Deferred mode: only include discovered MCP tools + tool_search
             let discovered = tools.filter { discoveredMCPTools.contains($0.name) }
             allTools = BuiltInTools.tools + [BuiltInTools.toolSearchTool] + discovered
@@ -540,7 +541,8 @@ final class CopilotService {
         let model = currentModelId
         // Merge built-in tools with MCP tools
         let allTools: [MCPTool]
-        if settingsStore.toolAccessMode == .loadWhenNeeded && !tools.isEmpty {
+        let activeProviderIdForTools2 = providerRegistry?.activeProviderId ?? "github-copilot"
+        if settingsStore.toolAccessMode == .loadWhenNeeded && !tools.isEmpty && activeProviderIdForTools2 != "augment" {
             let discovered = tools.filter { discoveredMCPTools.contains($0.name) }
             allTools = BuiltInTools.tools + [BuiltInTools.toolSearchTool] + discovered
         } else {
@@ -1029,6 +1031,8 @@ final class CopilotService {
     /// Returns a separate system message listing undiscovered MCP tools, or nil if not applicable.
     private func deferredToolsNotice(mcpTools: [MCPTool]) -> String? {
         guard settingsStore.toolAccessMode == .loadWhenNeeded, !mcpTools.isEmpty else { return nil }
+        // Skip deferred notice for Augment (no system message support)
+        if (providerRegistry?.activeProviderId ?? "") == "augment" { return nil }
         let undiscovered = mcpTools.filter { !discoveredMCPTools.contains($0.name) }
         guard !undiscovered.isEmpty else { return nil }
         let toolList = undiscovered.map { "- \($0.name): \($0.description)" }.joined(separator: "\n")
