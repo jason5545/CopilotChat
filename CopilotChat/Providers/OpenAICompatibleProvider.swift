@@ -2,6 +2,24 @@ import Foundation
 
 // MARK: - OpenAI-Compatible Provider
 
+actor ProviderRequestSerialGate {
+    static let shared = ProviderRequestSerialGate()
+
+    private var activeKeys: Set<String> = []
+
+    func acquire(_ key: String) async throws {
+        while activeKeys.contains(key) {
+            try Task.checkCancellation()
+            try await Task.sleep(nanoseconds: 200_000_000)
+        }
+        activeKeys.insert(key)
+    }
+
+    func release(_ key: String) {
+        activeKeys.remove(key)
+    }
+}
+
 /// Generic provider for any API that speaks the OpenAI Chat Completions protocol.
 /// Covers: Z.AI, Zhipu AI, Alibaba, Tencent, DeepSeek, OpenAI, xAI, Groq, OpenRouter,
 /// OpenCode Zen, and 80+ other providers on models.dev.
@@ -54,6 +72,26 @@ struct OpenAICompatibleProvider: LLMProvider, @unchecked Sendable {
         return url
     }
 
+    private var serialRequestKey: String? {
+        guard (id.hasPrefix("zai") || id.hasPrefix("zhipuai")),
+              baseURL.contains("/api/coding/") else { return nil }
+        return "openai-compatible:\(id)"
+    }
+
+    private func withSerializedRequest<T>(_ operation: () async throws -> T) async throws -> T {
+        guard let key = serialRequestKey else {
+            return try await operation()
+        }
+
+        try await ProviderRequestSerialGate.shared.acquire(key)
+        defer {
+            Task {
+                await ProviderRequestSerialGate.shared.release(key)
+            }
+        }
+        return try await operation()
+    }
+
     // MARK: - LLMProvider
 
     func streamCompletion(
@@ -65,32 +103,34 @@ struct OpenAICompatibleProvider: LLMProvider, @unchecked Sendable {
         AsyncThrowingStream { continuation in
             let task = Task.detached {
                 do {
-                    let request = ChatCompletionRequest(
-                        model: model, messages: messages, stream: true,
-                        maxTokens: options.maxOutputTokens,
-                        temperature: options.temperature,
-                        topP: options.topP, topK: options.topK,
-                        tools: tools,
-                        toolChoice: tools != nil ? (options.toolChoice ?? "auto") : nil,
-                        streamOptions: .init(includeUsage: true),
-                        reasoningEffort: options.reasoningEffort,
-                        extraFields: options.extraFields
-                    )
-                    let requestData = try JSONEncoder().encode(request)
-                    let url = try chatCompletionsURL()
-                    let urlRequest = SSEParser.buildRequest(
-                        url: url,
-                        apiKey: apiKey,
-                        body: requestData,
-                        extraHeaders: extraHeaders
-                    )
+                    try await withSerializedRequest {
+                        let request = ChatCompletionRequest(
+                            model: model, messages: messages, stream: true,
+                            maxTokens: options.maxOutputTokens,
+                            temperature: options.temperature,
+                            topP: options.topP, topK: options.topK,
+                            tools: tools,
+                            toolChoice: tools != nil ? (options.toolChoice ?? "auto") : nil,
+                            streamOptions: .init(includeUsage: true),
+                            reasoningEffort: options.reasoningEffort,
+                            extraFields: options.extraFields
+                        )
+                        let requestData = try JSONEncoder().encode(request)
+                        let url = try chatCompletionsURL()
+                        let urlRequest = SSEParser.buildRequest(
+                            url: url,
+                            apiKey: apiKey,
+                            body: requestData,
+                            extraHeaders: extraHeaders
+                        )
 
-                    let bytes = try await SSEParser.validatedBytes(
-                        for: urlRequest, session: SSEParser.urlSession)
-                    let stream = SSEParser.parseChatCompletionsStream(bytes: bytes)
+                        let bytes = try await SSEParser.validatedBytes(
+                            for: urlRequest, session: SSEParser.urlSession)
+                        let stream = SSEParser.parseChatCompletionsStream(bytes: bytes)
 
-                    for try await event in stream {
-                        continuation.yield(event)
+                        for try await event in stream {
+                            continuation.yield(event)
+                        }
                     }
                     continuation.finish()
                 } catch {
@@ -107,55 +147,57 @@ struct OpenAICompatibleProvider: LLMProvider, @unchecked Sendable {
         tools: [APITool]?,
         options: ProviderOptions
     ) async throws -> ProviderResponse {
-        let request = ChatCompletionRequest(
-            model: model, messages: messages, stream: false,
-            maxTokens: options.maxOutputTokens,
-            temperature: options.temperature,
-            topP: options.topP, topK: options.topK,
-            tools: tools, toolChoice: nil,
-            streamOptions: nil, reasoningEffort: options.reasoningEffort,
-            extraFields: options.extraFields
-        )
-        let requestData = try JSONEncoder().encode(request)
-        let urlRequest = SSEParser.buildRequest(
-            url: try chatCompletionsURL(),
-            apiKey: apiKey,
-            body: requestData,
-            extraHeaders: extraHeaders
-        )
+        try await withSerializedRequest {
+            let request = ChatCompletionRequest(
+                model: model, messages: messages, stream: false,
+                maxTokens: options.maxOutputTokens,
+                temperature: options.temperature,
+                topP: options.topP, topK: options.topK,
+                tools: tools, toolChoice: nil,
+                streamOptions: nil, reasoningEffort: options.reasoningEffort,
+                extraFields: options.extraFields
+            )
+            let requestData = try JSONEncoder().encode(request)
+            let urlRequest = SSEParser.buildRequest(
+                url: try chatCompletionsURL(),
+                apiKey: apiKey,
+                body: requestData,
+                extraHeaders: extraHeaders
+            )
 
-        let (data, response) = try await SSEParser.urlSession.data(for: urlRequest)
-        guard let http = response as? HTTPURLResponse else {
-            throw ProviderError.invalidResponse(statusCode: 0, body: "No HTTP response")
-        }
-        if http.statusCode == 401 {
-            throw ProviderError.authenticationFailed
-        }
-        if http.statusCode == 429 {
-            let retryAfter = http.value(forHTTPHeaderField: "Retry-After").flatMap { TimeInterval($0) }
-            throw ProviderError.rateLimited(retryAfter: retryAfter)
-        }
-        if http.statusCode == 529 || http.statusCode == 503 {
-            let retryAfter = http.value(forHTTPHeaderField: "Retry-After").flatMap { TimeInterval($0) }
-            throw ProviderError.overloaded(retryAfter: retryAfter)
-        }
-        guard http.statusCode == 200 else {
-            let body = String(data: data, encoding: .utf8) ?? ""
-            throw ProviderError.invalidResponse(statusCode: http.statusCode, body: body)
-        }
+            let (data, response) = try await SSEParser.urlSession.data(for: urlRequest)
+            guard let http = response as? HTTPURLResponse else {
+                throw ProviderError.invalidResponse(statusCode: 0, body: "No HTTP response")
+            }
+            if http.statusCode == 401 {
+                throw ProviderError.authenticationFailed
+            }
+            if http.statusCode == 429 {
+                let retryAfter = http.value(forHTTPHeaderField: "Retry-After").flatMap { TimeInterval($0) }
+                throw ProviderError.rateLimited(retryAfter: retryAfter)
+            }
+            if http.statusCode == 529 || http.statusCode == 503 {
+                let retryAfter = http.value(forHTTPHeaderField: "Retry-After").flatMap { TimeInterval($0) }
+                throw ProviderError.overloaded(retryAfter: retryAfter)
+            }
+            guard http.statusCode == 200 else {
+                let body = String(data: data, encoding: .utf8) ?? ""
+                throw ProviderError.invalidResponse(statusCode: http.statusCode, body: body)
+            }
 
-        let decoded = try JSONDecoder().decode(OpenAIChatResponse.self, from: data)
-        let content = decoded.choices.first?.message.content
-        let toolCalls = decoded.choices.first?.message.toolCalls?.map { tc in
-            ToolCall(id: tc.id, function: .init(name: tc.function.name, arguments: tc.function.arguments))
-        } ?? []
-        let finishReason = decoded.choices.first?.finishReason
-            .flatMap { ChatMessage.FinishReason(rawValue: $0) }
+            let decoded = try JSONDecoder().decode(OpenAIChatResponse.self, from: data)
+            let content = decoded.choices.first?.message.content
+            let toolCalls = decoded.choices.first?.message.toolCalls?.map { tc in
+                ToolCall(id: tc.id, function: .init(name: tc.function.name, arguments: tc.function.arguments))
+            } ?? []
+            let finishReason = decoded.choices.first?.finishReason
+                .flatMap { ChatMessage.FinishReason(rawValue: $0) }
 
-        return ProviderResponse(
-            content: content, toolCalls: toolCalls,
-            usage: decoded.usage, finishReason: finishReason
-        )
+            return ProviderResponse(
+                content: content, toolCalls: toolCalls,
+                usage: decoded.usage, finishReason: finishReason
+            )
+        }
     }
 }
 

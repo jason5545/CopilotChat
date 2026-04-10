@@ -114,20 +114,21 @@ final class SettingsStore {
 
     // MARK: - API Keys
 
+    private static let braveSearchKeychainKey = "brave-search-api-key"
+
     var braveSearchAPIKey: String {
-        get { KeychainHelper.loadString(key: BuiltInTools.braveSearchKeychainKey) ?? "" }
+        get { KeychainHelper.loadString(key: Self.braveSearchKeychainKey) ?? "" }
         set {
             if newValue.isEmpty {
-                KeychainHelper.delete(key: BuiltInTools.braveSearchKeychainKey)
+                KeychainHelper.delete(key: Self.braveSearchKeychainKey)
             } else {
-                KeychainHelper.save(newValue, for: BuiltInTools.braveSearchKeychainKey)
+                KeychainHelper.save(newValue, for: Self.braveSearchKeychainKey)
             }
-            BuiltInTools.invalidateToolsCache()
         }
     }
 
     var hasBraveSearchAPIKey: Bool {
-        KeychainHelper.loadString(key: BuiltInTools.braveSearchKeychainKey) != nil
+        KeychainHelper.loadString(key: Self.braveSearchKeychainKey) != nil
     }
 
     private static let mcpHeadersMigratedKey = "mcpHeadersMigratedToKeychain"
@@ -193,8 +194,8 @@ final class SettingsStore {
     }
 
     func checkPermission(toolName: String, serverName: String) -> PermissionCheckResult {
-        // 0. Built-in tools are always allowed
-        if BuiltInTools.isBuiltIn(toolName) {
+        // 0. Plugin tools are always allowed
+        if PluginRegistry.shared.allTools.contains(where: { $0.name == toolName }) {
             return .allowed
         }
         // 1. Tool-level override takes priority
@@ -236,8 +237,8 @@ final class SettingsStore {
     }
 
     func serverNameForTool(_ toolName: String) -> String? {
-        if BuiltInTools.isBuiltIn(toolName) {
-            return BuiltInTools.serverName
+        if let pluginTool = PluginRegistry.shared.allTools.first(where: { $0.name == toolName }) {
+            return pluginTool.serverName
         }
         return mcpTools.first(where: { $0.name == toolName })?.serverName
     }

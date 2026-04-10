@@ -7,8 +7,6 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var showAddMCPServer = false
-    @State private var braveAPIKeyInput = ""
-    @State private var isBraveKeyVisible = false
     @State private var showProviderPicker = false
     @State private var providerAPIKeyInput = ""
     @State private var selectedProviderForKey: ModelsDevProvider?
@@ -20,7 +18,6 @@ struct SettingsView: View {
                 providerSection
                 modelSection
                 systemPromptSection
-                apiKeysSection
                 mcpSection
                 toolAccessModeSection
                 mcpPermissionsSection
@@ -461,104 +458,6 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - API Keys Section
-
-    private var apiKeysSection: some View {
-        Section {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 8) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.caption)
-                        .foregroundStyle(Color.carbonAccent)
-                    Text("Brave Search")
-                        .font(.carbonSans(.subheadline, weight: .medium))
-                        .foregroundStyle(Color.carbonText)
-                    Spacer()
-                    if settingsStore.hasBraveSearchAPIKey {
-                        HStack(spacing: 4) {
-                            Circle()
-                                .fill(Color.carbonSuccess)
-                                .frame(width: 6, height: 6)
-                            Text("Active")
-                                .font(.carbonMono(.caption2))
-                                .foregroundStyle(Color.carbonSuccess)
-                        }
-                    }
-                }
-
-                HStack(spacing: 8) {
-                    Group {
-                        if isBraveKeyVisible {
-                            TextField("API Key", text: $braveAPIKeyInput)
-                        } else {
-                            SecureField("API Key", text: $braveAPIKeyInput)
-                        }
-                    }
-                    .font(.carbonMono(.caption))
-                    .foregroundStyle(Color.carbonText)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-
-                    Button {
-                        isBraveKeyVisible.toggle()
-                    } label: {
-                        Image(systemName: isBraveKeyVisible ? "eye.slash" : "eye")
-                            .font(.caption)
-                            .foregroundStyle(Color.carbonTextTertiary)
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                HStack(spacing: 8) {
-                    Button {
-                        settingsStore.braveSearchAPIKey = braveAPIKeyInput
-                    } label: {
-                        Text("Save")
-                            .font(.carbonMono(.caption2, weight: .bold))
-                            .foregroundStyle(braveAPIKeyInput.isEmpty ? Color.carbonTextTertiary : Color.carbonBlack)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 6)
-                            .background(braveAPIKeyInput.isEmpty ? Color.carbonElevated : Color.carbonAccent)
-                            .clipShape(Capsule())
-                    }
-                    .disabled(braveAPIKeyInput.isEmpty)
-                    .buttonStyle(.plain)
-
-                    if settingsStore.hasBraveSearchAPIKey {
-                        Button {
-                            settingsStore.braveSearchAPIKey = ""
-                            braveAPIKeyInput = ""
-                        } label: {
-                            Text("Remove")
-                                .font(.carbonMono(.caption2, weight: .medium))
-                                .foregroundStyle(Color.carbonError)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 6)
-                                .background(Color.carbonElevated)
-                                .clipShape(Capsule())
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    Spacer()
-                }
-            }
-            .padding(.vertical, 4)
-            .listRowBackground(Color.carbonSurface)
-        } header: {
-            CarbonSectionHeader(title: "API Keys")
-        } footer: {
-            Text("Enables brave_web_search built-in tool for web search.")
-                .font(.carbonMono(.caption2))
-                .foregroundStyle(Color.carbonTextTertiary)
-        }
-        .onAppear {
-            if settingsStore.hasBraveSearchAPIKey {
-                braveAPIKeyInput = settingsStore.braveSearchAPIKey
-            }
-        }
-    }
-
     // MARK: - MCP Section
 
     private var mcpSection: some View {
@@ -786,6 +685,10 @@ struct SettingsView: View {
 // MARK: - Plugin Permissions View
 
 struct PluginPermissionsView: View {
+    @Environment(SettingsStore.self) private var settingsStore
+    @State private var isBraveKeyVisible = false
+    @State private var braveAPIKeyInput = ""
+
     var body: some View {
         List {
             Section {
@@ -822,25 +725,111 @@ struct PluginPermissionsView: View {
         .background(Color.carbonBlack)
         .navigationTitle("Built-in Plugins")
         .toolbarColorScheme(.dark, for: .navigationBar)
+        .onAppear {
+            if settingsStore.hasBraveSearchAPIKey {
+                braveAPIKeyInput = settingsStore.braveSearchAPIKey
+            }
+        }
     }
 
+    @ViewBuilder
     private func pluginRow(_ plugin: any Plugin) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(plugin.name)
-                    .font(.carbonSans(.subheadline, weight: .medium))
+        if plugin.id == "com.copilotchat.brave-search" {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(plugin.name)
+                            .font(.carbonSans(.subheadline, weight: .medium))
+                            .foregroundStyle(Color.carbonText)
+                        Text("\(PluginRegistry.shared.hooks(for: plugin.id)?.tools.count ?? 0) tools")
+                            .font(.carbonMono(.caption2))
+                            .foregroundStyle(Color.carbonTextTertiary)
+                    }
+                    Spacer()
+                    Toggle("", isOn: Binding(
+                        get: { PluginRegistry.shared.isEnabled(pluginId: plugin.id) },
+                        set: { PluginRegistry.shared.setEnabled(pluginId: plugin.id, enabled: $0) }
+                    ))
+                    .tint(Color.carbonAccent)
+                    .labelsHidden()
+                }
+
+                HStack(spacing: 8) {
+                    Group {
+                        if isBraveKeyVisible {
+                            TextField("API Key", text: $braveAPIKeyInput)
+                        } else {
+                            SecureField("API Key", text: $braveAPIKeyInput)
+                        }
+                    }
+                    .font(.carbonMono(.caption))
                     .foregroundStyle(Color.carbonText)
-                Text("\(PluginRegistry.shared.hooks(for: plugin.id)?.tools.count ?? 0) tools")
-                    .font(.carbonMono(.caption2))
-                    .foregroundStyle(Color.carbonTextTertiary)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+
+                    Button {
+                        isBraveKeyVisible.toggle()
+                    } label: {
+                        Image(systemName: isBraveKeyVisible ? "eye.slash" : "eye")
+                            .font(.caption)
+                            .foregroundStyle(Color.carbonTextTertiary)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                HStack(spacing: 8) {
+                    Button {
+                        settingsStore.braveSearchAPIKey = braveAPIKeyInput
+                    } label: {
+                        Text("Save")
+                            .font(.carbonMono(.caption2, weight: .bold))
+                            .foregroundStyle(braveAPIKeyInput.isEmpty ? Color.carbonTextTertiary : Color.carbonBlack)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 6)
+                            .background(braveAPIKeyInput.isEmpty ? Color.carbonElevated : Color.carbonAccent)
+                            .clipShape(Capsule())
+                    }
+                    .disabled(braveAPIKeyInput.isEmpty)
+                    .buttonStyle(.plain)
+
+                    if settingsStore.hasBraveSearchAPIKey {
+                        Button {
+                            settingsStore.braveSearchAPIKey = ""
+                            braveAPIKeyInput = ""
+                        } label: {
+                            Text("Remove")
+                                .font(.carbonMono(.caption2, weight: .medium))
+                                .foregroundStyle(Color.carbonError)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 6)
+                                .background(Color.carbonElevated)
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    Spacer()
+                }
             }
-            Spacer()
-            Toggle("", isOn: Binding(
-                get: { PluginRegistry.shared.isEnabled(pluginId: plugin.id) },
-                set: { PluginRegistry.shared.setEnabled(pluginId: plugin.id, enabled: $0) }
-            ))
-            .tint(Color.carbonAccent)
-            .labelsHidden()
+            .padding(.vertical, 4)
+        } else {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(plugin.name)
+                        .font(.carbonSans(.subheadline, weight: .medium))
+                        .foregroundStyle(Color.carbonText)
+                    Text("\(PluginRegistry.shared.hooks(for: plugin.id)?.tools.count ?? 0) tools")
+                        .font(.carbonMono(.caption2))
+                        .foregroundStyle(Color.carbonTextTertiary)
+                }
+                Spacer()
+                Toggle("", isOn: Binding(
+                    get: { PluginRegistry.shared.isEnabled(pluginId: plugin.id) },
+                    set: { PluginRegistry.shared.setEnabled(pluginId: plugin.id, enabled: $0) }
+                ))
+                .tint(Color.carbonAccent)
+                .labelsHidden()
+            }
         }
     }
 }

@@ -202,11 +202,11 @@ final class CopilotService {
             if let calls = msg.toolCalls {
                 for call in calls {
                     toolCallStatuses[call.id] = .completed
-                    if call.function.name == BuiltInTools.toolSearchName {
-                        let (query, maxResults) = Self.parseToolSearchArgs(call.function.arguments)
-                        let (_, matchedNames) = BuiltInTools.searchTools(
-                            query: query, maxResults: maxResults, in: settingsStore.mcpTools
-                        )
+            if call.function.name == "tool_search" {
+                let (query, maxResults) = Self.parseToolSearchArgs(call.function.arguments)
+                let (resultText, matchedNames) = PluginRegistry.shared.searchTools(
+                    query: query, maxResults: maxResults, in: settingsStore.mcpTools
+                )
                         discoveredMCPTools.formUnion(matchedNames)
                     }
                 }
@@ -381,13 +381,13 @@ final class CopilotService {
         do {
             let text: String
             var imageData: Data?
-            if call.function.name == BuiltInTools.toolSearchName {
-                let (query, maxResults) = Self.parseToolSearchArgs(call.function.arguments)
-                let (resultText, matchedNames) = BuiltInTools.searchTools(
-                    query: query, maxResults: maxResults, in: settingsStore.mcpTools
-                )
-                discoveredMCPTools.formUnion(matchedNames)
-                text = resultText
+                    if call.function.name == "tool_search" {
+                        let (query, maxResults) = Self.parseToolSearchArgs(call.function.arguments)
+                        let (resultText, matchedNames) = PluginRegistry.shared.searchTools(
+                            query: query, maxResults: maxResults, in: settingsStore.mcpTools
+                        )
+                        discoveredMCPTools.formUnion(matchedNames)
+                        text = resultText
                 imageData = nil
             } else if let pluginResult = try? await executePluginTool(call.function.name, argumentsJSON: call.function.arguments) {
                 text = pluginResult.text
@@ -424,7 +424,7 @@ final class CopilotService {
         return (query, maxResults)
     }
 
-    private func executePluginTool(_ name: String, argumentsJSON: String) async throws -> BuiltInTools.ToolResult {
+    private func executePluginTool(_ name: String, argumentsJSON: String) async throws -> ToolResult {
         for (pluginId, hooks) in hooksMap {
             if hooks.tools.contains(where: { $0.name == name }) {
                 return try await PluginRegistry.shared.executeTool(pluginId: pluginId, toolName: name, argumentsJSON: argumentsJSON)
@@ -483,14 +483,14 @@ final class CopilotService {
         let model = settingsStore.selectedModel
         let stream: AsyncThrowingStream<SSEEvent, Error>
 
-        // Merge built-in tools with MCP tools (filtered by access mode)
+        // Merge plugin tools with MCP tools (filtered by access mode)
         let allTools: [MCPTool]
         let pluginTools = await PluginRegistry.shared.allTools
         if settingsStore.toolAccessMode == .loadWhenNeeded && !tools.isEmpty {
             let discovered = tools.filter { discoveredMCPTools.contains($0.name) }
-            allTools = BuiltInTools.tools + pluginTools + [BuiltInTools.toolSearchTool] + discovered
+            allTools = pluginTools + discovered
         } else {
-            allTools = BuiltInTools.tools + pluginTools + tools
+            allTools = pluginTools + tools
         }
 
         if Self.useResponsesAPI(model: model) {
@@ -596,9 +596,9 @@ final class CopilotService {
         let pluginTools = await PluginRegistry.shared.allTools
         if settingsStore.toolAccessMode == .loadWhenNeeded && !tools.isEmpty {
             let discovered = tools.filter { discoveredMCPTools.contains($0.name) }
-            allTools = BuiltInTools.tools + pluginTools + [BuiltInTools.toolSearchTool] + discovered
+            allTools = pluginTools + discovered
         } else {
-            allTools = BuiltInTools.tools + pluginTools + tools
+            allTools = pluginTools + tools
         }
 
         let apiMessages = buildAPIMessages(mcpTools: tools)
