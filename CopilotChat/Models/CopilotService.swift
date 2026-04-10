@@ -449,8 +449,10 @@ final class CopilotService {
 
     private var hooksMap: [String: PluginHooks] {
         var map: [String: PluginHooks] = [:]
-        if let browserHooks = PluginRegistry.shared.hooks(for: "com.copilotchat.browser") {
-            map["com.copilotchat.browser"] = browserHooks
+        for plugin in PluginRegistry.shared.registeredPlugins {
+            if let hooks = PluginRegistry.shared.hooks(for: plugin.id) {
+                map[plugin.id] = hooks
+            }
         }
         return map
     }
