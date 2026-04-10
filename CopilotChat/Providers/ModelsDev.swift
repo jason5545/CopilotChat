@@ -151,6 +151,7 @@ struct ModelsDevModel: Codable, Sendable, Identifiable {
 
     var displayCost: String {
         guard let cost, !isFree else { return "Free" }
+        if cost.input < 0 || cost.output < 0 { return "Subscription" }
         return "$\(String(format: "%.2f", cost.input))/$\(String(format: "%.2f", cost.output)) per 1M"
     }
 }

@@ -1105,6 +1105,7 @@ struct ProviderPickerView: View {
     @State private var apiKeyInput = ""
     @State private var selectedProvider: ModelsDevProvider?
     @State private var isKeyVisible = false
+    @State private var augmentAuthError: String?
 
     private var filteredProviders: [ModelsDevProvider] {
         guard let registry else { return [] }
@@ -1148,6 +1149,7 @@ struct ProviderPickerView: View {
                             selectedProvider = nil
                             apiKeyInput = ""
                             isKeyVisible = false
+                            augmentAuthError = nil
                         }
                     } label: {
                         HStack(spacing: 4) {
@@ -1288,55 +1290,141 @@ struct ProviderPickerView: View {
                 .listRowBackground(Color.carbonSurface)
             }
 
-            // API Key input
-            Section {
-                HStack {
-                    Group {
-                        if isKeyVisible {
-                            TextField("sk-...", text: $apiKeyInput)
-                        } else {
-                            SecureField("Paste your API key", text: $apiKeyInput)
+            // API Key / Session JSON input
+            if provider.id == "augment" {
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Group {
+                                if isKeyVisible {
+                                    TextField("{\"accessToken\":\"...\",\"tenantURL\":\"...\"}", text: $apiKeyInput)
+                                } else {
+                                    SecureField("Paste session JSON", text: $apiKeyInput)
+                                }
+                            }
+                            .font(.carbonMono(.subheadline))
+                            .foregroundStyle(Color.carbonText)
+                            .autocorrectionDisabled()
+                            .textInputAutocapitalization(.never)
+
+                            Button {
+                                isKeyVisible.toggle()
+                            } label: {
+                                Image(systemName: isKeyVisible ? "eye.slash" : "eye")
+                                    .font(.caption)
+                                    .foregroundStyle(Color.carbonTextTertiary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        HStack(spacing: 4) {
+                            Image(systemName: "terminal")
+                                .font(.caption2)
+                                .foregroundStyle(Color.carbonTextTertiary)
+                            Text("Run **auggie token print** in your terminal")
+                                .font(.carbonMono(.caption2))
+                                .foregroundStyle(Color.carbonTextTertiary)
                         }
                     }
-                    .font(.carbonMono(.subheadline))
-                    .foregroundStyle(Color.carbonText)
-                    .autocorrectionDisabled()
-                    .textInputAutocapitalization(.never)
+                    .listRowBackground(Color.carbonSurface)
 
                     Button {
-                        isKeyVisible.toggle()
-                    } label: {
-                        Image(systemName: isKeyVisible ? "eye.slash" : "eye")
-                            .font(.caption)
-                            .foregroundStyle(Color.carbonTextTertiary)
-                    }
-                    .buttonStyle(.plain)
-                }
-                .listRowBackground(Color.carbonSurface)
+                        guard let registry, !apiKeyInput.isEmpty else { return }
+                        augmentAuthError = nil
 
-                Button {
-                    guard let registry, !apiKeyInput.isEmpty else { return }
-                    registry.saveAPIKey(apiKeyInput, for: provider.id)
-                    registry.activeProviderId = provider.id
-                    dismiss()
-                } label: {
-                    HStack(spacing: 6) {
-                        Spacer()
-                        Image(systemName: "checkmark.circle")
-                            .font(.subheadline.weight(.medium))
-                        Text("Connect")
-                            .font(.carbonSans(.subheadline, weight: .semibold))
-                        Spacer()
+                        // Parse the JSON input
+                        guard let data = apiKeyInput.data(using: .utf8),
+                              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                              let accessToken = json["accessToken"] as? String, !accessToken.isEmpty,
+                              let tenantURL = json["tenantURL"] as? String, !tenantURL.isEmpty else {
+                            augmentAuthError = "Please paste the full session JSON from auggie token print"
+                            return
+                        }
+
+                        guard tenantURL.hasPrefix("https://") else {
+                            augmentAuthError = "Invalid tenantURL: must start with https://"
+                            return
+                        }
+
+                        registry.saveAugmentCredentials(accessToken: accessToken, tenantURL: tenantURL)
+                        registry.activeProviderId = provider.id
+                        dismiss()
+                    } label: {
+                        HStack(spacing: 6) {
+                            Spacer()
+                            Image(systemName: "checkmark.circle")
+                                .font(.subheadline.weight(.medium))
+                            Text("Connect")
+                                .font(.carbonSans(.subheadline, weight: .semibold))
+                            Spacer()
+                        }
+                        .foregroundStyle(apiKeyInput.isEmpty ? Color.carbonTextTertiary : Color.carbonBlack)
+                        .padding(.vertical, 6)
+                        .background(apiKeyInput.isEmpty ? Color.carbonElevated : Color.carbonAccent)
+                        .clipShape(RoundedRectangle(cornerRadius: Carbon.radiusSmall))
                     }
-                    .foregroundStyle(apiKeyInput.isEmpty ? Color.carbonTextTertiary : Color.carbonBlack)
-                    .padding(.vertical, 6)
-                    .background(apiKeyInput.isEmpty ? Color.carbonElevated : Color.carbonAccent)
-                    .clipShape(RoundedRectangle(cornerRadius: Carbon.radiusSmall))
+                    .disabled(apiKeyInput.isEmpty)
+                    .listRowBackground(Color.carbonSurface)
+
+                    if let error = augmentAuthError {
+                        Text(error)
+                            .font(.carbonMono(.caption2))
+                            .foregroundStyle(Color.carbonWarning)
+                            .listRowBackground(Color.carbonSurface)
+                    }
+                } header: {
+                    CarbonSectionHeader(title: "Session JSON")
                 }
-                .disabled(apiKeyInput.isEmpty)
-                .listRowBackground(Color.carbonSurface)
-            } header: {
-                CarbonSectionHeader(title: "API Key")
+            } else {
+                Section {
+                    HStack {
+                        Group {
+                            if isKeyVisible {
+                                TextField("sk-...", text: $apiKeyInput)
+                            } else {
+                                SecureField("Paste your API key", text: $apiKeyInput)
+                            }
+                        }
+                        .font(.carbonMono(.subheadline))
+                        .foregroundStyle(Color.carbonText)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+
+                        Button {
+                            isKeyVisible.toggle()
+                        } label: {
+                            Image(systemName: isKeyVisible ? "eye.slash" : "eye")
+                                .font(.caption)
+                                .foregroundStyle(Color.carbonTextTertiary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .listRowBackground(Color.carbonSurface)
+
+                    Button {
+                        guard let registry, !apiKeyInput.isEmpty else { return }
+                        registry.saveAPIKey(apiKeyInput, for: provider.id)
+                        registry.activeProviderId = provider.id
+                        dismiss()
+                    } label: {
+                        HStack(spacing: 6) {
+                            Spacer()
+                            Image(systemName: "checkmark.circle")
+                                .font(.subheadline.weight(.medium))
+                            Text("Connect")
+                                .font(.carbonSans(.subheadline, weight: .semibold))
+                            Spacer()
+                        }
+                        .foregroundStyle(apiKeyInput.isEmpty ? Color.carbonTextTertiary : Color.carbonBlack)
+                        .padding(.vertical, 6)
+                        .background(apiKeyInput.isEmpty ? Color.carbonElevated : Color.carbonAccent)
+                        .clipShape(RoundedRectangle(cornerRadius: Carbon.radiusSmall))
+                    }
+                    .disabled(apiKeyInput.isEmpty)
+                    .listRowBackground(Color.carbonSurface)
+                } header: {
+                    CarbonSectionHeader(title: "API Key")
+                }
             }
 
             // OAuth option (for providers that support it)

@@ -109,6 +109,85 @@ final class ProviderRegistry {
                 releaseDate: "2026-02-05", status: nil
             ),
         ]
+        let augmentModels: [String: ModelsDevModel] = [
+            "haiku4.5": ModelsDevModel(
+                id: "haiku4.5", name: "Haiku 4.5",
+                reasoning: false, attachment: true, toolCall: true, temperature: true,
+                cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
+                limit: ModelsDevLimit(context: 200_000, output: 8_192, input: nil),
+                releaseDate: nil, status: nil
+            ),
+            "sonnet4": ModelsDevModel(
+                id: "sonnet4", name: "Sonnet 4",
+                reasoning: true, attachment: true, toolCall: true, temperature: true,
+                cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
+                limit: ModelsDevLimit(context: 200_000, output: 16_384, input: nil),
+                releaseDate: nil, status: nil
+            ),
+            "sonnet4.5": ModelsDevModel(
+                id: "sonnet4.5", name: "Sonnet 4.5",
+                reasoning: true, attachment: true, toolCall: true, temperature: true,
+                cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
+                limit: ModelsDevLimit(context: 200_000, output: 16_384, input: nil),
+                releaseDate: nil, status: nil
+            ),
+            "sonnet4.6": ModelsDevModel(
+                id: "sonnet4.6", name: "Sonnet 4.6",
+                reasoning: true, attachment: true, toolCall: true, temperature: true,
+                cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
+                limit: ModelsDevLimit(context: 200_000, output: 16_384, input: nil),
+                releaseDate: nil, status: nil
+            ),
+            "opus4.5": ModelsDevModel(
+                id: "opus4.5", name: "Opus 4.5",
+                reasoning: true, attachment: true, toolCall: true, temperature: true,
+                cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
+                limit: ModelsDevLimit(context: 200_000, output: 32_768, input: nil),
+                releaseDate: nil, status: nil
+            ),
+            "opus4.6": ModelsDevModel(
+                id: "opus4.6", name: "Opus 4.6",
+                reasoning: true, attachment: true, toolCall: true, temperature: true,
+                cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
+                limit: ModelsDevLimit(context: 200_000, output: 32_768, input: nil),
+                releaseDate: nil, status: nil
+            ),
+            "gemini-3.1-pro-preview": ModelsDevModel(
+                id: "gemini-3.1-pro-preview", name: "Gemini 3.1 Pro",
+                reasoning: true, attachment: true, toolCall: true, temperature: true,
+                cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
+                limit: ModelsDevLimit(context: 2_000_000, output: 65_536, input: nil),
+                releaseDate: nil, status: nil
+            ),
+            "gpt5": ModelsDevModel(
+                id: "gpt5", name: "GPT-5",
+                reasoning: true, attachment: true, toolCall: true, temperature: true,
+                cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
+                limit: ModelsDevLimit(context: 200_000, output: 16_384, input: nil),
+                releaseDate: nil, status: nil
+            ),
+            "gpt5.1": ModelsDevModel(
+                id: "gpt5.1", name: "GPT-5.1",
+                reasoning: true, attachment: true, toolCall: true, temperature: true,
+                cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
+                limit: ModelsDevLimit(context: 400_000, output: 16_384, input: nil),
+                releaseDate: nil, status: nil
+            ),
+            "gpt5.2": ModelsDevModel(
+                id: "gpt5.2", name: "GPT-5.2",
+                reasoning: true, attachment: true, toolCall: true, temperature: true,
+                cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
+                limit: ModelsDevLimit(context: 400_000, output: 16_384, input: nil),
+                releaseDate: nil, status: nil
+            ),
+            "gpt5.4": ModelsDevModel(
+                id: "gpt5.4", name: "GPT-5.4",
+                reasoning: true, attachment: true, toolCall: true, temperature: true,
+                cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
+                limit: ModelsDevLimit(context: 400_000, output: 16_384, input: nil),
+                releaseDate: nil, status: nil
+            ),
+        ]
         return [
             "openai-codex": ModelsDevProvider(
                 id: "openai-codex", name: "OpenAI Codex",
@@ -116,7 +195,14 @@ final class ProviderRegistry {
                 api: "https://chatgpt.com/backend-api/codex",
                 doc: "https://openai.com/codex",
                 models: codexModels
-            )
+            ),
+            "augment": ModelsDevProvider(
+                id: "augment", name: "Augment Code",
+                env: ["AUGMENT_SESSION_AUTH"], npm: nil,
+                api: nil,
+                doc: "https://docs.augmentcode.com",
+                models: augmentModels
+            ),
         ]
     }()
 
@@ -147,6 +233,13 @@ final class ProviderRegistry {
                 return OpenAICompatibleProvider(provider: mdProvider, apiKey: apiKey)
             }
             return nil
+        }
+
+        // Special case: Augment Code (tenant URL + access token)
+        if providerId == "augment" {
+            guard let apiKey = loadAPIKey(for: "augment"),
+                  let tenantURL = loadAugmentTenantURL() else { return nil }
+            return AugmentProvider(baseURL: tenantURL, apiKey: apiKey)
         }
 
         // models.dev providers
@@ -229,9 +322,14 @@ final class ProviderRegistry {
            let codex = modelsDevProviders["openai-codex"] {
             result.append(codex)
         }
+        // Show Augment if credentials are configured
+        if loadAPIKey(for: "augment") != nil, loadAugmentTenantURL() != nil,
+           let augment = modelsDevProviders["augment"] {
+            result.append(augment)
+        }
         // Then configured providers
         for id in configuredProviderIds.sorted() {
-            if id == "github-copilot" || id == "openai-codex" { continue }
+            if id == "github-copilot" || id == "openai-codex" || id == "augment" { continue }
             if let p = modelsDevProviders[id] { result.append(p) }
         }
         return result
@@ -246,6 +344,7 @@ final class ProviderRegistry {
                        "alibaba-coding-plan", "alibaba-coding-plan-cn",
                        "tencent-coding-plan",
                        "openrouter", "groq", "xai", "deepseek",
+                       "augment",
                        "opencode", "opencode-go"]
 
         var result: [ModelsDevProvider] = []
@@ -280,6 +379,9 @@ final class ProviderRegistry {
 
     func removeAPIKey(for providerId: String) {
         KeychainHelper.delete(key: Self.keychainKey(for: providerId))
+        if providerId == "augment" {
+            KeychainHelper.delete(key: Self.augmentTenantURLKey)
+        }
         configuredProviderIds.remove(providerId)
         saveConfiguredProviders()
     }
@@ -287,7 +389,21 @@ final class ProviderRegistry {
     func hasAPIKey(for providerId: String) -> Bool {
         if providerId == "github-copilot" { return authManager.isAuthenticated }
         if providerId == "openai-codex" { return codexAuth.isAuthenticated || loadAPIKey(for: providerId) != nil }
+        if providerId == "augment" { return loadAPIKey(for: providerId) != nil && loadAugmentTenantURL() != nil }
         return loadAPIKey(for: providerId) != nil
+    }
+
+    // MARK: - Augment Credentials
+
+    private static let augmentTenantURLKey = "augment-tenant-url"
+
+    func saveAugmentCredentials(accessToken: String, tenantURL: String) {
+        saveAPIKey(accessToken, for: "augment")
+        KeychainHelper.save(tenantURL, for: Self.augmentTenantURLKey)
+    }
+
+    func loadAugmentTenantURL() -> String? {
+        KeychainHelper.loadString(key: Self.augmentTenantURLKey)
     }
 
     // MARK: - Persistence

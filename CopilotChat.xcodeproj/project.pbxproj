@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		03CBBD0AF52DA3259CCA59D2 /* WebFetchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B5F057E1594CDDB8C4D0293 /* WebFetchService.swift */; };
+		A1B2C3D4E5F60718293A4B5C /* AugmentProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E2F3A4B5C6071829304A5B /* AugmentProvider.swift */; };
 		157BFBF72A2B850E6A5D832E /* APIMessageEncodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC320742E69744CF3BEC9972 /* APIMessageEncodingTests.swift */; };
 		1642E88F49621293AC8EC307 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F8C8F50D0B29A8A7443C454 /* SettingsStore.swift */; };
 		17E6FDC95EBBCC13F2106A07 /* MCPSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAEE40518E4F65DA4E50E674 /* MCPSettingsView.swift */; };
@@ -59,6 +60,7 @@
 
 /* Begin PBXFileReference section */
 		0360B8A2EA009CB9636C0D4D /* MCPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPClient.swift; sourceTree = "<group>"; };
+		D1E2F3A4B5C6071829304A5B /* AugmentProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AugmentProvider.swift; sourceTree = "<group>"; };
 		095D95CCFBFE3A4CB52AED3A /* ConversationHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationHistoryView.swift; sourceTree = "<group>"; };
 		0E27429D563A6EF3071A17A0 /* BuildAPIMessagesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildAPIMessagesTests.swift; sourceTree = "<group>"; };
 		0E4C54DF2D9B605822055885 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
@@ -131,6 +133,7 @@
 			isa = PBXGroup;
 			children = (
 				8A7952ABDE829166129173B6 /* AnthropicCompatibleProvider.swift */,
+				D1E2F3A4B5C6071829304A5B /* AugmentProvider.swift */,
 				68CE6C1174A8CE1BE36D82DC /* CopilotProvider.swift */,
 				48053902E27A9A12DCC0ADE3 /* GeminiProvider.swift */,
 				85E7A0731D3332AC0E687019 /* LLMProvider.swift */,
@@ -326,6 +329,7 @@
 			files = (
 				C0EB0BE2107A048AE2457395 /* AgentConfig.swift in Sources */,
 				7428DAB3E58F070AE15DC483 /* AnthropicCompatibleProvider.swift in Sources */,
+				A1B2C3D4E5F60718293A4B5C /* AugmentProvider.swift in Sources */,
 				667A6D684FF61468C6F0903C /* AuthManager.swift in Sources */,
 				C8E1455118A3365F1759F913 /* BuiltInTools.swift in Sources */,
 				F5BCCA22632FE40F5BE33602 /* ChatModels.swift in Sources */,
