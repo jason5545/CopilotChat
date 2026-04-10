@@ -124,7 +124,27 @@ struct AugmentProvider: LLMProvider, @unchecked Sendable {
         tools: [APITool]?,
         options: ProviderOptions
     ) -> [String: Any] {
-        let (chatHistory, nodes) = convertMessages(messages)
+        var (chatHistory, nodes) = convertMessages(messages)
+
+        // Inject system prompt as a synthetic first exchange.
+        // Augment rejects the `system_prompt` field, but respects instructions
+        // given as a fake first user message in chat_history.
+        // options.systemPrompt takes precedence; system messages from the
+        // messages array are appended after it.
+        if let systemText = options.systemPrompt, !systemText.isEmpty {
+            let sysExchange: [String: Any] = [
+                "request_message": "" as Any,
+                "response_text": "Understood." as Any,
+                "request_id": "system-prompt" as Any,
+                "request_nodes": [
+                    ["id": 1, "type": 0, "text_node": ["content": systemText]]
+                ] as Any,
+                "response_nodes": [] as [[String: Any]] as Any,
+                "token_usage": ["input_tokens": 0, "output_tokens": 0] as Any,
+                "total_tokens": 0 as Any,
+            ]
+            chatHistory.insert(sysExchange, at: 0)
+        }
 
         let body: [String: Any] = [
             "model": model,
