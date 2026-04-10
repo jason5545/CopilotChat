@@ -110,60 +110,81 @@ final class ProviderRegistry {
             ),
         ]
         let augmentModels: [String: ModelsDevModel] = [
-            "claude-haiku-4-5": ModelsDevModel(
-                id: "claude-haiku-4-5", name: "Claude Haiku 4.5",
+            "haiku4.5": ModelsDevModel(
+                id: "haiku4.5", name: "Haiku 4.5",
                 reasoning: false, attachment: true, toolCall: true, temperature: true,
                 cost: nil,
                 limit: ModelsDevLimit(context: 200_000, output: 8_192, input: nil),
                 releaseDate: nil, status: nil
             ),
-            "claude-sonnet-4": ModelsDevModel(
-                id: "claude-sonnet-4", name: "Claude Sonnet 4",
+            "sonnet4": ModelsDevModel(
+                id: "sonnet4", name: "Sonnet 4",
                 reasoning: true, attachment: true, toolCall: true, temperature: true,
                 cost: nil,
                 limit: ModelsDevLimit(context: 200_000, output: 16_384, input: nil),
                 releaseDate: nil, status: nil
             ),
-            "claude-sonnet-4-5": ModelsDevModel(
-                id: "claude-sonnet-4-5", name: "Claude Sonnet 4.5",
+            "sonnet4.5": ModelsDevModel(
+                id: "sonnet4.5", name: "Sonnet 4.5",
                 reasoning: true, attachment: true, toolCall: true, temperature: true,
                 cost: nil,
                 limit: ModelsDevLimit(context: 200_000, output: 16_384, input: nil),
                 releaseDate: nil, status: nil
             ),
-            "claude-opus-4-5": ModelsDevModel(
-                id: "claude-opus-4-5", name: "Claude Opus 4.5",
+            "sonnet4.6": ModelsDevModel(
+                id: "sonnet4.6", name: "Sonnet 4.6",
+                reasoning: true, attachment: true, toolCall: true, temperature: true,
+                cost: nil,
+                limit: ModelsDevLimit(context: 200_000, output: 16_384, input: nil),
+                releaseDate: nil, status: nil
+            ),
+            "opus4.5": ModelsDevModel(
+                id: "opus4.5", name: "Opus 4.5",
                 reasoning: true, attachment: true, toolCall: true, temperature: true,
                 cost: nil,
                 limit: ModelsDevLimit(context: 200_000, output: 32_768, input: nil),
                 releaseDate: nil, status: nil
             ),
-            "claude-opus-4-6": ModelsDevModel(
-                id: "claude-opus-4-6", name: "Claude Opus 4.6",
+            "opus4.6": ModelsDevModel(
+                id: "opus4.6", name: "Opus 4.6",
                 reasoning: true, attachment: true, toolCall: true, temperature: true,
                 cost: nil,
                 limit: ModelsDevLimit(context: 200_000, output: 32_768, input: nil),
                 releaseDate: nil, status: nil
             ),
-            "gpt-5-1": ModelsDevModel(
-                id: "gpt-5-1", name: "GPT-5.1",
+            "gemini-3.1-pro-preview": ModelsDevModel(
+                id: "gemini-3.1-pro-preview", name: "Gemini 3.1 Pro",
+                reasoning: true, attachment: true, toolCall: true, temperature: true,
+                cost: nil,
+                limit: ModelsDevLimit(context: 2_000_000, output: 65_536, input: nil),
+                releaseDate: nil, status: nil
+            ),
+            "gpt5": ModelsDevModel(
+                id: "gpt5", name: "GPT-5",
                 reasoning: true, attachment: true, toolCall: true, temperature: true,
                 cost: nil,
                 limit: ModelsDevLimit(context: 200_000, output: 16_384, input: nil),
                 releaseDate: nil, status: nil
             ),
-            "gpt-5-2": ModelsDevModel(
-                id: "gpt-5-2", name: "GPT-5.2",
+            "gpt5.1": ModelsDevModel(
+                id: "gpt5.1", name: "GPT-5.1",
                 reasoning: true, attachment: true, toolCall: true, temperature: true,
                 cost: nil,
-                limit: ModelsDevLimit(context: 200_000, output: 16_384, input: nil),
+                limit: ModelsDevLimit(context: 400_000, output: 16_384, input: nil),
                 releaseDate: nil, status: nil
             ),
-            "gpt-5-4": ModelsDevModel(
-                id: "gpt-5-4", name: "GPT-5.4",
+            "gpt5.2": ModelsDevModel(
+                id: "gpt5.2", name: "GPT-5.2",
                 reasoning: true, attachment: true, toolCall: true, temperature: true,
                 cost: nil,
-                limit: ModelsDevLimit(context: 200_000, output: 16_384, input: nil),
+                limit: ModelsDevLimit(context: 400_000, output: 16_384, input: nil),
+                releaseDate: nil, status: nil
+            ),
+            "gpt5.4": ModelsDevModel(
+                id: "gpt5.4", name: "GPT-5.4",
+                reasoning: true, attachment: true, toolCall: true, temperature: true,
+                cost: nil,
+                limit: ModelsDevLimit(context: 400_000, output: 16_384, input: nil),
                 releaseDate: nil, status: nil
             ),
         ]
@@ -218,12 +239,7 @@ final class ProviderRegistry {
         if providerId == "augment" {
             guard let apiKey = loadAPIKey(for: "augment"),
                   let tenantURL = loadAugmentTenantURL() else { return nil }
-            return OpenAICompatibleProvider(
-                id: "augment",
-                displayName: "Augment Code",
-                baseURL: tenantURL,
-                apiKey: apiKey
-            )
+            return AugmentProvider(baseURL: tenantURL, apiKey: apiKey)
         }
 
         // models.dev providers
