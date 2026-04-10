@@ -54,9 +54,9 @@ struct AugmentProvider: LLMProvider, @unchecked Sendable {
                             }
                         }
 
-                        // stop_reason is an integer: 1 = end_turn, or could be other values
+                        // stop_reason is an integer: 1 = end_turn, 3 = tool_use
                         if let stopReason = json["stop_reason"] as? Int {
-                            let reason: ChatMessage.FinishReason = .stop
+                            let reason: ChatMessage.FinishReason = (stopReason == 3) ? .toolCalls : .stop
                             continuation.yield(.finish(reason: reason))
                         } else if let stopReason = json["stop_reason"] as? String, !stopReason.isEmpty {
                             let reason: ChatMessage.FinishReason =
@@ -140,7 +140,7 @@ struct AugmentProvider: LLMProvider, @unchecked Sendable {
             "skills": [],
             "silent": false,
             "enable_parallel_tool_use": false,
-            "feature_detection_flags": [String: Any](),
+            "feature_detection_flags": ["support_tool_use_start": true, "support_parallel_tool_use": false] as [String: Any],
         ]
 
 
@@ -182,20 +182,25 @@ struct AugmentProvider: LLMProvider, @unchecked Sendable {
     }
 
     /// Convert APITools to Augment's tool_definitions format.
+    /// Augment expects a flat structure with `input_schema_json` as a **stringified** JSON string.
     private func convertTools(_ tools: [APITool]?) -> [[String: Any]] {
         guard let tools else { return [] }
         return tools.map { tool in
             var def: [String: Any] = [
                 "name": tool.function.name,
                 "description": tool.function.description,
+                "tool_safety": 0,
             ]
             if let params = tool.function.parameters {
-                // Convert AnyCodable parameters to raw dictionary
+                // Convert AnyCodable parameters to raw dictionary, then stringify
                 var rawParams: [String: Any] = [:]
                 for (key, value) in params {
                     rawParams[key] = value.value
                 }
-                def["parameters"] = rawParams
+                if let jsonData = try? JSONSerialization.data(withJSONObject: rawParams),
+                   let jsonString = String(data: jsonData, encoding: .utf8) {
+                    def["input_schema_json"] = jsonString
+                }
             }
             return def
         }
@@ -203,33 +208,38 @@ struct AugmentProvider: LLMProvider, @unchecked Sendable {
 
     // MARK: - Node Parsing
 
-    /// Parse an NDJSON node. Type 2 = tool call, type 8 = thinking, type 10 = usage.
+    /// Parse an NDJSON node. Type 7 = tool_use_start, type 5 = tool_use complete, type 8 = thinking, type 10 = usage.
     private func parseNode(_ node: [String: Any], continuation: AsyncThrowingStream<ProviderEvent, Error>.Continuation) {
-        guard let type = node["type"] as? Int else { return }
+        guard let nodeType = node["type"] as? Int else { return }
 
-        switch type {
-        case 2: // Tool call
+        switch nodeType {
+        case 7: // tool_use_start
             if let toolUse = node["tool_use"] as? [String: Any],
-               let toolId = toolUse["id"] as? String,
+               let toolId = toolUse["tool_use_id"] as? String,
                let toolName = toolUse["tool_name"] as? String {
-                continuation.yield(.toolCallStart(index: 0, id: toolId, name: toolName))
-                if let input = toolUse["input"] as? String {
-                    continuation.yield(.toolCallDelta(index: 0, arguments: input))
-                }
-                continuation.yield(.toolCallStop(index: 0))
+                let index = node["id"] as? Int ?? 0
+                continuation.yield(.toolCallStart(index: index, id: toolId, name: toolName))
             }
-        case 8: // Thinking
-            if let text = node["text"] as? String, !text.isEmpty {
+        case 5: // tool_use (complete with input)
+            if let toolUse = node["tool_use"] as? [String: Any],
+               let inputJson = toolUse["input_json"] as? String {
+                let index = node["id"] as? Int ?? 0
+                continuation.yield(.toolCallDelta(index: index, arguments: inputJson))
+                continuation.yield(.toolCallStop(index: index))
+            }
+        case 8: // thinking
+            if let thinking = node["thinking"] as? [String: Any],
+               let text = thinking["text"] as? String, !text.isEmpty {
                 continuation.yield(.thinkingDelta(text))
             }
-        case 10: // Token usage
-            if let usage = node["usage"] as? [String: Any] {
-                let prompt = usage["input_tokens"] as? Int ?? 0
-                let completion = usage["output_tokens"] as? Int ?? 0
+        case 10: // token usage
+            if let usage = node["token_usage"] as? [String: Any] {
+                let inputTokens = usage["input_tokens"] as? Int ?? 0
+                let outputTokens = usage["output_tokens"] as? Int ?? 0
                 continuation.yield(.usage(TokenUsage(
-                    promptTokens: prompt,
-                    completionTokens: completion,
-                    totalTokens: prompt + completion
+                    promptTokens: inputTokens,
+                    completionTokens: outputTokens,
+                    totalTokens: inputTokens + outputTokens
                 )))
             }
         default:
