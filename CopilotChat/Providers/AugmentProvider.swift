@@ -140,9 +140,6 @@ struct AugmentProvider: LLMProvider, @unchecked Sendable {
             "feature_detection_flags": [String: Any](),
         ]
 
-        if let systemPrompt = options.systemPrompt {
-            body["system_prompt"] = systemPrompt
-        }
 
         return body
     }
@@ -160,7 +157,7 @@ struct AugmentProvider: LLMProvider, @unchecked Sendable {
             let text = msg.content ?? ""
             switch msg.role {
             case "system":
-                chatHistory.append(["role": "system", "message": text])
+                break  // Augment manages its own system prompt
             case "user":
                 // If we already have a user message queued, push it to history
                 if !lastUserMessage.isEmpty {
