@@ -225,47 +225,10 @@ final class CopilotService {
         isStreaming = true
         streamingError = nil
         streamTask = Task {
-            var lastError: Error?
-            for attempt in 0..<Self.maxRetries {
-                do {
-                    try await work()
-                    lastError = nil
-                    break
-                } catch is CancellationError {
-                    lastError = nil
-                    break
-                } catch let error as ProviderError {
-                    switch error {
-                    case .rateLimited(let retryAfter), .overloaded(let retryAfter):
-                        if attempt == Self.maxRetries - 1 {
-                            lastError = error
-                            break
-                        }
-                        let rawDelay = retryAfter ?? (Self.baseRetryDelay * pow(2.0, Double(attempt)))
-                        let delay = min(rawDelay, Self.maxRetryDelay)
-                        try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                        continue
-                    default:
-                        lastError = error
-                        break
-                    }
-                } catch {
-                    if let msg = (error as? LocalizedError)?.errorDescription,
-                       msg.lowercased().contains("overloaded") {
-                        if attempt == Self.maxRetries - 1 {
-                            lastError = ProviderError.overloaded(retryAfter: nil)
-                            break
-                        }
-                        let delay = min(Self.baseRetryDelay * pow(2.0, Double(attempt)), Self.maxRetryDelay)
-                        try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                        continue
-                    }
-                    lastError = error
-                    break
-                }
-            }
-
-            if let error = lastError {
+            do {
+                try await work()
+            } catch is CancellationError {
+            } catch {
                 streamingError = error.localizedDescription
                 let idx = messages.count - 1
                 if idx >= 0, messages[idx].role == .assistant {
@@ -278,6 +241,57 @@ final class CopilotService {
             }
             isStreaming = false
         }
+    }
+
+    private func withRetry(_ operation: @escaping @MainActor () async throws -> Void) async throws {
+        var lastError: Error?
+        for attempt in 0..<Self.maxRetries {
+            do {
+                try await operation()
+                return
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch let error as ProviderError {
+                switch error {
+                case .rateLimited(let retryAfter), .overloaded(let retryAfter):
+                    if attempt == Self.maxRetries - 1 {
+                        lastError = error
+                        break
+                    }
+                    let rawDelay = retryAfter ?? (Self.baseRetryDelay * pow(2.0, Double(attempt)))
+                    let delay = min(rawDelay, Self.maxRetryDelay)
+                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    continue
+                default:
+                    throw error
+                }
+            } catch {
+                if isRetryableStreamError(error) {
+                    if attempt == Self.maxRetries - 1 {
+                        lastError = error
+                        break
+                    }
+                    let delay = min(Self.baseRetryDelay * pow(2.0, Double(attempt)), Self.maxRetryDelay)
+                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    continue
+                }
+                throw error
+            }
+        }
+        if let error = lastError { throw error }
+    }
+
+    private func isRetryableStreamError(_ error: Error) -> Bool {
+        if let msg = (error as? LocalizedError)?.errorDescription {
+            let lower = msg.lowercased()
+            if lower.contains("overloaded")
+                || lower.contains("rate limit")
+                || lower.contains("too many requests")
+                || lower.contains("429") {
+                return true
+            }
+        }
+        return false
     }
 
     private func startCompletionLoop(tools: [MCPTool]) {
@@ -304,12 +318,13 @@ final class CopilotService {
         var currentIndex = index
 
         for _ in 0..<Self.maxToolIterations {
-            try await streamCompletion(updatingAt: currentIndex, tools: tools)
+            let streamIndex = currentIndex
+            try await withRetry {
+                try await self.streamCompletion(updatingAt: streamIndex, tools: tools)
+            }
 
-            // Store per-message token usage snapshot
             messages[currentIndex].tokenUsage = tokenUsage
 
-            // Check if the assistant requested tool calls
             guard let toolCalls = messages[currentIndex].toolCalls, !toolCalls.isEmpty else {
                 break
             }
@@ -317,7 +332,6 @@ final class CopilotService {
             try Task.checkCancellation()
             await executeToolCalls(toolCalls)
 
-            // Prepare next assistant message for the follow-up response
             try Task.checkCancellation()
             let nextAssistant = ChatMessage(role: .assistant, content: "")
             messages.append(nextAssistant)
