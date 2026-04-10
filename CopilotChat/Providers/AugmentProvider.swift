@@ -124,7 +124,7 @@ struct AugmentProvider: LLMProvider, @unchecked Sendable {
         tools: [APITool]?,
         options: ProviderOptions
     ) -> [String: Any] {
-        let (message, chatHistory) = convertMessages(messages)
+        let (message, chatHistory, nodes) = convertMessages(messages)
 
         var body: [String: Any] = [
             "model": model,
@@ -134,7 +134,7 @@ struct AugmentProvider: LLMProvider, @unchecked Sendable {
             "blobs": ["checkpoint_id": NSNull(), "added_blobs": [], "deleted_blobs": []],
             "user_guided_blobs": [],
             "external_source_ids": [],
-            "nodes": [],
+            "nodes": nodes,
             "tool_definitions": convertTools(tools),
             "rules": [],
             "skills": [],
@@ -152,9 +152,12 @@ struct AugmentProvider: LLMProvider, @unchecked Sendable {
     /// Convert APIMessages to Augment's format:
     /// - Last user message becomes the top-level "message" field
     /// - All previous messages become "chat_history" entries
-    private func convertMessages(_ messages: [APIMessage]) -> (String, [[String: String]]) {
+    /// - Tool call assistant messages and tool result messages become "nodes"
+    private func convertMessages(_ messages: [APIMessage]) -> (String, [[String: String]], [[String: Any]]) {
         var chatHistory: [[String: String]] = []
+        var nodes: [[String: Any]] = []
         var lastUserMessage = ""
+        var nodeId = 1
 
         for msg in messages {
             let text = msg.content ?? ""
@@ -168,17 +171,56 @@ struct AugmentProvider: LLMProvider, @unchecked Sendable {
                 }
                 lastUserMessage = text
             case "assistant":
-                chatHistory.append(["role": "assistant", "message": text])
+                // Add text content to chat_history if present
+                if !text.isEmpty {
+                    chatHistory.append(["role": "assistant", "message": text])
+                }
+                // Convert tool calls to nodes
+                if let toolCalls = msg.toolCalls {
+                    for call in toolCalls {
+                        let node: [String: Any] = [
+                            "id": nodeId,
+                            "type": 2,
+                            "content": "",
+                            "tool_use": [
+                                "tool_use_id": call.id,
+                                "tool_name": call.function.name,
+                                "input_json": call.function.arguments,
+                            ] as [String: Any],
+                            "thinking": NSNull(),
+                            "billing_metadata": NSNull(),
+                            "metadata": NSNull(),
+                            "token_usage": NSNull(),
+                        ]
+                        nodes.append(node)
+                        nodeId += 1
+                    }
+                }
             case "tool":
-                // Include tool results as assistant context in history
-                let toolContent = "Tool result (\(msg.toolCallId ?? "unknown")): \(text)"
-                chatHistory.append(["role": "assistant", "message": toolContent])
+                // Tool results become tool_result nodes — do NOT add to chat_history
+                let node: [String: Any] = [
+                    "id": nodeId,
+                    "type": 1,
+                    "content": "",
+                    "tool_result_node": [
+                        "tool_use_id": msg.toolCallId ?? "",
+                        "content": text,
+                        "is_error": false,
+                    ] as [String: Any],
+                    "tool_use": NSNull(),
+                    "thinking": NSNull(),
+                    "billing_metadata": NSNull(),
+                    "metadata": NSNull(),
+                    "token_usage": NSNull(),
+                ]
+                nodes.append(node)
+                nodeId += 1
             default:
                 chatHistory.append(["role": msg.role, "message": text])
             }
         }
 
-        return (lastUserMessage, chatHistory)
+        return (lastUserMessage, chatHistory, nodes)
     }
 
     /// Convert APITools to Augment's tool_definitions format.
