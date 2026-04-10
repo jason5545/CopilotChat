@@ -10,12 +10,8 @@ enum ProviderTransform {
 
     // MARK: - Max Output Tokens
 
-    /// `min(model.limit.output, 32_000)` — matches OpenCode behavior.
-    /// GPT models omit the limit (nil) to let the API decide.
-    static func maxOutputTokens(model: ModelsDevModel?, modelId: String) -> Int? {
-        let id = modelId.lowercased()
-        if id.hasPrefix("gpt") { return nil }
-
+    /// `min(model.limit.output, 32_000)` — matches OpenCode TS behavior.
+    static func maxOutputTokens(model: ModelsDevModel?, modelId: String) -> Int {
         if let model {
             return min(model.maxOutputTokens, outputTokenMax)
         }

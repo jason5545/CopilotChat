@@ -782,9 +782,8 @@ final class CopilotService {
     private static let outputTokenMax = 32_000
 
     /// Dynamic output token limit: min(model's max_output_tokens, 32k).
-    /// GPT models omit the limit (nil) to let the API decide — matches OpenCode behavior.
-    private var maxOutputTokens: Int? {
-        if settingsStore.selectedModel.lowercased().hasPrefix("gpt") { return nil }
+    /// Always sends a concrete value — matches OpenCode TS behavior.
+    private var maxOutputTokens: Int {
         if let limit = selectedModelInfo?.capabilities?.limits?.maxOutputTokens {
             return min(limit, Self.outputTokenMax)
         }
