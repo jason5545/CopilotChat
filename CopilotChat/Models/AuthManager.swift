@@ -23,6 +23,14 @@ final class AuthManager {
     private var githubToken: String?
     var token: String? { githubToken }
 
+    /// Dedicated session for OAuth polling — survives app backgrounding.
+    private static let authSession: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.waitsForConnectivity = true
+        config.timeoutIntervalForResource = 900  // match device code expiry (~15 min)
+        return URLSession(configuration: config)
+    }()
+
     init() {
         // The old token was minted under a different OAuth app identity, so force re-auth.
         KeychainHelper.delete(key: Self.legacyKeychainKey)
@@ -110,6 +118,7 @@ final class AuthManager {
     private func pollForAccessToken(deviceCode: DeviceCodeResponse) async throws -> String {
         var interval = TimeInterval(deviceCode.interval)
         let deadline = Date().addingTimeInterval(TimeInterval(deviceCode.expiresIn))
+        let maxRetries = 3
 
         while Date() < deadline {
             try await Task.sleep(for: .seconds(interval + 3))
@@ -128,7 +137,23 @@ final class AuthManager {
             ]
             request.httpBody = try JSONEncoder().encode(body)
 
-            let (data, _) = try await URLSession.shared.data(for: request)
+            // Retry on transient network errors (e.g. connection lost after iOS backgrounding)
+            var data = Data()
+            var succeeded = false
+            for attempt in 0..<maxRetries {
+                do {
+                    let (responseData, _) = try await Self.authSession.data(for: request)
+                    data = responseData
+                    succeeded = true
+                    break
+                } catch let error as URLError where Self.isTransientError(error) {
+                    if attempt == maxRetries - 1 { throw error }
+                    try await Task.sleep(for: .seconds(2))
+                    try Task.checkCancellation()
+                }
+            }
+            guard succeeded else { continue }
+
             let tokenResponse = try JSONDecoder().decode(OAuthTokenResponse.self, from: data)
 
             if let token = tokenResponse.accessToken {
@@ -154,6 +179,21 @@ final class AuthManager {
         }
 
         throw AuthError.deviceCodeExpired
+    }
+
+    /// Transient network errors that should be retried (common after iOS app backgrounding).
+    private static func isTransientError(_ error: URLError) -> Bool {
+        switch error.code {
+        case .networkConnectionLost,      // -1005: the exact error we're fixing
+             .notConnectedToInternet,      // -1009: device still reconnecting
+             .timedOut,                    // -1001: stale connection timeout
+             .cannotConnectToHost,         // -1004: server unreachable briefly
+             .dnsLookupFailed,            // -1006: DNS cache stale after wake
+             .secureConnectionFailed:      // -1200: TLS renegotiation after resume
+            return true
+        default:
+            return false
+        }
     }
 
     // MARK: - User Info
