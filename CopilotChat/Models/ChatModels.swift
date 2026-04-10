@@ -473,8 +473,14 @@ struct MCPServerConfig: Identifiable, Codable, Equatable, Sendable {
     let id: UUID
     var name: String
     var url: String
-    var headers: [String: String]
     var isEnabled: Bool
+
+    /// Headers are stored separately in Keychain — excluded from Codable to avoid UserDefaults leakage.
+    var headers: [String: String]
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, url, isEnabled
+    }
 
     init(id: UUID = UUID(), name: String, url: String, headers: [String: String] = [:], isEnabled: Bool = true) {
         self.id = id
@@ -482,6 +488,52 @@ struct MCPServerConfig: Identifiable, Codable, Equatable, Sendable {
         self.url = url
         self.headers = headers
         self.isEnabled = isEnabled
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        url = try container.decode(String.self, forKey: .url)
+        isEnabled = try container.decode(Bool.self, forKey: .isEnabled)
+        headers = [:]  // loaded from Keychain separately
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(url, forKey: .url)
+        try container.encode(isEnabled, forKey: .isEnabled)
+        // headers intentionally excluded — stored in Keychain
+    }
+
+    // MARK: - Keychain-backed header storage
+
+    private static func keychainKey(for id: UUID) -> String {
+        "mcp_headers_\(id.uuidString)"
+    }
+
+    func saveHeaders() {
+        guard !headers.isEmpty else {
+            KeychainHelper.delete(key: Self.keychainKey(for: id))
+            return
+        }
+        if let data = try? JSONEncoder().encode(headers) {
+            KeychainHelper.save(data, for: Self.keychainKey(for: id))
+        }
+    }
+
+    mutating func loadHeaders() {
+        guard let data = KeychainHelper.load(key: Self.keychainKey(for: id)),
+              let decoded = try? JSONDecoder().decode([String: String].self, from: data) else {
+            return
+        }
+        headers = decoded
+    }
+
+    static func deleteHeaders(for id: UUID) {
+        KeychainHelper.delete(key: keychainKey(for: id))
     }
 }
 

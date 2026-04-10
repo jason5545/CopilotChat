@@ -25,11 +25,11 @@ struct GeminiProvider: LLMProvider, @unchecked Sendable {
     // MARK: - Endpoints
 
     private func streamURL(model: String) -> URL {
-        URL(string: "\(Self.defaultBaseURL)/models/\(model):streamGenerateContent?alt=sse&key=\(apiKey)")!
+        URL(string: "\(Self.defaultBaseURL)/models/\(model):streamGenerateContent?alt=sse")!
     }
 
     private func generateURL(model: String) -> URL {
-        URL(string: "\(Self.defaultBaseURL)/models/\(model):generateContent?key=\(apiKey)")!
+        URL(string: "\(Self.defaultBaseURL)/models/\(model):generateContent")!
     }
 
     // MARK: - LLMProvider
@@ -51,6 +51,7 @@ struct GeminiProvider: LLMProvider, @unchecked Sendable {
                     urlRequest.httpMethod = "POST"
                     urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
                     urlRequest.setValue("CopilotChat/1.0", forHTTPHeaderField: "User-Agent")
+                    urlRequest.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
                     urlRequest.httpBody = requestData
 
                     let bytes = try await SSEParser.validatedBytes(
@@ -82,6 +83,7 @@ struct GeminiProvider: LLMProvider, @unchecked Sendable {
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         urlRequest.setValue("CopilotChat/1.0", forHTTPHeaderField: "User-Agent")
+        urlRequest.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
         urlRequest.httpBody = requestData
 
         let (data, response) = try await SSEParser.urlSession.data(for: urlRequest)

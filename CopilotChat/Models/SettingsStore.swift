@@ -130,6 +130,8 @@ final class SettingsStore {
         KeychainHelper.loadString(key: BuiltInTools.braveSearchKeychainKey) != nil
     }
 
+    private static let mcpHeadersMigratedKey = "mcpHeadersMigratedToKeychain"
+
     init() {
         self.selectedModel = UserDefaults.standard.string(forKey: Self.modelsKey) ?? Self.defaultModel
         self.reasoningEffort = {
@@ -143,9 +145,42 @@ final class SettingsStore {
                   let mode = ToolAccessMode(rawValue: raw) else { return .alwaysLoaded }
             return mode
         }()
+
+        // One-time migration: move MCP headers from UserDefaults JSON → Keychain
+        if !UserDefaults.standard.bool(forKey: Self.mcpHeadersMigratedKey) {
+            Self.migrateMCPHeadersToKeychain()
+            UserDefaults.standard.set(true, forKey: Self.mcpHeadersMigratedKey)
+        }
+
         self.mcpServers = Self.loadMCPServers()
         self.alwaysAllowedServers = Self.loadAlwaysAllowedServers()
         self.toolPermissionOverrides = Self.loadToolOverrides()
+    }
+
+    /// Migrate headers from legacy UserDefaults JSON (where headers was part of Codable) to Keychain.
+    private static func migrateMCPHeadersToKeychain() {
+        guard let data = UserDefaults.standard.data(forKey: mcpServersKey) else { return }
+
+        // Decode raw JSON to extract headers that were previously included in the Codable payload
+        guard let entries = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return }
+
+        for entry in entries {
+            guard let idString = entry["id"] as? String,
+                  let uuid = UUID(uuidString: idString),
+                  let headers = entry["headers"] as? [String: String],
+                  !headers.isEmpty else { continue }
+
+            var config = MCPServerConfig(id: uuid, name: "", url: "", headers: headers)
+            config.saveHeaders()
+        }
+
+        // Re-save without headers (the new Codable excludes them)
+        if var servers = try? JSONDecoder().decode([MCPServerConfig].self, from: data) {
+            for i in servers.indices { servers[i].loadHeaders() }
+            if let cleaned = try? JSONEncoder().encode(servers) {
+                UserDefaults.standard.set(cleaned, forKey: mcpServersKey)
+            }
+        }
     }
 
     // MARK: - MCP Permissions
@@ -214,6 +249,7 @@ final class SettingsStore {
     // MARK: - MCP Server Management
 
     func addServer(_ server: MCPServerConfig) {
+        server.saveHeaders()
         mcpServers.append(server)
     }
 
@@ -222,6 +258,7 @@ final class SettingsStore {
         for id in idsToRemove {
             mcpClients.removeValue(forKey: id)
             mcpConnectionErrors.removeValue(forKey: id)
+            MCPServerConfig.deleteHeaders(for: id)
         }
         mcpServers.remove(atOffsets: offsets)
         refreshToolsList()
@@ -229,6 +266,7 @@ final class SettingsStore {
 
     func updateServer(_ server: MCPServerConfig) {
         if let index = mcpServers.firstIndex(where: { $0.id == server.id }) {
+            server.saveHeaders()
             mcpServers[index] = server
             // Reconnect if enabled
             if server.isEnabled {
@@ -298,8 +336,12 @@ final class SettingsStore {
 
     private static func loadMCPServers() -> [MCPServerConfig] {
         guard let data = UserDefaults.standard.data(forKey: mcpServersKey),
-              let servers = try? JSONDecoder().decode([MCPServerConfig].self, from: data) else {
+              var servers = try? JSONDecoder().decode([MCPServerConfig].self, from: data) else {
             return []
+        }
+        // Hydrate headers from Keychain
+        for i in servers.indices {
+            servers[i].loadHeaders()
         }
         return servers
     }
