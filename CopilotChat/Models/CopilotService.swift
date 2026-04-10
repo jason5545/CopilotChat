@@ -594,7 +594,9 @@ final class CopilotService {
         // Merge built-in tools with MCP tools
         let allTools: [MCPTool]
         let pluginTools = await PluginRegistry.shared.allTools
-        if settingsStore.toolAccessMode == .loadWhenNeeded && !tools.isEmpty {
+        let isAugment = providerRegistry?.activeProviderId == "augment"
+        // Augment can't use tool_search effectively, so always send all MCP tools
+        if settingsStore.toolAccessMode == .loadWhenNeeded && !tools.isEmpty && !isAugment {
             let discovered = tools.filter { discoveredMCPTools.contains($0.name) }
             allTools = pluginTools + discovered
         } else {

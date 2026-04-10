@@ -28,6 +28,73 @@ struct AugmentProvider: LLMProvider, @unchecked Sendable {
         AsyncThrowingStream { continuation in
             let task = Task.detached {
                 do {
+                    let thinkingStartTag = "<thinking>"
+                    let thinkingEndTag = "</thinking>"
+                    var bufferedText = ""
+                    var isInsideThinkingBlock = false
+
+                    func flushBufferedText(_ incoming: String? = nil, final: Bool = false) {
+                        if let incoming {
+                            bufferedText += incoming
+                        }
+
+                        while !bufferedText.isEmpty {
+                            if isInsideThinkingBlock {
+                                if let endRange = bufferedText.range(of: thinkingEndTag) {
+                                    let reasoning = String(bufferedText[..<endRange.lowerBound])
+                                    if !reasoning.isEmpty {
+                                        continuation.yield(.thinkingDelta(reasoning))
+                                    }
+                                    bufferedText = String(bufferedText[endRange.upperBound...])
+                                    isInsideThinkingBlock = false
+                                    continue
+                                }
+
+                                if final {
+                                    continuation.yield(.thinkingDelta(bufferedText))
+                                    bufferedText = ""
+                                    break
+                                }
+
+                                let split = Self.splitStreamingBuffer(
+                                    bufferedText,
+                                    preservingPossiblePrefixOf: thinkingEndTag
+                                )
+                                if !split.emit.isEmpty {
+                                    continuation.yield(.thinkingDelta(split.emit))
+                                }
+                                bufferedText = split.keep
+                                break
+                            }
+
+                            if let startRange = bufferedText.range(of: thinkingStartTag) {
+                                let content = String(bufferedText[..<startRange.lowerBound])
+                                if !content.isEmpty {
+                                    continuation.yield(.contentDelta(content))
+                                }
+                                bufferedText = String(bufferedText[startRange.upperBound...])
+                                isInsideThinkingBlock = true
+                                continue
+                            }
+
+                            if final {
+                                continuation.yield(.contentDelta(bufferedText))
+                                bufferedText = ""
+                                break
+                            }
+
+                            let split = Self.splitStreamingBuffer(
+                                bufferedText,
+                                preservingPossiblePrefixOf: thinkingStartTag
+                            )
+                            if !split.emit.isEmpty {
+                                continuation.yield(.contentDelta(split.emit))
+                            }
+                            bufferedText = split.keep
+                            break
+                        }
+                    }
+
                     let body = buildRequestBody(messages: messages, model: model, tools: tools, options: options)
                     let requestData = try JSONSerialization.data(withJSONObject: body)
                     let urlRequest = buildURLRequest(body: requestData)
@@ -44,23 +111,28 @@ struct AugmentProvider: LLMProvider, @unchecked Sendable {
 
                         // Emit text content delta
                         if let text = json["text"] as? String, !text.isEmpty {
-                            continuation.yield(.contentDelta(text))
+                            flushBufferedText(text)
                         }
 
-                        // Parse tool call nodes (type 2)
+                        // Parse tool call nodes
                         if let nodes = json["nodes"] as? [[String: Any]] {
                             for node in nodes {
                                 parseNode(node, continuation: continuation)
                             }
                         }
 
-                        // Check for stop_reason on final chunk
-                        if let stopReason = json["stop_reason"] as? String {
+                        // stop_reason is usually an integer: 1 = end_turn, 3 = tool_use
+                        if let stopReason = json["stop_reason"] as? Int {
+                            let reason: ChatMessage.FinishReason = (stopReason == 3) ? .toolCalls : .stop
+                            continuation.yield(.finish(reason: reason))
+                        } else if let stopReason = json["stop_reason"] as? String, !stopReason.isEmpty {
                             let reason: ChatMessage.FinishReason =
                                 stopReason == "tool_use" ? .toolCalls : .stop
                             continuation.yield(.finish(reason: reason))
                         }
                     }
+
+                    flushBufferedText(final: true)
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
@@ -76,9 +148,8 @@ struct AugmentProvider: LLMProvider, @unchecked Sendable {
         tools: [APITool]?,
         options: ProviderOptions
     ) async throws -> ProviderResponse {
-        // Accumulate streamed chunks into a single response
         var content = ""
-        var toolCalls: [ToolCall] = []
+        var toolCalls: [String: (id: String, name: String, arguments: String)] = [:]
         var finishReason: ChatMessage.FinishReason?
 
         let stream = streamCompletion(messages: messages, model: model, tools: tools, options: options)
@@ -86,9 +157,16 @@ struct AugmentProvider: LLMProvider, @unchecked Sendable {
             switch event {
             case .contentDelta(let text):
                 content += text
-            case .toolCallStop(let index):
-                // Tool calls accumulated via start/delta below
-                _ = index
+            case .toolCallStart(let idx, let id, let name):
+                let key = "\(idx)"
+                toolCalls[key] = (id: id, name: name, arguments: "")
+            case .toolCallDelta(let idx, let arguments):
+                let key = "\(idx)"
+                if toolCalls[key] != nil {
+                    toolCalls[key]?.arguments += arguments
+                }
+            case .toolCallStop(let idx):
+                _ = idx
             case .finish(let reason):
                 finishReason = reason
             default:
@@ -96,9 +174,13 @@ struct AugmentProvider: LLMProvider, @unchecked Sendable {
             }
         }
 
+        let sortedToolCalls = toolCalls.sorted(by: { $0.key < $1.key }).map { _, value in
+            ToolCall(id: value.id, function: .init(name: value.name, arguments: value.arguments))
+        }
+
         return ProviderResponse(
             content: content.isEmpty ? nil : content,
-            toolCalls: toolCalls,
+            toolCalls: sortedToolCalls,
             finishReason: finishReason
         )
     }
@@ -121,81 +203,237 @@ struct AugmentProvider: LLMProvider, @unchecked Sendable {
         tools: [APITool]?,
         options: ProviderOptions
     ) -> [String: Any] {
-        let (message, chatHistory) = convertMessages(messages)
+        var (chatHistory, nodes) = convertMessages(messages)
 
-        var body: [String: Any] = [
+        // Augment rejects `system_prompt`, so inject the system prompt as a
+        // synthetic first exchange in chat_history.
+        if let systemText = options.systemPrompt, !systemText.isEmpty {
+            let sysExchange: [String: Any] = [
+                "request_message": "" as Any,
+                "response_text": "Understood." as Any,
+                "request_id": "system-prompt" as Any,
+                "request_nodes": [
+                    ["id": 1, "type": 0, "text_node": ["content": systemText]]
+                ] as Any,
+                "response_nodes": [] as [[String: Any]] as Any,
+                "token_usage": ["input_tokens": 0, "output_tokens": 0] as Any,
+                "total_tokens": 0 as Any,
+            ]
+            chatHistory.insert(sysExchange, at: 0)
+        }
+
+        let body: [String: Any] = [
             "model": model,
-            "message": message,
+            "message": "",  // Always empty; user text goes in nodes.
             "chat_history": chatHistory,
             "mode": "CHAT",
             "blobs": ["checkpoint_id": NSNull(), "added_blobs": [], "deleted_blobs": []],
             "user_guided_blobs": [],
             "external_source_ids": [],
-            "nodes": [],
+            "nodes": nodes,
             "tool_definitions": convertTools(tools),
             "rules": [],
             "skills": [],
             "silent": false,
             "enable_parallel_tool_use": false,
-            "feature_detection_flags": [String: Any](),
+            "feature_detection_flags": [
+                "support_tool_use_start": true,
+                "support_parallel_tool_use": false,
+            ] as [String: Any],
         ]
-
-        if let systemPrompt = options.systemPrompt {
-            body["system_prompt"] = systemPrompt
-        }
 
         return body
     }
 
     // MARK: - Message Conversion
 
-    /// Convert APIMessages to Augment's format:
-    /// - Last user message becomes the top-level "message" field
-    /// - All previous messages become "chat_history" entries
-    private func convertMessages(_ messages: [APIMessage]) -> (String, [[String: String]]) {
-        var chatHistory: [[String: String]] = []
-        var lastUserMessage = ""
+    /// Convert APIMessages to Augment's exchange-based format.
+    private func convertMessages(_ messages: [APIMessage]) -> (chatHistory: [[String: Any]], nodes: [[String: Any]]) {
+        var chatHistory: [[String: Any]] = []
+        var currentNodes: [[String: Any]] = []
+        var nodeId = 1
 
-        for msg in messages {
-            let text = msg.content ?? ""
-            switch msg.role {
-            case "system":
-                chatHistory.append(["role": "system", "message": text])
-            case "user":
-                // If we already have a user message queued, push it to history
-                if !lastUserMessage.isEmpty {
-                    chatHistory.append(["role": "user", "message": lastUserMessage])
-                }
-                lastUserMessage = text
-            case "assistant":
-                chatHistory.append(["role": "assistant", "message": text])
-            case "tool":
-                // Include tool results as assistant context in history
-                let toolContent = "Tool result (\(msg.toolCallId ?? "unknown")): \(text)"
-                chatHistory.append(["role": "assistant", "message": toolContent])
-            default:
-                chatHistory.append(["role": msg.role, "message": text])
+        var i = 0
+        while i < messages.count {
+            let msg = messages[i]
+
+            if msg.role == "system" {
+                i += 1
+                continue
             }
+
+            if msg.role == "user" {
+                let userText = msg.content ?? ""
+                let userNode: [String: Any] = [
+                    "id": nodeId,
+                    "type": 0,
+                    "text_node": ["content": userText],
+                ]
+                nodeId += 1
+
+                if i + 1 < messages.count && messages[i + 1].role == "assistant" {
+                    let assistant = messages[i + 1]
+                    let assistantText = assistant.content ?? ""
+
+                    if let toolCalls = assistant.toolCalls, !toolCalls.isEmpty {
+                        var responseNodes: [[String: Any]] = []
+                        if !assistantText.isEmpty {
+                            responseNodes.append([
+                                "id": nodeId,
+                                "type": 0,
+                                "content": assistantText,
+                                "thinking": NSNull(),
+                                "billing_metadata": NSNull(),
+                                "metadata": NSNull(),
+                                "token_usage": NSNull(),
+                            ])
+                            nodeId += 1
+                        }
+                        for toolCall in toolCalls {
+                            responseNodes.append([
+                                "id": nodeId,
+                                "type": 5,
+                                "content": "",
+                                "tool_use": [
+                                    "tool_use_id": toolCall.id,
+                                    "tool_name": toolCall.function.name,
+                                    "input_json": toolCall.function.arguments,
+                                    "is_partial": false,
+                                ] as [String: Any],
+                                "thinking": NSNull(),
+                                "billing_metadata": NSNull(),
+                                "metadata": NSNull(),
+                                "token_usage": NSNull(),
+                            ])
+                            nodeId += 1
+                        }
+
+                        chatHistory.append([
+                            "request_message": "",
+                            "response_text": assistantText,
+                            "request_id": UUID().uuidString,
+                            "request_nodes": [userNode],
+                            "response_nodes": responseNodes,
+                            "token_usage": ["input_tokens": 0, "output_tokens": 0],
+                            "total_tokens": 0,
+                        ] as [String: Any])
+
+                        i += 2
+                        while i < messages.count && messages[i].role == "tool" {
+                            let toolMessage = messages[i]
+                            let toolResultNode: [String: Any] = [
+                                "id": nodeId,
+                                "type": 1,
+                                "tool_result_node": [
+                                    "tool_use_id": toolMessage.toolCallId ?? "",
+                                    "content": toolMessage.content ?? "",
+                                    "is_error": false,
+                                ] as [String: Any],
+                            ]
+                            nodeId += 1
+
+                            if i + 1 < messages.count && messages[i + 1].role == "assistant" {
+                                let nextAssistant = messages[i + 1]
+                                let nextText = nextAssistant.content ?? ""
+                                var nextResponseNodes: [[String: Any]] = []
+                                if let nextToolCalls = nextAssistant.toolCalls, !nextToolCalls.isEmpty {
+                                    if !nextText.isEmpty {
+                                        nextResponseNodes.append([
+                                            "id": nodeId,
+                                            "type": 0,
+                                            "content": nextText,
+                                            "thinking": NSNull(),
+                                            "billing_metadata": NSNull(),
+                                            "metadata": NSNull(),
+                                            "token_usage": NSNull(),
+                                        ])
+                                        nodeId += 1
+                                    }
+                                    for toolCall in nextToolCalls {
+                                        nextResponseNodes.append([
+                                            "id": nodeId,
+                                            "type": 5,
+                                            "content": "",
+                                            "tool_use": [
+                                                "tool_use_id": toolCall.id,
+                                                "tool_name": toolCall.function.name,
+                                                "input_json": toolCall.function.arguments,
+                                                "is_partial": false,
+                                            ] as [String: Any],
+                                            "thinking": NSNull(),
+                                            "billing_metadata": NSNull(),
+                                            "metadata": NSNull(),
+                                            "token_usage": NSNull(),
+                                        ])
+                                        nodeId += 1
+                                    }
+                                }
+
+                                chatHistory.append([
+                                    "request_message": "",
+                                    "response_text": nextText,
+                                    "request_id": UUID().uuidString,
+                                    "request_nodes": [toolResultNode],
+                                    "response_nodes": nextResponseNodes,
+                                    "token_usage": ["input_tokens": 0, "output_tokens": 0],
+                                    "total_tokens": 0,
+                                ] as [String: Any])
+                                i += 2
+                            } else {
+                                currentNodes.append(toolResultNode)
+                                i += 1
+                            }
+                        }
+                        continue
+                    }
+
+                    chatHistory.append([
+                        "request_message": "",
+                        "response_text": assistantText,
+                        "request_id": UUID().uuidString,
+                        "request_nodes": [userNode],
+                        "response_nodes": [] as [[String: Any]],
+                        "token_usage": ["input_tokens": 0, "output_tokens": 0],
+                        "total_tokens": 0,
+                    ] as [String: Any])
+                    i += 2
+                    continue
+                }
+
+                currentNodes.insert(userNode, at: 0)
+                i += 1
+                continue
+            }
+
+            i += 1
         }
 
-        return (lastUserMessage, chatHistory)
+        if currentNodes.isEmpty {
+            currentNodes.append(["id": 1, "type": 0, "text_node": ["content": ""]])
+        }
+
+        return (chatHistory, currentNodes)
     }
 
     /// Convert APITools to Augment's tool_definitions format.
+    /// Augment expects `input_schema_json` as a stringified JSON schema.
     private func convertTools(_ tools: [APITool]?) -> [[String: Any]] {
         guard let tools else { return [] }
         return tools.map { tool in
             var def: [String: Any] = [
                 "name": tool.function.name,
                 "description": tool.function.description,
+                "tool_safety": 0,
             ]
             if let params = tool.function.parameters {
-                // Convert AnyCodable parameters to raw dictionary
                 var rawParams: [String: Any] = [:]
                 for (key, value) in params {
                     rawParams[key] = value.value
                 }
-                def["parameters"] = rawParams
+                if let jsonData = try? JSONSerialization.data(withJSONObject: rawParams),
+                   let jsonString = String(data: jsonData, encoding: .utf8) {
+                    def["input_schema_json"] = jsonString
+                }
             }
             return def
         }
@@ -203,27 +441,55 @@ struct AugmentProvider: LLMProvider, @unchecked Sendable {
 
     // MARK: - Node Parsing
 
-    /// Parse an NDJSON node. Type 2 = tool call, type 8 = thinking, type 10 = usage.
-    private func parseNode(_ node: [String: Any], continuation: AsyncThrowingStream<ProviderEvent, Error>.Continuation) {
-        guard let type = node["type"] as? Int else { return }
+    private static func splitStreamingBuffer(
+        _ buffer: String,
+        preservingPossiblePrefixOf tag: String
+    ) -> (emit: String, keep: String) {
+        guard !buffer.isEmpty, !tag.isEmpty else { return (buffer, "") }
 
-        switch type {
-        case 2: // Tool call
+        let maxPrefixLength = min(buffer.count, tag.count - 1)
+        if maxPrefixLength <= 0 {
+            return (buffer, "")
+        }
+
+        for prefixLength in stride(from: maxPrefixLength, through: 1, by: -1) {
+            let prefix = String(tag.prefix(prefixLength))
+            if buffer.hasSuffix(prefix) {
+                let splitIndex = buffer.index(buffer.endIndex, offsetBy: -prefixLength)
+                return (String(buffer[..<splitIndex]), String(buffer[splitIndex...]))
+            }
+        }
+
+        return (buffer, "")
+    }
+
+    /// Parse an NDJSON node. Type 7 = tool_use_start, type 5 = tool_use complete,
+    /// type 8 = thinking, type 10 = usage.
+    private func parseNode(_ node: [String: Any], continuation: AsyncThrowingStream<ProviderEvent, Error>.Continuation) {
+        guard let nodeType = node["type"] as? Int else { return }
+
+        switch nodeType {
+        case 7: // tool_use_start
             if let toolUse = node["tool_use"] as? [String: Any],
-               let toolId = toolUse["id"] as? String,
+               let toolId = toolUse["tool_use_id"] as? String,
                let toolName = toolUse["tool_name"] as? String {
-                continuation.yield(.toolCallStart(index: 0, id: toolId, name: toolName))
-                if let input = toolUse["input"] as? String {
-                    continuation.yield(.toolCallDelta(index: 0, arguments: input))
-                }
-                continuation.yield(.toolCallStop(index: 0))
+                let index = node["id"] as? Int ?? 0
+                continuation.yield(.toolCallStart(index: index, id: toolId, name: toolName))
+            }
+        case 5: // tool_use complete
+            if let toolUse = node["tool_use"] as? [String: Any],
+               let inputJson = toolUse["input_json"] as? String {
+                let index = node["id"] as? Int ?? 0
+                continuation.yield(.toolCallDelta(index: index, arguments: inputJson))
+                continuation.yield(.toolCallStop(index: index))
             }
         case 8: // Thinking
-            if let text = node["text"] as? String, !text.isEmpty {
+            if let thinking = node["thinking"] as? [String: Any],
+               let text = thinking["text"] as? String, !text.isEmpty {
                 continuation.yield(.thinkingDelta(text))
             }
         case 10: // Token usage
-            if let usage = node["usage"] as? [String: Any] {
+            if let usage = node["token_usage"] as? [String: Any] {
                 let prompt = usage["input_tokens"] as? Int ?? 0
                 let completion = usage["output_tokens"] as? Int ?? 0
                 continuation.yield(.usage(TokenUsage(
