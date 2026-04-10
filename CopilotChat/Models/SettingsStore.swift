@@ -29,12 +29,13 @@ enum ReasoningEffort: String, CaseIterable, Codable, Sendable {
     /// Check if the model supports reasoning effort.
     /// Uses models.dev data when available, otherwise falls back to heuristics.
     static func isSupported(model: String) -> Bool {
-        ProviderTransform.supportsReasoningEffort(model: nil, modelId: model, npm: nil)
+        ProviderTransform.supportsReasoningEffort(model: nil, modelId: model, npm: nil, providerId: nil)
     }
 
     /// Check with full models.dev metadata.
-    static func isSupported(model: String, modelInfo: ModelsDevModel?, npm: String?) -> Bool {
-        ProviderTransform.supportsReasoningEffort(model: modelInfo, modelId: model, npm: npm)
+    static func isSupported(model: String, modelInfo: ModelsDevModel?, npm: String?, providerId: String? = nil) -> Bool {
+        ProviderTransform.supportsReasoningEffort(
+            model: modelInfo, modelId: model, npm: npm, providerId: providerId)
     }
 }
 

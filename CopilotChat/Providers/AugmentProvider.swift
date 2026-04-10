@@ -193,7 +193,10 @@ struct AugmentProvider: LLMProvider, @unchecked Sendable {
             url: url,
             apiKey: apiKey,
             body: body,
-            extraHeaders: ["x-request-id": UUID().uuidString]
+            extraHeaders: [
+                "x-request-id": UUID().uuidString,
+                "X-Mode": "sdk",
+            ]
         )
     }
 
@@ -203,30 +206,19 @@ struct AugmentProvider: LLMProvider, @unchecked Sendable {
         tools: [APITool]?,
         options: ProviderOptions
     ) -> [String: Any] {
-        var (chatHistory, nodes) = convertMessages(messages)
-
-        // Augment rejects `system_prompt`, so inject the system prompt as a
-        // synthetic first exchange in chat_history.
-        if let systemText = options.systemPrompt, !systemText.isEmpty {
-            let sysExchange: [String: Any] = [
-                "request_message": "" as Any,
-                "response_text": "Understood." as Any,
-                "request_id": "system-prompt" as Any,
-                "request_nodes": [
-                    ["id": 1, "type": 0, "text_node": ["content": systemText]]
-                ] as Any,
-                "response_nodes": [] as [[String: Any]] as Any,
-                "token_usage": ["input_tokens": 0, "output_tokens": 0] as Any,
-                "total_tokens": 0 as Any,
-            ]
-            chatHistory.insert(sysExchange, at: 0)
+        var requestMessages = messages
+        if let systemText = options.systemPrompt, !systemText.isEmpty,
+           !requestMessages.contains(where: { $0.role == "system" }) {
+            requestMessages.insert(APIMessage(role: "system", content: systemText), at: 0)
         }
+
+        let (chatHistory, nodes) = convertMessages(requestMessages)
 
         let body: [String: Any] = [
             "model": model,
             "message": "",  // Always empty; user text goes in nodes.
             "chat_history": chatHistory,
-            "mode": "CHAT",
+            "mode": "CLI_AGENT",
             "blobs": ["checkpoint_id": NSNull(), "added_blobs": [], "deleted_blobs": []],
             "user_guided_blobs": [],
             "external_source_ids": [],
@@ -250,169 +242,142 @@ struct AugmentProvider: LLMProvider, @unchecked Sendable {
     /// Convert APIMessages to Augment's exchange-based format.
     private func convertMessages(_ messages: [APIMessage]) -> (chatHistory: [[String: Any]], nodes: [[String: Any]]) {
         var chatHistory: [[String: Any]] = []
-        var currentNodes: [[String: Any]] = []
+        var pendingRequestNodes: [[String: Any]] = []
+        var pendingRequestText = ""
         var nodeId = 1
+
+        func appendRequestText(_ text: String) {
+            guard !text.isEmpty else { return }
+            if pendingRequestText.isEmpty {
+                pendingRequestText = text
+            } else {
+                pendingRequestText += "\n" + text
+            }
+        }
+
+        func appendTextRequestNode(_ text: String) {
+            guard !text.isEmpty else { return }
+            pendingRequestNodes.append([
+                "id": nodeId,
+                "type": 0,
+                "text_node": ["content": text],
+            ])
+            nodeId += 1
+            appendRequestText(text)
+        }
+
+        func appendToolResultNode(_ msg: APIMessage) {
+            pendingRequestNodes.append([
+                "id": nodeId,
+                "type": 1,
+                "tool_result_node": [
+                    "tool_use_id": msg.toolCallId ?? "",
+                    "content": msg.content ?? "",
+                    "is_error": false,
+                ] as [String: Any],
+            ])
+            nodeId += 1
+        }
+
+        func finalizeAssistantTurn(_ msg: APIMessage) {
+            let responseNodes = assistantResponseNodes(content: msg.content, reasoning: msg.reasoning)
+            var responseNodesWithTools = responseNodes
+
+            if let toolCalls = msg.toolCalls, !toolCalls.isEmpty {
+                for toolCall in toolCalls {
+                    responseNodesWithTools.append([
+                        "id": nodeId,
+                        "type": 5,
+                        "content": "",
+                        "tool_use": [
+                            "tool_use_id": toolCall.id,
+                            "tool_name": toolCall.function.name,
+                            "input_json": toolCall.function.arguments,
+                            "is_partial": false,
+                        ] as [String: Any],
+                        "thinking": NSNull(),
+                        "billing_metadata": NSNull(),
+                        "metadata": NSNull(),
+                        "token_usage": NSNull(),
+                    ])
+                    nodeId += 1
+                }
+            }
+
+            chatHistory.append([
+                "request_message": pendingRequestText,
+                "response_text": msg.content ?? "",
+                "request_id": UUID().uuidString,
+                "request_nodes": pendingRequestNodes,
+                "response_nodes": responseNodesWithTools,
+                "token_usage": ["input_tokens": 0, "output_tokens": 0],
+                "total_tokens": 0,
+            ] as [String: Any])
+
+            pendingRequestNodes = []
+            pendingRequestText = ""
+            nodeId = 1
+        }
+
+        func assistantResponseNodes(content: String?, reasoning: String?) -> [[String: Any]] {
+            var responseNodes: [[String: Any]] = []
+
+            if let content, !content.isEmpty {
+                responseNodes.append([
+                    "id": nodeId,
+                    "type": 0,
+                    "content": content,
+                    "thinking": NSNull(),
+                    "billing_metadata": NSNull(),
+                    "metadata": NSNull(),
+                    "token_usage": NSNull(),
+                ])
+                nodeId += 1
+            }
+
+            if let reasoning, !reasoning.isEmpty {
+                responseNodes.append([
+                    "id": nodeId,
+                    "type": 8,
+                    "content": "",
+                    "thinking": ["text": reasoning],
+                    "billing_metadata": NSNull(),
+                    "metadata": NSNull(),
+                    "token_usage": NSNull(),
+                ])
+                nodeId += 1
+            }
+
+            return responseNodes
+        }
 
         var i = 0
         while i < messages.count {
             let msg = messages[i]
 
-            if msg.role == "system" {
-                i += 1
-                continue
-            }
-
-            if msg.role == "user" {
-                let userText = msg.content ?? ""
-                let userNode: [String: Any] = [
-                    "id": nodeId,
-                    "type": 0,
-                    "text_node": ["content": userText],
-                ]
-                nodeId += 1
-
-                if i + 1 < messages.count && messages[i + 1].role == "assistant" {
-                    let assistant = messages[i + 1]
-                    let assistantText = assistant.content ?? ""
-
-                    if let toolCalls = assistant.toolCalls, !toolCalls.isEmpty {
-                        var responseNodes: [[String: Any]] = []
-                        if !assistantText.isEmpty {
-                            responseNodes.append([
-                                "id": nodeId,
-                                "type": 0,
-                                "content": assistantText,
-                                "thinking": NSNull(),
-                                "billing_metadata": NSNull(),
-                                "metadata": NSNull(),
-                                "token_usage": NSNull(),
-                            ])
-                            nodeId += 1
-                        }
-                        for toolCall in toolCalls {
-                            responseNodes.append([
-                                "id": nodeId,
-                                "type": 5,
-                                "content": "",
-                                "tool_use": [
-                                    "tool_use_id": toolCall.id,
-                                    "tool_name": toolCall.function.name,
-                                    "input_json": toolCall.function.arguments,
-                                    "is_partial": false,
-                                ] as [String: Any],
-                                "thinking": NSNull(),
-                                "billing_metadata": NSNull(),
-                                "metadata": NSNull(),
-                                "token_usage": NSNull(),
-                            ])
-                            nodeId += 1
-                        }
-
-                        chatHistory.append([
-                            "request_message": "",
-                            "response_text": assistantText,
-                            "request_id": UUID().uuidString,
-                            "request_nodes": [userNode],
-                            "response_nodes": responseNodes,
-                            "token_usage": ["input_tokens": 0, "output_tokens": 0],
-                            "total_tokens": 0,
-                        ] as [String: Any])
-
-                        i += 2
-                        while i < messages.count && messages[i].role == "tool" {
-                            let toolMessage = messages[i]
-                            let toolResultNode: [String: Any] = [
-                                "id": nodeId,
-                                "type": 1,
-                                "tool_result_node": [
-                                    "tool_use_id": toolMessage.toolCallId ?? "",
-                                    "content": toolMessage.content ?? "",
-                                    "is_error": false,
-                                ] as [String: Any],
-                            ]
-                            nodeId += 1
-
-                            if i + 1 < messages.count && messages[i + 1].role == "assistant" {
-                                let nextAssistant = messages[i + 1]
-                                let nextText = nextAssistant.content ?? ""
-                                var nextResponseNodes: [[String: Any]] = []
-                                if let nextToolCalls = nextAssistant.toolCalls, !nextToolCalls.isEmpty {
-                                    if !nextText.isEmpty {
-                                        nextResponseNodes.append([
-                                            "id": nodeId,
-                                            "type": 0,
-                                            "content": nextText,
-                                            "thinking": NSNull(),
-                                            "billing_metadata": NSNull(),
-                                            "metadata": NSNull(),
-                                            "token_usage": NSNull(),
-                                        ])
-                                        nodeId += 1
-                                    }
-                                    for toolCall in nextToolCalls {
-                                        nextResponseNodes.append([
-                                            "id": nodeId,
-                                            "type": 5,
-                                            "content": "",
-                                            "tool_use": [
-                                                "tool_use_id": toolCall.id,
-                                                "tool_name": toolCall.function.name,
-                                                "input_json": toolCall.function.arguments,
-                                                "is_partial": false,
-                                            ] as [String: Any],
-                                            "thinking": NSNull(),
-                                            "billing_metadata": NSNull(),
-                                            "metadata": NSNull(),
-                                            "token_usage": NSNull(),
-                                        ])
-                                        nodeId += 1
-                                    }
-                                }
-
-                                chatHistory.append([
-                                    "request_message": "",
-                                    "response_text": nextText,
-                                    "request_id": UUID().uuidString,
-                                    "request_nodes": [toolResultNode],
-                                    "response_nodes": nextResponseNodes,
-                                    "token_usage": ["input_tokens": 0, "output_tokens": 0],
-                                    "total_tokens": 0,
-                                ] as [String: Any])
-                                i += 2
-                            } else {
-                                currentNodes.append(toolResultNode)
-                                i += 1
-                            }
-                        }
-                        continue
-                    }
-
-                    chatHistory.append([
-                        "request_message": "",
-                        "response_text": assistantText,
-                        "request_id": UUID().uuidString,
-                        "request_nodes": [userNode],
-                        "response_nodes": [] as [[String: Any]],
-                        "token_usage": ["input_tokens": 0, "output_tokens": 0],
-                        "total_tokens": 0,
-                    ] as [String: Any])
-                    i += 2
-                    continue
+            switch msg.role {
+            case "system":
+                if let systemText = msg.content, !systemText.isEmpty {
+                    appendTextRequestNode("System: \(systemText)")
                 }
-
-                currentNodes.insert(userNode, at: 0)
-                i += 1
-                continue
+            case "user":
+                appendTextRequestNode(msg.content ?? "")
+            case "tool":
+                appendToolResultNode(msg)
+            case "assistant":
+                finalizeAssistantTurn(msg)
+            default:
+                break
             }
 
             i += 1
         }
 
-        if currentNodes.isEmpty {
-            currentNodes.append(["id": 1, "type": 0, "text_node": ["content": ""]])
+        if pendingRequestNodes.isEmpty {
+            pendingRequestNodes.append(["id": 1, "type": 0, "text_node": ["content": ""]])
         }
 
-        return (chatHistory, currentNodes)
+        return (chatHistory, pendingRequestNodes)
     }
 
     /// Convert APITools to Augment's tool_definitions format.
@@ -485,13 +450,26 @@ struct AugmentProvider: LLMProvider, @unchecked Sendable {
             }
         case 8: // Thinking
             if let thinking = node["thinking"] as? [String: Any],
-               let text = thinking["text"] as? String, !text.isEmpty {
+               let text = (thinking["text"] as? String) ??
+                   (thinking["content"] as? String) ??
+                   (thinking["summary"] as? String),
+               !text.isEmpty {
                 continuation.yield(.thinkingDelta(text))
             }
         case 10: // Token usage
             if let usage = node["token_usage"] as? [String: Any] {
-                let prompt = usage["input_tokens"] as? Int ?? 0
-                let completion = usage["output_tokens"] as? Int ?? 0
+                let inputTokens = usage["input_tokens"] as? Int
+                let historyTokens = usage["chat_history_tokens"] as? Int ?? 0
+                let currentMessageTokens = usage["current_message_tokens"] as? Int ?? 0
+                let toolDefinitionTokens = usage["tool_definitions_tokens"] as? Int ?? 0
+                let toolResultTokens = usage["tool_result_tokens"] as? Int ?? 0
+                let systemPromptTokens = usage["system_prompt_tokens"] as? Int ?? 0
+                let prompt = inputTokens ?? (
+                    historyTokens + currentMessageTokens + toolDefinitionTokens + toolResultTokens + systemPromptTokens
+                )
+                let completion = (usage["output_tokens"] as? Int)
+                    ?? (usage["assistant_response_tokens"] as? Int)
+                    ?? 0
                 continuation.yield(.usage(TokenUsage(
                     promptTokens: prompt,
                     completionTokens: completion,

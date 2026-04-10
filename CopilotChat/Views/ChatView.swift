@@ -406,7 +406,10 @@ struct ChatView: View {
         let providerId = registry?.activeProviderId ?? ""
         let mdProvider = registry?.modelsDevProviders[providerId]
         let efforts = ProviderTransform.availableEfforts(
-            modelId: modelId, npm: mdProvider?.npm, model: mdProvider?.models[modelId])
+            modelId: modelId,
+            npm: mdProvider?.npm,
+            model: mdProvider?.models[modelId],
+            providerId: providerId)
         return efforts.isEmpty ? [] : [.off] + efforts
     }
 

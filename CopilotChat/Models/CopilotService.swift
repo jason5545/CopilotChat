@@ -632,7 +632,8 @@ final class CopilotService {
         let npm = mdProvider?.npm
 
         let effort = settingsStore.reasoningEffort
-        let supportsReasoning = ReasoningEffort.isSupported(model: model, modelInfo: modelInfo, npm: npm)
+        let supportsReasoning = ReasoningEffort.isSupported(
+            model: model, modelInfo: modelInfo, npm: npm, providerId: activeId)
         let reasoningValue: String? = (supportsReasoning && effort != .off) ? effort.rawValue : nil
 
         // Model-specific temperature (from OpenCode transform.ts)
@@ -934,12 +935,25 @@ final class CopilotService {
                         let apiToolCalls = answeredCalls.map {
                             APIToolCall(id: $0.id, type: "function", function: .init(name: $0.function.name, arguments: $0.function.arguments))
                         }
-                        apiMessages.append(APIMessage(role: "assistant", content: msg.content.isEmpty ? nil : msg.content, toolCalls: apiToolCalls))
+                        apiMessages.append(APIMessage(
+                            role: "assistant",
+                            content: msg.content.isEmpty ? nil : msg.content,
+                            toolCalls: apiToolCalls,
+                            reasoning: msg.reasoning
+                        ))
                     } else if !msg.content.isEmpty {
-                        apiMessages.append(APIMessage(role: "assistant", content: msg.content))
+                        apiMessages.append(APIMessage(
+                            role: "assistant",
+                            content: msg.content,
+                            reasoning: msg.reasoning
+                        ))
                     }
-                } else if !msg.content.isEmpty {
-                    apiMessages.append(APIMessage(role: "assistant", content: msg.content))
+                } else if !msg.content.isEmpty || msg.reasoning != nil {
+                    apiMessages.append(APIMessage(
+                        role: "assistant",
+                        content: msg.content.isEmpty ? nil : msg.content,
+                        reasoning: msg.reasoning
+                    ))
                 }
             case .tool:
                 let content = Self.resolvedToolContent(msg.content, callId: msg.toolCallId, currentTurnToolIds: currentTurnToolIds)

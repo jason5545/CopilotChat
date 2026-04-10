@@ -20,8 +20,10 @@ final class ProviderRegistry {
             UserDefaults.standard.set(activeProviderId, forKey: "activeProviderId")
             if oldValue != activeProviderId {
                 let remembered = UserDefaults.standard.string(forKey: "providerModel-\(activeProviderId)")
-                if let remembered, modelsDevProviders[activeProviderId]?.models[remembered] != nil {
-                    activeModelId = remembered
+                let normalizedRemembered = remembered.map { Self.normalizeModelId($0, providerId: activeProviderId) }
+                if let normalizedRemembered,
+                   modelsDevProviders[activeProviderId]?.models[normalizedRemembered] != nil {
+                    activeModelId = normalizedRemembered
                 } else {
                     let firstModel = modelsDevProviders[activeProviderId]?.models.values
                         .max { a, b in
@@ -38,6 +40,11 @@ final class ProviderRegistry {
     /// Currently active model ID
     var activeModelId: String {
         didSet {
+            let normalized = Self.normalizeModelId(activeModelId, providerId: activeProviderId)
+            if normalized != activeModelId {
+                activeModelId = normalized
+                return
+            }
             UserDefaults.standard.set(activeModelId, forKey: "activeModelId")
             UserDefaults.standard.set(activeModelId, forKey: "providerModel-\(activeProviderId)")
         }
@@ -53,8 +60,10 @@ final class ProviderRegistry {
 
     init(authManager: AuthManager) {
         self.authManager = authManager
-        self.activeProviderId = UserDefaults.standard.string(forKey: "activeProviderId") ?? "github-copilot"
-        self.activeModelId = UserDefaults.standard.string(forKey: "activeModelId") ?? ""
+        let storedProviderId = UserDefaults.standard.string(forKey: "activeProviderId") ?? "github-copilot"
+        self.activeProviderId = storedProviderId
+        let storedModel = UserDefaults.standard.string(forKey: "activeModelId") ?? ""
+        self.activeModelId = Self.normalizeModelId(storedModel, providerId: storedProviderId)
     }
 
     // MARK: - Initialization
@@ -110,81 +119,81 @@ final class ProviderRegistry {
             ),
         ]
         let augmentModels: [String: ModelsDevModel] = [
-            "haiku4.5": ModelsDevModel(
-                id: "haiku4.5", name: "Haiku 4.5",
+            "claude-haiku-4-5": ModelsDevModel(
+                id: "claude-haiku-4-5", name: "Haiku 4.5",
                 reasoning: false, attachment: true, toolCall: true, temperature: true,
                 cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
                 limit: ModelsDevLimit(context: 200_000, output: 8_192, input: nil),
                 releaseDate: nil, status: nil
             ),
-            "sonnet4": ModelsDevModel(
-                id: "sonnet4", name: "Sonnet 4",
+            "claude-sonnet-4": ModelsDevModel(
+                id: "claude-sonnet-4", name: "Sonnet 4",
                 reasoning: true, attachment: true, toolCall: true, temperature: true,
                 cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
                 limit: ModelsDevLimit(context: 200_000, output: 16_384, input: nil),
                 releaseDate: nil, status: nil
             ),
-            "sonnet4.5": ModelsDevModel(
-                id: "sonnet4.5", name: "Sonnet 4.5",
+            "claude-sonnet-4-5": ModelsDevModel(
+                id: "claude-sonnet-4-5", name: "Sonnet 4.5",
                 reasoning: true, attachment: true, toolCall: true, temperature: true,
                 cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
                 limit: ModelsDevLimit(context: 200_000, output: 16_384, input: nil),
                 releaseDate: nil, status: nil
             ),
-            "sonnet4.6": ModelsDevModel(
-                id: "sonnet4.6", name: "Sonnet 4.6",
+            "claude-sonnet-4-6": ModelsDevModel(
+                id: "claude-sonnet-4-6", name: "Sonnet 4.6",
+                reasoning: true, attachment: true, toolCall: true, temperature: true,
+                cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
+                limit: ModelsDevLimit(context: 200_000, output: 24_576, input: nil),
+                releaseDate: nil, status: nil
+            ),
+            "claude-opus-4-5": ModelsDevModel(
+                id: "claude-opus-4-5", name: "Opus 4.5",
                 reasoning: true, attachment: true, toolCall: true, temperature: true,
                 cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
                 limit: ModelsDevLimit(context: 200_000, output: 16_384, input: nil),
                 releaseDate: nil, status: nil
             ),
-            "opus4.5": ModelsDevModel(
-                id: "opus4.5", name: "Opus 4.5",
+            "claude-opus-4-6": ModelsDevModel(
+                id: "claude-opus-4-6", name: "Opus 4.6",
                 reasoning: true, attachment: true, toolCall: true, temperature: true,
                 cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
-                limit: ModelsDevLimit(context: 200_000, output: 32_768, input: nil),
+                limit: ModelsDevLimit(context: 200_000, output: 24_576, input: nil),
                 releaseDate: nil, status: nil
             ),
-            "opus4.6": ModelsDevModel(
-                id: "opus4.6", name: "Opus 4.6",
+            "gemini-3-1-pro-preview": ModelsDevModel(
+                id: "gemini-3-1-pro-preview", name: "Gemini 3.1 Pro",
                 reasoning: true, attachment: true, toolCall: true, temperature: true,
                 cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
-                limit: ModelsDevLimit(context: 200_000, output: 32_768, input: nil),
+                limit: ModelsDevLimit(context: 200_000, output: 65_536, input: nil),
                 releaseDate: nil, status: nil
             ),
-            "gemini-3.1-pro-preview": ModelsDevModel(
-                id: "gemini-3.1-pro-preview", name: "Gemini 3.1 Pro",
-                reasoning: true, attachment: true, toolCall: true, temperature: true,
-                cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
-                limit: ModelsDevLimit(context: 2_000_000, output: 65_536, input: nil),
-                releaseDate: nil, status: nil
-            ),
-            "gpt5": ModelsDevModel(
-                id: "gpt5", name: "GPT-5",
+            "gpt-5": ModelsDevModel(
+                id: "gpt-5", name: "GPT-5",
                 reasoning: true, attachment: true, toolCall: true, temperature: true,
                 cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
                 limit: ModelsDevLimit(context: 200_000, output: 16_384, input: nil),
                 releaseDate: nil, status: nil
             ),
-            "gpt5.1": ModelsDevModel(
-                id: "gpt5.1", name: "GPT-5.1",
+            "gpt-5-1": ModelsDevModel(
+                id: "gpt-5-1", name: "GPT-5.1",
                 reasoning: true, attachment: true, toolCall: true, temperature: true,
                 cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
-                limit: ModelsDevLimit(context: 400_000, output: 16_384, input: nil),
+                limit: ModelsDevLimit(context: 200_000, output: 16_384, input: nil),
                 releaseDate: nil, status: nil
             ),
-            "gpt5.2": ModelsDevModel(
-                id: "gpt5.2", name: "GPT-5.2",
+            "gpt-5-2": ModelsDevModel(
+                id: "gpt-5-2", name: "GPT-5.2",
                 reasoning: true, attachment: true, toolCall: true, temperature: true,
                 cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
-                limit: ModelsDevLimit(context: 400_000, output: 16_384, input: nil),
+                limit: ModelsDevLimit(context: 200_000, output: 16_384, input: nil),
                 releaseDate: nil, status: nil
             ),
-            "gpt5.4": ModelsDevModel(
-                id: "gpt5.4", name: "GPT-5.4",
+            "gpt-5-4": ModelsDevModel(
+                id: "gpt-5-4", name: "GPT-5.4",
                 reasoning: true, attachment: true, toolCall: true, temperature: true,
                 cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
-                limit: ModelsDevLimit(context: 400_000, output: 16_384, input: nil),
+                limit: ModelsDevLimit(context: 272_000, output: 32_768, input: nil),
                 releaseDate: nil, status: nil
             ),
         ]
@@ -396,6 +405,37 @@ final class ProviderRegistry {
     // MARK: - Augment Credentials
 
     private static let augmentTenantURLKey = "augment-tenant-url"
+
+    private static func normalizeModelId(_ modelId: String, providerId: String) -> String {
+        guard providerId == "augment" else { return modelId }
+
+        switch modelId {
+        case "haiku4.5":
+            return "claude-haiku-4-5"
+        case "sonnet4":
+            return "claude-sonnet-4"
+        case "sonnet4.5":
+            return "claude-sonnet-4-5"
+        case "sonnet4.6":
+            return "claude-sonnet-4-6"
+        case "opus4.5":
+            return "claude-opus-4-5"
+        case "opus4.6":
+            return "claude-opus-4-6"
+        case "gemini-3.1-pro-preview":
+            return "gemini-3-1-pro-preview"
+        case "gpt5":
+            return "gpt-5"
+        case "gpt5.1":
+            return "gpt-5-1"
+        case "gpt5.2":
+            return "gpt-5-2"
+        case "gpt5.4":
+            return "gpt-5-4"
+        default:
+            return modelId
+        }
+    }
 
     func saveAugmentCredentials(accessToken: String, tenantURL: String) {
         saveAPIKey(accessToken, for: "augment")

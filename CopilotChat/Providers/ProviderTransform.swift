@@ -61,7 +61,10 @@ enum ProviderTransform {
 
     // MARK: - Reasoning Effort Support
 
-    static func supportsReasoningEffort(model: ModelsDevModel?, modelId: String, npm: String?) -> Bool {
+    static func supportsReasoningEffort(
+        model: ModelsDevModel?, modelId: String, npm: String?, providerId: String? = nil
+    ) -> Bool {
+        if providerId == "augment" { return false }
         if let model { return model.reasoning }
         let id = modelId.lowercased()
         if id.contains("claude") { return true }
@@ -75,7 +78,10 @@ enum ProviderTransform {
     /// Available reasoning effort levels for a given model/provider.
     /// Uses release_date from models.dev when available (matching OpenCode TS behavior).
     /// Note: `.off` is NOT included — the caller prepends it for UI display.
-    static func availableEfforts(modelId: String, npm: String?, model: ModelsDevModel? = nil) -> [ReasoningEffort] {
+    static func availableEfforts(
+        modelId: String, npm: String?, model: ModelsDevModel? = nil, providerId: String? = nil
+    ) -> [ReasoningEffort] {
+        if providerId == "augment" { return [] }
         let id = modelId.lowercased()
         // ISO 8601 date strings compare lexicographically as date order
         let releaseDate = model?.releaseDate ?? ""
@@ -106,7 +112,8 @@ enum ProviderTransform {
             if id.contains("gemini") { return [] }
             if id.contains("gpt-5") {
                 var efforts: [ReasoningEffort] = [.low, .medium, .high]
-                if id.contains("5.1-codex-max") || id.contains("5.2") || id.contains("5.3") || id.contains("5.4") {
+                if id.contains("5.1-codex-max") || id.contains("5.2") || id.contains("5.3") ||
+                    id.contains("5.4") || id.contains("5-2") || id.contains("5-3") || id.contains("5-4") {
                     efforts.append(.xhigh)
                 } else if releaseDate >= "2025-12-04" {
                     efforts.append(.xhigh)
@@ -125,10 +132,11 @@ enum ProviderTransform {
                 if id.contains("gpt-5-") || id == "gpt-5" { efforts.append(.minimal) }
                 efforts.append(contentsOf: [.low, .medium, .high])
                 if id.contains("codex") {
-                    if id.contains("5.2") || id.contains("5.3") || id.contains("5.4") {
+                    if id.contains("5.2") || id.contains("5.3") || id.contains("5.4") ||
+                        id.contains("5-2") || id.contains("5-3") || id.contains("5-4") {
                         efforts.append(.xhigh)
                     }
-                } else if releaseDate >= "2025-12-04" || id.contains("5.4") {
+                } else if releaseDate >= "2025-12-04" || id.contains("5.4") || id.contains("5-4") {
                     efforts.append(.xhigh)
                 }
                 return efforts

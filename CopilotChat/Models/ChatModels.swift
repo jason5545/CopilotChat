@@ -186,6 +186,7 @@ struct APIMessage: Encodable {
     let contentParts: [APIContentPart]?
     let toolCalls: [APIToolCall]?
     let toolCallId: String?
+    let reasoning: String?
 
     enum CodingKeys: String, CodingKey {
         case role, content
@@ -194,12 +195,13 @@ struct APIMessage: Encodable {
     }
 
     init(role: String, content: String?, toolCalls: [APIToolCall]? = nil, toolCallId: String? = nil,
-         contentParts: [APIContentPart]? = nil) {
+         contentParts: [APIContentPart]? = nil, reasoning: String? = nil) {
         self.role = role
         self.content = content
         self.toolCalls = toolCalls
         self.toolCallId = toolCallId
         self.contentParts = contentParts
+        self.reasoning = reasoning
     }
 
     func encode(to encoder: Encoder) throws {
