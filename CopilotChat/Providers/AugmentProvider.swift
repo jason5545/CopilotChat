@@ -54,8 +54,11 @@ struct AugmentProvider: LLMProvider, @unchecked Sendable {
                             }
                         }
 
-                        // Check for stop_reason on final chunk
-                        if let stopReason = json["stop_reason"] as? String {
+                        // stop_reason is an integer: 1 = end_turn, or could be other values
+                        if let stopReason = json["stop_reason"] as? Int {
+                            let reason: ChatMessage.FinishReason = .stop
+                            continuation.yield(.finish(reason: reason))
+                        } else if let stopReason = json["stop_reason"] as? String, !stopReason.isEmpty {
                             let reason: ChatMessage.FinishReason =
                                 stopReason == "tool_use" ? .toolCalls : .stop
                             continuation.yield(.finish(reason: reason))
