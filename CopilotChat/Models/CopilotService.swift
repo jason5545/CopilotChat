@@ -74,7 +74,7 @@ final class CopilotService {
     private let authManager: AuthManager
     private let settingsStore: SettingsStore
     private(set) var providerRegistry: ProviderRegistry?
-    private var streamTask: Task<Void, Never>?
+    private var streamTask: Task<Void, any Error>?
 
     init(authManager: AuthManager, settingsStore: SettingsStore) {
         self.authManager = authManager
@@ -216,16 +216,56 @@ final class CopilotService {
 
     // MARK: - Completion Loop
 
+    private static let maxRetries = 3
+    private static let baseRetryDelay: TimeInterval = 2.0
+    private static let maxRetryDelay: TimeInterval = 30.0
+
     private func runStreamingTask(_ work: @escaping @MainActor () async throws -> Void) {
         guard !isStreaming else { return }
         isStreaming = true
         streamingError = nil
         streamTask = Task {
-            do {
-                try await work()
-            } catch is CancellationError {
-                // cancelled
-            } catch {
+            var lastError: Error?
+            for attempt in 0..<Self.maxRetries {
+                do {
+                    try await work()
+                    lastError = nil
+                    break
+                } catch is CancellationError {
+                    lastError = nil
+                    break
+                } catch let error as ProviderError {
+                    switch error {
+                    case .rateLimited(let retryAfter), .overloaded(let retryAfter):
+                        if attempt == Self.maxRetries - 1 {
+                            lastError = error
+                            break
+                        }
+                        let rawDelay = retryAfter ?? (Self.baseRetryDelay * pow(2.0, Double(attempt)))
+                        let delay = min(rawDelay, Self.maxRetryDelay)
+                        try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                        continue
+                    default:
+                        lastError = error
+                        break
+                    }
+                } catch {
+                    if let msg = (error as? LocalizedError)?.errorDescription,
+                       msg.lowercased().contains("overloaded") {
+                        if attempt == Self.maxRetries - 1 {
+                            lastError = ProviderError.overloaded(retryAfter: nil)
+                            break
+                        }
+                        let delay = min(Self.baseRetryDelay * pow(2.0, Double(attempt)), Self.maxRetryDelay)
+                        try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                        continue
+                    }
+                    lastError = error
+                    break
+                }
+            }
+
+            if let error = lastError {
                 streamingError = error.localizedDescription
                 let idx = messages.count - 1
                 if idx >= 0, messages[idx].role == .assistant {

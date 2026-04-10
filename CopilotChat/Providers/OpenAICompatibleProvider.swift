@@ -125,10 +125,23 @@ struct OpenAICompatibleProvider: LLMProvider, @unchecked Sendable {
         )
 
         let (data, response) = try await SSEParser.urlSession.data(for: urlRequest)
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+        guard let http = response as? HTTPURLResponse else {
+            throw ProviderError.invalidResponse(statusCode: 0, body: "No HTTP response")
+        }
+        if http.statusCode == 401 {
+            throw ProviderError.authenticationFailed
+        }
+        if http.statusCode == 429 {
+            let retryAfter = http.value(forHTTPHeaderField: "Retry-After").flatMap { TimeInterval($0) }
+            throw ProviderError.rateLimited(retryAfter: retryAfter)
+        }
+        if http.statusCode == 529 || http.statusCode == 503 {
+            let retryAfter = http.value(forHTTPHeaderField: "Retry-After").flatMap { TimeInterval($0) }
+            throw ProviderError.overloaded(retryAfter: retryAfter)
+        }
+        guard http.statusCode == 200 else {
             let body = String(data: data, encoding: .utf8) ?? ""
-            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-            throw ProviderError.invalidResponse(statusCode: code, body: body)
+            throw ProviderError.invalidResponse(statusCode: http.statusCode, body: body)
         }
 
         let decoded = try JSONDecoder().decode(OpenAIChatResponse.self, from: data)

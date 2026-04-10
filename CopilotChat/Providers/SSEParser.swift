@@ -177,6 +177,11 @@ enum SSEParser {
                 .flatMap { TimeInterval($0) }
             throw ProviderError.rateLimited(retryAfter: retryAfter)
         }
+        if http.statusCode == 529 || http.statusCode == 503 {
+            let retryAfter = http.value(forHTTPHeaderField: "Retry-After")
+                .flatMap { TimeInterval($0) }
+            throw ProviderError.overloaded(retryAfter: retryAfter)
+        }
         guard http.statusCode == 200 else {
             var body = ""
             for try await line in bytes.lines { body += line; if body.count > 2000 { break } }
@@ -266,6 +271,10 @@ enum SSEParser {
         if http.statusCode == 429 {
             let retryAfter = http.value(forHTTPHeaderField: "Retry-After").flatMap { TimeInterval($0) }
             throw ProviderError.rateLimited(retryAfter: retryAfter)
+        }
+        if http.statusCode == 529 || http.statusCode == 503 {
+            let retryAfter = http.value(forHTTPHeaderField: "Retry-After").flatMap { TimeInterval($0) }
+            throw ProviderError.overloaded(retryAfter: retryAfter)
         }
         guard http.statusCode == 200 else {
             let body = String(data: data, encoding: .utf8) ?? ""

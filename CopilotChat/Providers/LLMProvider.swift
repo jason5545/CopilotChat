@@ -116,6 +116,7 @@ enum ProviderError: LocalizedError {
     case invalidResponse(statusCode: Int, body: String)
     case authenticationFailed
     case rateLimited(retryAfter: TimeInterval?)
+    case overloaded(retryAfter: TimeInterval?)
     case streamingFailed(String)
     case unsupportedModel(String)
     case noAPIKey
@@ -131,6 +132,11 @@ enum ProviderError: LocalizedError {
                 return "Rate limited. Retry after \(Int(seconds))s"
             }
             return "Rate limited"
+        case .overloaded(let retryAfter):
+            if let seconds = retryAfter {
+                return "Server overloaded. Retry after \(Int(seconds))s"
+            }
+            return "Server overloaded"
         case .streamingFailed(let msg):
             return "Streaming failed: \(msg)"
         case .unsupportedModel(let model):
