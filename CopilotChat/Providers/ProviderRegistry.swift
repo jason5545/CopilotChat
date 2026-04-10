@@ -113,77 +113,77 @@ final class ProviderRegistry {
             "haiku4.5": ModelsDevModel(
                 id: "haiku4.5", name: "Haiku 4.5",
                 reasoning: false, attachment: true, toolCall: true, temperature: true,
-                cost: nil,
+                cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
                 limit: ModelsDevLimit(context: 200_000, output: 8_192, input: nil),
                 releaseDate: nil, status: nil
             ),
             "sonnet4": ModelsDevModel(
                 id: "sonnet4", name: "Sonnet 4",
                 reasoning: true, attachment: true, toolCall: true, temperature: true,
-                cost: nil,
+                cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
                 limit: ModelsDevLimit(context: 200_000, output: 16_384, input: nil),
                 releaseDate: nil, status: nil
             ),
             "sonnet4.5": ModelsDevModel(
                 id: "sonnet4.5", name: "Sonnet 4.5",
                 reasoning: true, attachment: true, toolCall: true, temperature: true,
-                cost: nil,
+                cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
                 limit: ModelsDevLimit(context: 200_000, output: 16_384, input: nil),
                 releaseDate: nil, status: nil
             ),
             "sonnet4.6": ModelsDevModel(
                 id: "sonnet4.6", name: "Sonnet 4.6",
                 reasoning: true, attachment: true, toolCall: true, temperature: true,
-                cost: nil,
+                cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
                 limit: ModelsDevLimit(context: 200_000, output: 16_384, input: nil),
                 releaseDate: nil, status: nil
             ),
             "opus4.5": ModelsDevModel(
                 id: "opus4.5", name: "Opus 4.5",
                 reasoning: true, attachment: true, toolCall: true, temperature: true,
-                cost: nil,
+                cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
                 limit: ModelsDevLimit(context: 200_000, output: 32_768, input: nil),
                 releaseDate: nil, status: nil
             ),
             "opus4.6": ModelsDevModel(
                 id: "opus4.6", name: "Opus 4.6",
                 reasoning: true, attachment: true, toolCall: true, temperature: true,
-                cost: nil,
+                cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
                 limit: ModelsDevLimit(context: 200_000, output: 32_768, input: nil),
                 releaseDate: nil, status: nil
             ),
             "gemini-3.1-pro-preview": ModelsDevModel(
                 id: "gemini-3.1-pro-preview", name: "Gemini 3.1 Pro",
                 reasoning: true, attachment: true, toolCall: true, temperature: true,
-                cost: nil,
+                cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
                 limit: ModelsDevLimit(context: 2_000_000, output: 65_536, input: nil),
                 releaseDate: nil, status: nil
             ),
             "gpt5": ModelsDevModel(
                 id: "gpt5", name: "GPT-5",
                 reasoning: true, attachment: true, toolCall: true, temperature: true,
-                cost: nil,
+                cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
                 limit: ModelsDevLimit(context: 200_000, output: 16_384, input: nil),
                 releaseDate: nil, status: nil
             ),
             "gpt5.1": ModelsDevModel(
                 id: "gpt5.1", name: "GPT-5.1",
                 reasoning: true, attachment: true, toolCall: true, temperature: true,
-                cost: nil,
+                cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
                 limit: ModelsDevLimit(context: 400_000, output: 16_384, input: nil),
                 releaseDate: nil, status: nil
             ),
             "gpt5.2": ModelsDevModel(
                 id: "gpt5.2", name: "GPT-5.2",
                 reasoning: true, attachment: true, toolCall: true, temperature: true,
-                cost: nil,
+                cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
                 limit: ModelsDevLimit(context: 400_000, output: 16_384, input: nil),
                 releaseDate: nil, status: nil
             ),
             "gpt5.4": ModelsDevModel(
                 id: "gpt5.4", name: "GPT-5.4",
                 reasoning: true, attachment: true, toolCall: true, temperature: true,
-                cost: nil,
+                cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
                 limit: ModelsDevLimit(context: 400_000, output: 16_384, input: nil),
                 releaseDate: nil, status: nil
             ),
