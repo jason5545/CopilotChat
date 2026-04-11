@@ -9,8 +9,11 @@ public enum Credentials: Sendable {
     case `default`
     case plaintext(username: String, password: String)
 
-    internal func toPointer() -> UnsafeMutableRawPointer {
-        Unmanaged.passRetained(CredentialBox(self)).toOpaque()
+    internal func withPayload<T>(_ body: (UnsafeMutableRawPointer) -> T) -> T {
+        let box = CredentialBox(self)
+        return withExtendedLifetime(box) {
+            body(Unmanaged.passUnretained(box).toOpaque())
+        }
     }
 
     internal static func fromPointer(_ pointer: UnsafeMutableRawPointer) -> Credentials {

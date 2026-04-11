@@ -38,14 +38,16 @@ private func checkoutOptions(
     return options
 }
 
-private func fetchOptions(credentials: Credentials) -> git_fetch_options {
-    var options = git_fetch_options()
-    git_fetch_init_options(&options, UInt32(GIT_FETCH_OPTIONS_VERSION))
+private func withFetchOptions<T>(credentials: Credentials, _ body: (inout git_fetch_options) -> T) -> T {
+    credentials.withPayload { payload in
+        var options = git_fetch_options()
+        git_fetch_init_options(&options, UInt32(GIT_FETCH_OPTIONS_VERSION))
 
-    options.callbacks.payload = credentials.toPointer()
-    options.callbacks.credentials = credentialsCallback
+        options.callbacks.payload = payload
+        options.callbacks.credentials = credentialsCallback
 
-    return options
+        return body(&options)
+    }
 }
 
 private func cloneOptions(
@@ -140,25 +142,27 @@ public final class Repository: @unchecked Sendable {
         checkoutProgress: CheckoutProgressBlock? = nil
     ) -> Result<Repository, NSError> {
         _ = Self.gitInit
-        var options = cloneOptions(
-            bare: bare,
-            localClone: localClone,
-            fetchOptions: fetchOptions(credentials: credentials),
-            checkoutOptions: checkoutOptions(strategy: checkoutStrategy, progress: checkoutProgress))
+        return withFetchOptions(credentials: credentials) { fetchOptions in
+            var options = cloneOptions(
+                bare: bare,
+                localClone: localClone,
+                fetchOptions: fetchOptions,
+                checkoutOptions: checkoutOptions(strategy: checkoutStrategy, progress: checkoutProgress))
 
-        var pointer: OpaquePointer?
-        let remoteURLString = (remoteURL as NSURL).isFileReferenceURL()
-            ? remoteURL.path
-            : remoteURL.absoluteString
-        let result = localURL.withUnsafeFileSystemRepresentation { localPath in
-            git_clone(&pointer, remoteURLString, localPath, &options)
+            var pointer: OpaquePointer?
+            let remoteURLString = (remoteURL as NSURL).isFileReferenceURL()
+                ? remoteURL.path
+                : remoteURL.absoluteString
+            let result = localURL.withUnsafeFileSystemRepresentation { localPath in
+                git_clone(&pointer, remoteURLString, localPath, &options)
+            }
+
+            guard result == GIT_OK.rawValue, let pointer else {
+                return .failure(NSError(gitError: result, pointOfFailure: "git_clone"))
+            }
+
+            return .success(Repository(pointer))
         }
-
-        guard result == GIT_OK.rawValue, let pointer else {
-            return .failure(NSError(gitError: result, pointOfFailure: "git_clone"))
-        }
-
-        return .success(Repository(pointer))
     }
 
     // MARK: - Initializers
@@ -263,26 +267,28 @@ public final class Repository: @unchecked Sendable {
         }
         defer { free(refSpecCStr) }
 
-        var options = git_push_options()
-        let initResult = git_push_init_options(&options, UInt32(GIT_PUSH_OPTIONS_VERSION))
-        guard initResult == GIT_OK.rawValue else {
-            return .failure(NSError(gitError: initResult, pointOfFailure: "git_push_init_options"))
-        }
-        options.callbacks.payload = credentials.toPointer()
-        options.callbacks.credentials = credentialsCallback
-
         var cStrings: [UnsafeMutablePointer<CChar>?] = [refSpecCStr, nil]
 
-        return cStrings.withUnsafeMutableBufferPointer { buffer in
-            var gitStrArray = git_strarray()
-            gitStrArray.strings = buffer.baseAddress
-            gitStrArray.count = 1
-
-            let pushResult = git_remote_push(remote, &gitStrArray, &options)
-            guard pushResult == GIT_OK.rawValue else {
-                return .failure(NSError(gitError: pushResult, pointOfFailure: "git_remote_push"))
+        return credentials.withPayload { payload in
+            var options = git_push_options()
+            let initResult = git_push_init_options(&options, UInt32(GIT_PUSH_OPTIONS_VERSION))
+            guard initResult == GIT_OK.rawValue else {
+                return .failure(NSError(gitError: initResult, pointOfFailure: "git_push_init_options"))
             }
-            return .success(())
+            options.callbacks.payload = payload
+            options.callbacks.credentials = credentialsCallback
+
+            return cStrings.withUnsafeMutableBufferPointer { buffer in
+                var gitStrArray = git_strarray()
+                gitStrArray.strings = buffer.baseAddress
+                gitStrArray.count = 1
+
+                let pushResult = git_remote_push(remote, &gitStrArray, &options)
+                guard pushResult == GIT_OK.rawValue else {
+                    return .failure(NSError(gitError: pushResult, pointOfFailure: "git_remote_push"))
+                }
+                return .success(())
+            }
         }
     }
 
@@ -450,20 +456,16 @@ public final class Repository: @unchecked Sendable {
     }
 
     /// Download new data and update tips
-    public func fetch(_ remote: Remote) -> Result<(), NSError> {
+    public func fetch(_ remote: Remote, credentials: Credentials = .default) -> Result<(), NSError> {
         return remoteLookup(named: remote.name) { remote in
             remote.flatMap { pointer in
-                var opts = git_fetch_options()
-                let resultInit = git_fetch_init_options(&opts, UInt32(GIT_FETCH_OPTIONS_VERSION))
-                guard resultInit == GIT_OK.rawValue else {
-                    return .failure(NSError(gitError: resultInit, pointOfFailure: "git_fetch_init_options"))
+                return withFetchOptions(credentials: credentials) { opts in
+                    let result = git_remote_fetch(pointer, nil, &opts, nil)
+                    guard result == GIT_OK.rawValue else {
+                        return .failure(NSError(gitError: result, pointOfFailure: "git_remote_fetch"))
+                    }
+                    return .success(())
                 }
-
-                let result = git_remote_fetch(pointer, nil, &opts, nil)
-                guard result == GIT_OK.rawValue else {
-                    return .failure(NSError(gitError: result, pointOfFailure: "git_remote_fetch"))
-                }
-                return .success(())
             }
         }
     }

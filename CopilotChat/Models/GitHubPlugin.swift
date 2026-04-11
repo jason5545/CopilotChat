@@ -7,6 +7,13 @@ final class GitHubPlugin: Plugin {
     let name = "GitHub"
     let version = "1.0.0"
 
+    nonisolated private static let allowedGitHubHosts: Set<String> = ["github.com", "www.github.com"]
+
+    private struct ValidationError: LocalizedError {
+        let message: String
+        var errorDescription: String? { message }
+    }
+
     private var cachedToken: String? {
         KeychainHelper.loadString(key: AuthManager.keychainKey)
     }
@@ -154,6 +161,53 @@ final class GitHubPlugin: Plugin {
         return nil
     }
 
+    nonisolated private static func validatedGitHubRemoteURL(from string: String) -> Result<URL, ValidationError> {
+        guard let remoteURL = URL(string: string),
+              let scheme = remoteURL.scheme?.lowercased(),
+              let host = remoteURL.host?.lowercased() else {
+            return .failure(ValidationError(message: "Invalid URL: \(string)"))
+        }
+        guard scheme == "https" else {
+            return .failure(ValidationError(message: "Only https:// GitHub repository URLs are allowed."))
+        }
+        guard Self.allowedGitHubHosts.contains(host) else {
+            return .failure(ValidationError(message: "Only github.com repository URLs are allowed."))
+        }
+        guard remoteURL.user == nil, remoteURL.password == nil else {
+            return .failure(ValidationError(message: "Repository URL must not include embedded credentials."))
+        }
+        let path = remoteURL.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let parts = path.split(separator: "/")
+        guard parts.count >= 2 else {
+            return .failure(ValidationError(message: "Repository URL must include owner and repository name."))
+        }
+        return .success(remoteURL)
+    }
+
+    nonisolated private static func validatedOriginRemote(in repo: Repository) -> Result<Remote, ValidationError> {
+        switch repo.remote(named: "origin") {
+        case .failure(let error):
+            return .failure(ValidationError(message: "No remote 'origin': \(error.localizedDescription)"))
+        case .success(let remote):
+            switch Self.validatedGitHubRemoteURL(from: remote.URL) {
+            case .failure(let error):
+                return .failure(ValidationError(message: "Origin remote is not an allowed GitHub HTTPS URL. \(error.message)"))
+            case .success:
+                return .success(remote)
+            }
+        }
+    }
+
+    nonisolated private static func sanitizedRemoteURL(_ string: String) -> String {
+        guard var components = URLComponents(string: string),
+              components.user != nil || components.password != nil else {
+            return string
+        }
+        components.user = nil
+        components.password = nil
+        return components.string ?? string
+    }
+
     private func withRepo(_ body: @Sendable @escaping (Repository) -> ToolResult) async -> ToolResult {
         guard let repoURL = findGitRepoURL() else {
             return ToolResult(text: "Current workspace is not a git repository.")
@@ -175,8 +229,12 @@ final class GitHubPlugin: Plugin {
         guard let wsURL = WorkspaceManager.shared.currentURL else {
             return ToolResult(text: "No workspace selected.")
         }
-        guard let remoteURL = URL(string: repoURLString) else {
-            return ToolResult(text: "Invalid URL: \(repoURLString)")
+        let remoteURL: URL
+        switch Self.validatedGitHubRemoteURL(from: repoURLString) {
+        case .failure(let error):
+            return ToolResult(text: error.message)
+        case .success(let url):
+            remoteURL = url
         }
         let repoName = remoteURL.lastPathComponent.replacingOccurrences(of: ".git", with: "")
         let dest = wsURL.appendingPathComponent(repoName)
@@ -210,6 +268,13 @@ final class GitHubPlugin: Plugin {
                 case .failure(let e):
                     continuation.resume(returning: ToolResult(text: "Open failed: \(e.localizedDescription)"))
                 case .success(let repo):
+                    switch Self.validatedOriginRemote(in: repo) {
+                    case .failure(let error):
+                        continuation.resume(returning: ToolResult(text: error.message))
+                        return
+                    case .success:
+                        break
+                    }
                     let _ = repo.add(path: ".")
                     let sig = Signature(name: "CopilotChat", email: "copilotchat@users.noreply.github.com")
                     switch repo.commit(message: message, signature: sig) {
@@ -234,10 +299,12 @@ final class GitHubPlugin: Plugin {
 
     private func pull(token: String) async throws -> ToolResult {
         await withRepo { repo in
-            switch repo.remote(named: "origin") {
-            case .failure(let e): return ToolResult(text: "No remote 'origin': \(e.localizedDescription)")
+            let creds = Credentials.plaintext(username: "x-access-token", password: token)
+            switch Self.validatedOriginRemote(in: repo) {
+            case .failure(let error): return ToolResult(text: error.message)
             case .success(let remote):
-                switch repo.fetch(remote) {
+                let fetchResult = repo.fetch(remote, credentials: creds)
+                switch fetchResult {
                 case .failure(let e): return ToolResult(text: "Fetch failed: \(e.localizedDescription)")
                 case .success:
                     switch repo.checkout(strategy: .Force) {
@@ -253,10 +320,12 @@ final class GitHubPlugin: Plugin {
 
     private func fetch(token: String) async throws -> ToolResult {
         await withRepo { repo in
-            switch repo.remote(named: "origin") {
-            case .failure(let e): return ToolResult(text: "No remote 'origin': \(e.localizedDescription)")
+            let creds = Credentials.plaintext(username: "x-access-token", password: token)
+            switch Self.validatedOriginRemote(in: repo) {
+            case .failure(let error): return ToolResult(text: error.message)
             case .success(let remote):
-                switch repo.fetch(remote) {
+                let fetchResult = repo.fetch(remote, credentials: creds)
+                switch fetchResult {
                 case .failure(let e): return ToolResult(text: "Fetch failed: \(e.localizedDescription)")
                 case .success: return ToolResult(text: "Fetched latest objects from origin.")
                 }
@@ -448,7 +517,7 @@ final class GitHubPlugin: Plugin {
             case .failure(let e): return ToolResult(text: "Failed: \(e.localizedDescription)")
             case .success(let remotes):
                 if remotes.isEmpty { return ToolResult(text: "No remotes configured.") }
-                return ToolResult(text: remotes.map { "\($0.name)\t\($0.URL)" }.joined(separator: "\n"))
+                return ToolResult(text: remotes.map { "\($0.name)\t\(Self.sanitizedRemoteURL($0.URL))" }.joined(separator: "\n"))
             }
         }
     }
@@ -543,7 +612,7 @@ final class GitHubPlugin: Plugin {
         }
         guard initOK else { return ToolResult(text: "Repository created: \(htmlURL)\nGit init failed.") }
 
-        let remoteStr = "https://x-access-token:\(token)@github.com/\(fullName).git"
+        let remoteStr = "https://github.com/\(fullName).git"
         let remoteOK = await withCheckedContinuation { (c: CheckedContinuation<Int32, Never>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 let r = Repository.at(wsURL)
