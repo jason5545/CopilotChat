@@ -2,7 +2,7 @@
 
 iOS 原生的多 Provider LLM 聊天客戶端。純 SwiftUI，零第三方依賴。
 
-第一個在 iOS 上原生支援 MCP（Model Context Protocol）tool call 自動執行的 LLM 客戶端。
+把 GitHub Copilot、多 Provider、MCP tool call 自動執行，以及 iOS 本機 workspace coding mode 整合在同一個原生 app 裡。
 
 ## 功能
 
