@@ -9,7 +9,8 @@ final class CopilotService {
     private static let modelsEndpoint = "https://api.githubcopilot.com/models"
     private static let openCodeVersion = "1.0.0"
     private static let userAgent = "opencode/\(openCodeVersion)"
-    private static let maxToolIterations = 10
+    private static let maxToolIterationsChat = 10
+    private static let maxToolIterationsCoding = 50
 
     /// GPT models use Responses API; others (Claude, etc.) use Chat Completions.
     private static func useResponsesAPI(model: String) -> Bool {
@@ -314,10 +315,14 @@ final class CopilotService {
         return Double(usage.promptTokens) / Double(contextWindow) >= 0.95
     }
 
+    private var maxToolIterations: Int {
+        settingsStore.appMode == .coding ? Self.maxToolIterationsCoding : Self.maxToolIterationsChat
+    }
+
     private func completionLoop(startingAt index: Int, tools: [MCPTool]) async throws {
         var currentIndex = index
 
-        for _ in 0..<Self.maxToolIterations {
+        for _ in 0..<maxToolIterations {
             let streamIndex = currentIndex
             try await withRetry {
                 try await self.streamCompletion(updatingAt: streamIndex, tools: tools)
