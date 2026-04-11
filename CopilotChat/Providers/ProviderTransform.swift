@@ -95,6 +95,7 @@ enum ProviderTransform {
         if id.contains("grok-3-mini") { return [.low, .high] }
 
         let npmId = npm ?? ""
+        let isCopilot = providerId == "github-copilot"
 
         let isAdaptive = ["opus-4-6", "opus-4.6", "sonnet-4-6", "sonnet-4.6"]
             .contains(where: { id.contains($0) })
@@ -107,23 +108,15 @@ enum ProviderTransform {
             if id.contains("3.1") { return [.low, .medium, .high] }
             return [.low, .high]
         }
-        if npmId.contains("copilot") {
+        if isCopilot {
             if id.contains("claude") { return [.low, .medium, .high] }
             if id.contains("gemini") { return [] }
             if id.contains("gpt-5") {
-                var efforts: [ReasoningEffort] = [.low, .medium, .high]
-                if id.contains("5.1-codex-max") || id.contains("5.2") || id.contains("5.3") ||
-                    id.contains("5.4") || id.contains("5-2") || id.contains("5-3") || id.contains("5-4") {
-                    efforts.append(.xhigh)
-                } else if releaseDate >= "2025-12-04" {
-                    efforts.append(.xhigh)
-                }
-                return efforts
+                return [.low, .medium, .high]
             }
             return [.low, .medium, .high]
         }
 
-        // OpenAI direct
         if npmId.contains("openai") || npmId.isEmpty {
             if id.contains("gpt-5") {
                 if id.contains("gpt-5-pro") { return [] }
