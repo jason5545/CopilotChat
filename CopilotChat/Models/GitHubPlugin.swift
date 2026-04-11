@@ -18,6 +18,8 @@ final class GitHubPlugin: Plugin {
         KeychainHelper.loadString(key: AuthManager.keychainKey)
     }
 
+    private static let repoPathParam: [String: Any] = ["type": "string", "description": "Subdirectory path within the workspace (for parent folder workspaces with multiple repos)"]
+
     func configure(with input: PluginInput) async throws -> PluginHooks {
         let tools = [
             MCPTool(name: "github_clone", description: "Clone a GitHub repository into the current workspace directory.", inputSchema: [
@@ -30,44 +32,59 @@ final class GitHubPlugin: Plugin {
                 "properties": AnyCodable([
                     "message": ["type": "string", "description": "Commit message"] as [String: Any],
                     "branch": ["type": "string", "description": "Branch to push to (defaults to current)"] as [String: Any],
+                    "path": Self.repoPathParam,
                 ]),
                 "required": AnyCodable(["message"]),
             ], serverName: name),
             MCPTool(name: "github_pull", description: "Pull latest changes from the remote repository.", inputSchema: [
-                "type": AnyCodable("object"), "properties": AnyCodable([:] as [String: Any]), "required": AnyCodable([]),
+                "type": AnyCodable("object"),
+                "properties": AnyCodable(["path": Self.repoPathParam] as [String: Any]),
+                "required": AnyCodable([]),
             ], serverName: name),
             MCPTool(name: "github_fetch", description: "Fetch latest objects from the remote without merging.", inputSchema: [
-                "type": AnyCodable("object"), "properties": AnyCodable([:] as [String: Any]), "required": AnyCodable([]),
+                "type": AnyCodable("object"),
+                "properties": AnyCodable(["path": Self.repoPathParam] as [String: Any]),
+                "required": AnyCodable([]),
             ], serverName: name),
             MCPTool(name: "github_status", description: "Show git status — modified, untracked, staged, and deleted files.", inputSchema: [
-                "type": AnyCodable("object"), "properties": AnyCodable([:] as [String: Any]), "required": AnyCodable([]),
+                "type": AnyCodable("object"),
+                "properties": AnyCodable(["path": Self.repoPathParam] as [String: Any]),
+                "required": AnyCodable([]),
             ], serverName: name),
             MCPTool(name: "github_log", description: "Show recent commit history.", inputSchema: [
                 "type": AnyCodable("object"),
-                "properties": AnyCodable(["count": ["type": "integer", "description": "Number of commits (default: 10)"] as [String: Any]]),
+                "properties": AnyCodable(["count": ["type": "integer", "description": "Number of commits (default: 10)"] as [String: Any], "path": Self.repoPathParam]),
                 "required": AnyCodable([]),
             ], serverName: name),
             MCPTool(name: "github_diff", description: "Show changes in the working directory compared to the last commit.", inputSchema: [
-                "type": AnyCodable("object"), "properties": AnyCodable([:] as [String: Any]), "required": AnyCodable([]),
+                "type": AnyCodable("object"),
+                "properties": AnyCodable(["path": Self.repoPathParam] as [String: Any]),
+                "required": AnyCodable([]),
             ], serverName: name),
             MCPTool(name: "github_branch_list", description: "List all local and remote branches.", inputSchema: [
-                "type": AnyCodable("object"), "properties": AnyCodable([:] as [String: Any]), "required": AnyCodable([]),
+                "type": AnyCodable("object"),
+                "properties": AnyCodable(["path": Self.repoPathParam] as [String: Any]),
+                "required": AnyCodable([]),
             ], serverName: name),
             MCPTool(name: "github_branch_checkout", description: "Switch to an existing branch.", inputSchema: [
                 "type": AnyCodable("object"),
-                "properties": AnyCodable(["branch": ["type": "string", "description": "Branch name to switch to"] as [String: Any]]),
+                "properties": AnyCodable(["branch": ["type": "string", "description": "Branch name to switch to"] as [String: Any], "path": Self.repoPathParam]),
                 "required": AnyCodable(["branch"]),
             ], serverName: name),
             MCPTool(name: "github_branch_create", description: "Create a new branch and switch to it.", inputSchema: [
                 "type": AnyCodable("object"),
-                "properties": AnyCodable(["branch": ["type": "string", "description": "New branch name"] as [String: Any]]),
+                "properties": AnyCodable(["branch": ["type": "string", "description": "New branch name"] as [String: Any], "path": Self.repoPathParam]),
                 "required": AnyCodable(["branch"]),
             ], serverName: name),
             MCPTool(name: "github_remote_list", description: "List all remote repositories.", inputSchema: [
-                "type": AnyCodable("object"), "properties": AnyCodable([:] as [String: Any]), "required": AnyCodable([]),
+                "type": AnyCodable("object"),
+                "properties": AnyCodable(["path": Self.repoPathParam] as [String: Any]),
+                "required": AnyCodable([]),
             ], serverName: name),
             MCPTool(name: "github_tag_list", description: "List all tags in the repository.", inputSchema: [
-                "type": AnyCodable("object"), "properties": AnyCodable([:] as [String: Any]), "required": AnyCodable([]),
+                "type": AnyCodable("object"),
+                "properties": AnyCodable(["path": Self.repoPathParam] as [String: Any]),
+                "required": AnyCodable([]),
             ], serverName: name),
             MCPTool(name: "github_list_repos", description: "List your GitHub repositories (via GitHub API).", inputSchema: [
                 "type": AnyCodable("object"),
@@ -84,6 +101,7 @@ final class GitHubPlugin: Plugin {
                     "private": ["type": "boolean", "description": "Private repo (default: true)"] as [String: Any],
                     "description": ["type": "string", "description": "Short description"] as [String: Any],
                     "push_initial": ["type": "boolean", "description": "Push workspace as initial commit (default: true)"] as [String: Any],
+                    "path": Self.repoPathParam,
                 ]),
                 "required": AnyCodable(["name"]),
             ], serverName: name),
@@ -99,21 +117,22 @@ final class GitHubPlugin: Plugin {
         guard let token = cachedToken else {
             return ToolResult(text: "Not authenticated. Please sign in with GitHub in Settings.")
         }
+        let subpath = (try? parseArg(argumentsJSON, key: "path", default: nil)) ?? nil
         switch name {
         case "github_clone": return try await clone(argumentsJSON: argumentsJSON, token: token)
-        case "github_push": return try await push(argumentsJSON: argumentsJSON, token: token)
-        case "github_pull": return try await pull(token: token)
-        case "github_fetch": return try await fetch(token: token)
-        case "github_status": return try await status()
-        case "github_log": return try await log(argumentsJSON: argumentsJSON)
-        case "github_diff": return try await diff()
-        case "github_branch_list": return try await branchList()
-        case "github_branch_checkout": return try await branchCheckout(argumentsJSON: argumentsJSON)
-        case "github_branch_create": return try await branchCreate(argumentsJSON: argumentsJSON)
-        case "github_remote_list": return try await remoteList()
-        case "github_tag_list": return try await tagList()
+        case "github_push": return try await push(argumentsJSON: argumentsJSON, token: token, subpath: subpath)
+        case "github_pull": return try await pull(token: token, subpath: subpath)
+        case "github_fetch": return try await fetch(token: token, subpath: subpath)
+        case "github_status": return try await status(subpath: subpath)
+        case "github_log": return try await log(argumentsJSON: argumentsJSON, subpath: subpath)
+        case "github_diff": return try await diff(subpath: subpath)
+        case "github_branch_list": return try await branchList(subpath: subpath)
+        case "github_branch_checkout": return try await branchCheckout(argumentsJSON: argumentsJSON, subpath: subpath)
+        case "github_branch_create": return try await branchCreate(argumentsJSON: argumentsJSON, subpath: subpath)
+        case "github_remote_list": return try await remoteList(subpath: subpath)
+        case "github_tag_list": return try await tagList(subpath: subpath)
         case "github_list_repos": return try await listRepos(argumentsJSON: argumentsJSON, token: token)
-        case "github_create_repo": return try await createRepo(argumentsJSON: argumentsJSON, token: token)
+        case "github_create_repo": return try await createRepo(argumentsJSON: argumentsJSON, token: token, subpath: subpath)
         default: throw PluginRegistry.PluginError.unknownTool(name)
         }
     }
@@ -144,9 +163,16 @@ final class GitHubPlugin: Plugin {
         return v
     }
 
-    private func findGitRepoURL() -> URL? {
+    private func findGitRepoURL(subpath: String? = nil) -> URL? {
         guard let wsURL = WorkspaceManager.shared.currentURL else { return nil }
         var isDir: ObjCBool = false
+        if let subpath, !subpath.isEmpty {
+            let target = wsURL.appendingPathComponent(subpath)
+            if FileManager.default.fileExists(atPath: target.appendingPathComponent(".git").path, isDirectory: &isDir), isDir.boolValue {
+                return target
+            }
+            return nil
+        }
         if FileManager.default.fileExists(atPath: wsURL.appendingPathComponent(".git").path, isDirectory: &isDir), isDir.boolValue {
             return wsURL
         }
@@ -208,8 +234,8 @@ final class GitHubPlugin: Plugin {
         return components.string ?? string
     }
 
-    private func withRepo(_ body: @Sendable @escaping (Repository) -> ToolResult) async -> ToolResult {
-        guard let repoURL = findGitRepoURL() else {
+    private func withRepo(subpath: String? = nil, _ body: @Sendable @escaping (Repository) -> ToolResult) async -> ToolResult {
+        guard let repoURL = findGitRepoURL(subpath: subpath) else {
             return ToolResult(text: "Current workspace is not a git repository.")
         }
         return await withCheckedContinuation { continuation in
@@ -255,10 +281,10 @@ final class GitHubPlugin: Plugin {
 
     // MARK: - Push
 
-    private func push(argumentsJSON: String, token: String) async throws -> ToolResult {
+    private func push(argumentsJSON: String, token: String, subpath: String? = nil) async throws -> ToolResult {
         let message = try parseArg(argumentsJSON, key: "message")
         let branch: String? = try? parseArg(argumentsJSON, key: "branch")
-        guard let repoURL = findGitRepoURL() else {
+        guard let repoURL = findGitRepoURL(subpath: subpath) else {
             return ToolResult(text: "Not a git repository. Clone or create one first.")
         }
         return await withCheckedContinuation { continuation in
@@ -297,8 +323,8 @@ final class GitHubPlugin: Plugin {
 
     // MARK: - Pull
 
-    private func pull(token: String) async throws -> ToolResult {
-        await withRepo { repo in
+    private func pull(token: String, subpath: String? = nil) async throws -> ToolResult {
+        await withRepo(subpath: subpath) { repo in
             let creds = Credentials.plaintext(username: "x-access-token", password: token)
             switch Self.validatedOriginRemote(in: repo) {
             case .failure(let error): return ToolResult(text: error.message)
@@ -318,8 +344,8 @@ final class GitHubPlugin: Plugin {
 
     // MARK: - Fetch
 
-    private func fetch(token: String) async throws -> ToolResult {
-        await withRepo { repo in
+    private func fetch(token: String, subpath: String? = nil) async throws -> ToolResult {
+        await withRepo(subpath: subpath) { repo in
             let creds = Credentials.plaintext(username: "x-access-token", password: token)
             switch Self.validatedOriginRemote(in: repo) {
             case .failure(let error): return ToolResult(text: error.message)
@@ -335,8 +361,8 @@ final class GitHubPlugin: Plugin {
 
     // MARK: - Status
 
-    private func status() async throws -> ToolResult {
-        await withRepo { repo in
+    private func status(subpath: String? = nil) async throws -> ToolResult {
+        await withRepo(subpath: subpath) { repo in
             switch repo.status() {
             case .failure(let e): return ToolResult(text: "Status failed: \(e.localizedDescription)")
             case .success(let entries):
@@ -364,9 +390,9 @@ final class GitHubPlugin: Plugin {
 
     // MARK: - Log
 
-    private func log(argumentsJSON: String) async throws -> ToolResult {
+    private func log(argumentsJSON: String, subpath: String? = nil) async throws -> ToolResult {
         let count = intArg(argumentsJSON, key: "count", default: 10)
-        return await withRepo { repo in
+        return await withRepo(subpath: subpath) { repo in
             switch repo.HEAD() {
             case .failure(let e): return ToolResult(text: "HEAD failed: \(e.localizedDescription)")
             case .success(let ref):
@@ -389,8 +415,8 @@ final class GitHubPlugin: Plugin {
 
     // MARK: - Diff
 
-    private func diff() async throws -> ToolResult {
-        await withRepo { repo in
+    private func diff(subpath: String? = nil) async throws -> ToolResult {
+        await withRepo(subpath: subpath) { repo in
             switch repo.HEAD() {
             case .failure(let e): return ToolResult(text: "HEAD failed: \(e.localizedDescription)")
             case .success(let ref):
@@ -423,8 +449,8 @@ final class GitHubPlugin: Plugin {
 
     // MARK: - Branch List
 
-    private func branchList() async throws -> ToolResult {
-        await withRepo { repo in
+    private func branchList(subpath: String? = nil) async throws -> ToolResult {
+        await withRepo(subpath: subpath) { repo in
             var lines: [String] = []
             let headName = (try? repo.HEAD().get()).flatMap { ($0 as? Branch)?.name }
             switch repo.localBranches() {
@@ -450,9 +476,9 @@ final class GitHubPlugin: Plugin {
 
     // MARK: - Branch Checkout
 
-    private func branchCheckout(argumentsJSON: String) async throws -> ToolResult {
+    private func branchCheckout(argumentsJSON: String, subpath: String? = nil) async throws -> ToolResult {
         let branch = try parseArg(argumentsJSON, key: "branch")
-        return await withRepo { repo in
+        return await withRepo(subpath: subpath) { repo in
             switch repo.localBranch(named: branch) {
             case .failure(let e): return ToolResult(text: "Branch '\(branch)' not found: \(e.localizedDescription)")
             case .success(let b):
@@ -466,9 +492,9 @@ final class GitHubPlugin: Plugin {
 
     // MARK: - Branch Create
 
-    private func branchCreate(argumentsJSON: String) async throws -> ToolResult {
+    private func branchCreate(argumentsJSON: String, subpath: String? = nil) async throws -> ToolResult {
         let branchName = try parseArg(argumentsJSON, key: "branch")
-        return await withRepo { repo in
+        return await withRepo(subpath: subpath) { repo in
             switch repo.localBranch(named: branchName) {
             case .success(let b):
                 switch repo.checkout(b, strategy: .Force) {
@@ -511,8 +537,8 @@ final class GitHubPlugin: Plugin {
 
     // MARK: - Remote List
 
-    private func remoteList() async throws -> ToolResult {
-        await withRepo { repo in
+    private func remoteList(subpath: String? = nil) async throws -> ToolResult {
+        await withRepo(subpath: subpath) { repo in
             switch repo.allRemotes() {
             case .failure(let e): return ToolResult(text: "Failed: \(e.localizedDescription)")
             case .success(let remotes):
@@ -524,8 +550,8 @@ final class GitHubPlugin: Plugin {
 
     // MARK: - Tag List
 
-    private func tagList() async throws -> ToolResult {
-        await withRepo { repo in
+    private func tagList(subpath: String? = nil) async throws -> ToolResult {
+        await withRepo(subpath: subpath) { repo in
             switch repo.allTags() {
             case .failure(let e): return ToolResult(text: "Failed: \(e.localizedDescription)")
             case .success(let tags):
@@ -571,7 +597,7 @@ final class GitHubPlugin: Plugin {
 
     // MARK: - Create Repo (GitHub API)
 
-    private func createRepo(argumentsJSON: String, token: String) async throws -> ToolResult {
+    private func createRepo(argumentsJSON: String, token: String, subpath: String? = nil) async throws -> ToolResult {
         let name = try parseArg(argumentsJSON, key: "name")
         let isPrivate = boolArg(argumentsJSON, key: "private", default: true)
         let desc = try? parseArg(argumentsJSON, key: "description", default: "")
@@ -631,7 +657,7 @@ final class GitHubPlugin: Plugin {
         }
 
         let pushJSON = try JSONSerialization.data(withJSONObject: ["message": "Initial commit"])
-        let pushResult = try await push(argumentsJSON: String(data: pushJSON, encoding: .utf8)!, token: token)
+        let pushResult = try await push(argumentsJSON: String(data: pushJSON, encoding: .utf8)!, token: token, subpath: subpath)
         return ToolResult(text: "Created and pushed: \(htmlURL)\n\(pushResult.text)")
     }
 }
