@@ -10,7 +10,6 @@
 		03CBBD0AF52DA3259CCA59D2 /* WebFetchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B5F057E1594CDDB8C4D0293 /* WebFetchService.swift */; };
 		1024A26EC417D71BDF9632EE /* FileSystemPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D840D2EA9136B089B1E2903 /* FileSystemPlugin.swift */; };
 		157BFBF72A2B850E6A5D832E /* APIMessageEncodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC320742E69744CF3BEC9972 /* APIMessageEncodingTests.swift */; };
-		1626C87C9A08F98D2B0B6FE9 /* SwiftGit2 in Frameworks */ = {isa = PBXBuildFile; productRef = F107CB4D8523C4F76A5E0B27 /* SwiftGit2 */; };
 		1642E88F49621293AC8EC307 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F8C8F50D0B29A8A7443C454 /* SettingsStore.swift */; };
 		17E6FDC95EBBCC13F2106A07 /* MCPSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAEE40518E4F65DA4E50E674 /* MCPSettingsView.swift */; };
 		1D92D9F9B34EBFEE478B0A29 /* CopilotChatApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A877976EB8149831636E8E06 /* CopilotChatApp.swift */; };
@@ -34,7 +33,6 @@
 		950435E7A28E106814422C1A /* ChatModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FD38A96474027CB84715BBB /* ChatModelsTests.swift */; };
 		9594396D7C49C3E8523AA1DC /* MarkdownParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E727D66DA592BDBB40BFE139 /* MarkdownParserTests.swift */; };
 		9E7C959C42469CB554361ECD /* SSEParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = B227DEC32A2814C3394FAE76 /* SSEParser.swift */; };
-		A0085F026C04E57011AACD5E /* GitHubPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3D53A8C8EF2A56D9D60B5EE /* GitHubPlugin.swift */; };
 		B9ABB2CF6F8B94253655D35C /* MessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B96E5A9BE12959957495FCCA /* MessageView.swift */; };
 		C0EB0BE2107A048AE2457395 /* AgentConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10F4C84C35E01FB46BEE9B08 /* AgentConfig.swift */; };
 		C24AEDC6C6204807C7E4FF35 /* ConversationHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 095D95CCFBFE3A4CB52AED3A /* ConversationHistoryView.swift */; };
@@ -101,24 +99,12 @@
 		BB3BB21C2425B2EC03EF63DA /* AuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthManager.swift; sourceTree = "<group>"; };
 		BC320742E69744CF3BEC9972 /* APIMessageEncodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIMessageEncodingTests.swift; sourceTree = "<group>"; };
 		C2B7AC6BD497F71C56B82001 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		D3D53A8C8EF2A56D9D60B5EE /* GitHubPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubPlugin.swift; sourceTree = "<group>"; };
 		D4D6D250CD46F217D156DA5E /* CopilotService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CopilotService.swift; sourceTree = "<group>"; };
 		DAEE40518E4F65DA4E50E674 /* MCPSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPSettingsView.swift; sourceTree = "<group>"; };
 		E727D66DA592BDBB40BFE139 /* MarkdownParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownParserTests.swift; sourceTree = "<group>"; };
 		EDE8D6B39D4CE3CC02F64DC5 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		F16905024963E4B56A1A1AD6 /* AugmentProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AugmentProvider.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
-
-/* Begin PBXFrameworksBuildPhase section */
-		842227B0242FCCF1F4119F61 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				1626C87C9A08F98D2B0B6FE9 /* SwiftGit2 in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		12F4A27B9A5B53598863A0FA /* Models */ = {
@@ -130,7 +116,6 @@
 				B7156A2F3FCF640CE82D1D4D /* ConversationStore.swift */,
 				D4D6D250CD46F217D156DA5E /* CopilotService.swift */,
 				3D840D2EA9136B089B1E2903 /* FileSystemPlugin.swift */,
-				D3D53A8C8EF2A56D9D60B5EE /* GitHubPlugin.swift */,
 				4DC0848F789894EADCC4F3EC /* MarkdownParser.swift */,
 				0360B8A2EA009CB9636C0D4D /* MCPClient.swift */,
 				96FBE408B7A6CF04BC50D1A0 /* PluginSystem.swift */,
@@ -235,7 +220,7 @@
 			);
 			sourceTree = "<group>";
 		};
-		"TEMP_BE68B414-C6F3-46D8-AF15-E357DB2F9EF2" /* Theme */ = {
+		"TEMP_830B3FAA-5DCA-43B7-8E0C-81E33734589F" /* Theme */ = {
 			isa = PBXGroup;
 			children = (
 			);
@@ -251,7 +236,6 @@
 			buildPhases = (
 				D8A1E965BD57A8D31403D5A4 /* Sources */,
 				589925B7AD802BB9D59A7AAB /* Resources */,
-				842227B0242FCCF1F4119F61 /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -259,7 +243,6 @@
 			);
 			name = CopilotChat;
 			packageProductDependencies = (
-				F107CB4D8523C4F76A5E0B27 /* SwiftGit2 */,
 			);
 			productName = CopilotChat;
 			productReference = B2ABD5318D1C1FEAD11AFD93 /* CopilotChat.app */;
@@ -311,9 +294,6 @@
 			);
 			mainGroup = FDC7BAA69FF0273BD4A68BEF;
 			minimizedProjectReferenceProxies = 1;
-			packageReferences = (
-				DAECDA1C000EEB0DE62378FC /* XCRemoteSwiftPackageReference "SwiftGit3" */,
-			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 33350B4628AD5990F3764401 /* Products */;
 			projectDirPath = "";
@@ -369,7 +349,6 @@
 				5308035D2EF7B4053EEFE38C /* DesignSystem.swift in Sources */,
 				1024A26EC417D71BDF9632EE /* FileSystemPlugin.swift in Sources */,
 				F7449ACD98E7665F63A6EE36 /* GeminiProvider.swift in Sources */,
-				A0085F026C04E57011AACD5E /* GitHubPlugin.swift in Sources */,
 				82EA680B0A0A23D8DCE40446 /* KeychainHelper.swift in Sources */,
 				798090EBA4EE822753024570 /* LLMProvider.swift in Sources */,
 				DEB7B83E6DC8A93E721EC21A /* MCPClient.swift in Sources */,
@@ -453,10 +432,6 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
-				);
-				OTHER_LDFLAGS = (
-					"-lz",
-					"-liconv",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.copilotchat.app;
 				SDKROOT = iphoneos;
@@ -611,10 +586,6 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				OTHER_LDFLAGS = (
-					"-lz",
-					"-liconv",
-				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.copilotchat.app;
 				SDKROOT = iphoneos;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
@@ -653,25 +624,6 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-		DAECDA1C000EEB0DE62378FC /* XCRemoteSwiftPackageReference "SwiftGit3" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/joehinkle11/SwiftGit3";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 1.2.0;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		F107CB4D8523C4F76A5E0B27 /* SwiftGit2 */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = DAECDA1C000EEB0DE62378FC /* XCRemoteSwiftPackageReference "SwiftGit3" */;
-			productName = SwiftGit2;
-		};
-/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = DB271B040BE3207C810189B0 /* Project object */;
 }

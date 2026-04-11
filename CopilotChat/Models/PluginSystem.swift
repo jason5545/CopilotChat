@@ -238,20 +238,6 @@ final class PluginRegistry {
         }
         plugins[fileSystemPlugin.id] = fileSystemPlugin
         enabledPluginIds.insert(fileSystemPlugin.id)
-
-        let gitHubPlugin = GitHubPlugin()
-        if let hooks = try? await gitHubPlugin.configure(with: input) {
-            hooksMap[gitHubPlugin.id] = hooks
-            for tool in hooks.tools {
-                let pluginId = gitHubPlugin.id
-                let toolName = tool.name
-                toolHandlers["\(pluginId).\(toolName)"] = { args in
-                    try await hooks.onExecute?(toolName, args) ?? ToolResult(text: "Plugin not available")
-                }
-            }
-        }
-        plugins[gitHubPlugin.id] = gitHubPlugin
-        enabledPluginIds.insert(gitHubPlugin.id)
     }
 
     func executeTool(pluginId: String, toolName: String, argumentsJSON: String) async throws -> ToolResult {
