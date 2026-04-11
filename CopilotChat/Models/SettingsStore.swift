@@ -94,7 +94,12 @@ enum AppMode: String, CaseIterable, Codable, Sendable {
 
 enum ToolModeAvailability {
     static let codingOnlyTools: Set<String> = [
-        "list_files", "read_file", "write_file", "create_file", "delete_file", "move_file"
+        "list_files", "read_file", "write_file", "create_file", "delete_file", "move_file",
+        "edit_file",
+        "github_clone", "github_push", "github_pull", "github_fetch", "github_status",
+        "github_log", "github_diff", "github_branch_list", "github_branch_checkout",
+        "github_branch_create", "github_remote_list", "github_tag_list",
+        "github_list_repos", "github_create_repo",
     ]
 
     static let alwaysAvailableTools: Set<String> = [

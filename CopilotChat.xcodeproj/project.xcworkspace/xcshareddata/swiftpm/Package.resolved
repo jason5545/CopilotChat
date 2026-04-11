@@ -1,0 +1,15 @@
+{
+  "originHash" : "f060fe0749bb49539779f256887755677f1f999e4b269f2931538a1cdd0edaee",
+  "pins" : [
+    {
+      "identity" : "swiftgit3",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/joehinkle11/SwiftGit3",
+      "state" : {
+        "revision" : "8382c67472bfb159c980a0a65bb41968dd612b8f",
+        "version" : "1.2.2"
+      }
+    }
+  ],
+  "version" : 3
+}

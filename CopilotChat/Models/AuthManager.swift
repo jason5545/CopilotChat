@@ -7,7 +7,7 @@ import UIKit
 final class AuthManager {
     // App OAuth client ID
     static let clientID = "Ov23li8tweQw6odWQebz"
-    static let scope = "read:user"
+    static let scope = "read:user,repo"
     static let keychainKey = "github_token"
     static let legacyKeychainKey = "github_token_vscode"
     static let userAgent = "GitHubCopilotChat/0.26.7"
