@@ -126,6 +126,8 @@ open CopilotChat.xcodeproj
 4. 檔案修改優先使用 `edit_file`（精準 replace / patch-style 編輯）
 5. 若要更換專案，回到 coding mode empty state 點 **Change Folder**
 
+![Coding mode workspace picker](docs/images/coding-mode-workspace.webp)
+
 ### 設定 MCP Server
 
 1. 到 **Settings → MCP Servers → Add MCP Server**
