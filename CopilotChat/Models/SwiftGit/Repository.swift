@@ -137,16 +137,21 @@ public final class Repository: @unchecked Sendable {
         to localURL: URL,
         localClone: Bool = false,
         bare: Bool = false,
+        depth: Int = 0,
         credentials: Credentials = .default,
         checkoutStrategy: CheckoutStrategy = .Safe,
         checkoutProgress: CheckoutProgressBlock? = nil
     ) -> Result<Repository, NSError> {
         _ = Self.gitInit
         return withFetchOptions(credentials: credentials) { fetchOptions in
+            var mutFetch = fetchOptions
+            if depth > 0 {
+                mutFetch.depth = Int32(depth)
+            }
             var options = cloneOptions(
                 bare: bare,
                 localClone: localClone,
-                fetchOptions: fetchOptions,
+                fetchOptions: mutFetch,
                 checkoutOptions: checkoutOptions(strategy: checkoutStrategy, progress: checkoutProgress))
 
             var pointer: OpaquePointer?

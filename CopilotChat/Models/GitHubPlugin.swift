@@ -22,9 +22,12 @@ final class GitHubPlugin: Plugin {
 
     func configure(with input: PluginInput) async throws -> PluginHooks {
         let tools = [
-            MCPTool(name: "github_clone", description: "Clone a GitHub repository into the current workspace directory.", inputSchema: [
+            MCPTool(name: "github_clone", description: "Clone a GitHub repository into the current workspace directory. Uses shallow clone (depth 1) by default for speed.", inputSchema: [
                 "type": AnyCodable("object"),
-                "properties": AnyCodable(["repo_url": ["type": "string", "description": "GitHub repository URL (e.g. 'https://github.com/owner/repo.git')"] as [String: Any]]),
+                "properties": AnyCodable([
+                    "repo_url": ["type": "string", "description": "GitHub repository URL (e.g. 'https://github.com/owner/repo.git')"] as [String: Any],
+                    "depth": ["type": "integer", "description": "Clone depth (default: 1 for shallow clone, 0 for full history)"] as [String: Any],
+                ]),
                 "required": AnyCodable(["repo_url"]),
             ], serverName: name),
             MCPTool(name: "github_push", description: "Stage all changes, commit, and push to the remote repository.", inputSchema: [
@@ -238,6 +241,11 @@ final class GitHubPlugin: Plugin {
         guard let repoURL = findGitRepoURL(subpath: subpath) else {
             return ToolResult(text: "Current workspace is not a git repository.")
         }
+        let wsURL = WorkspaceManager.shared.currentURL
+        let securityOK = wsURL?.startAccessingSecurityScopedResource() ?? false
+        defer {
+            if securityOK { wsURL?.stopAccessingSecurityScopedResource() }
+        }
         return await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 switch Repository.at(repoURL) {
@@ -252,6 +260,7 @@ final class GitHubPlugin: Plugin {
 
     private func clone(argumentsJSON: String, token: String) async throws -> ToolResult {
         let repoURLString = try parseArg(argumentsJSON, key: "repo_url")
+        let depth = intArg(argumentsJSON, key: "depth", default: 1)
         guard let wsURL = WorkspaceManager.shared.currentURL else {
             return ToolResult(text: "No workspace selected.")
         }
@@ -268,12 +277,34 @@ final class GitHubPlugin: Plugin {
         if FileManager.default.fileExists(atPath: dest.path, isDirectory: &isDir), isDir.boolValue {
             return ToolResult(text: "Directory already exists: \(repoName)/")
         }
+
+        let securityOK = wsURL.startAccessingSecurityScopedResource()
+        defer {
+            if securityOK {
+                wsURL.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        let progressText = LockedValue<String>("Fetching objects…")
+
         return await withCheckedContinuation { continuation in
             let creds = Credentials.plaintext(username: "x-access-token", password: token)
             DispatchQueue.global(qos: .userInitiated).async {
-                switch Repository.clone(from: remoteURL, to: dest, credentials: creds, checkoutStrategy: .Force) {
-                case .success: continuation.resume(returning: ToolResult(text: "Cloned into \(repoName)/"))
-                case .failure(let e): continuation.resume(returning: ToolResult(text: "Clone failed: \(e.localizedDescription)"))
+                let checkoutProgress: CheckoutProgressBlock = { path, completed, total in
+                    if total > 0 {
+                        let file = path.map { $0.split(separator: "/").last.map(String.init) ?? "" } ?? ""
+                        let pct = completed * 100 / total
+                        let label = file.isEmpty ? "Checking out… \(pct)%" : "Checking out \(file)… \(pct)%"
+                        progressText.value = label
+                    }
+                }
+                switch Repository.clone(from: remoteURL, to: dest, depth: depth, credentials: creds, checkoutStrategy: .Force, checkoutProgress: checkoutProgress) {
+                case .success:
+                    progressText.value = "Done."
+                    continuation.resume(returning: ToolResult(text: "Cloned into \(repoName)/"))
+                case .failure(let e):
+                    try? FileManager.default.removeItem(at: dest)
+                    continuation.resume(returning: ToolResult(text: "Clone failed: \(e.localizedDescription)"))
                 }
             }
         }
@@ -286,6 +317,11 @@ final class GitHubPlugin: Plugin {
         let branch: String? = try? parseArg(argumentsJSON, key: "branch")
         guard let repoURL = findGitRepoURL(subpath: subpath) else {
             return ToolResult(text: "Not a git repository. Clone or create one first.")
+        }
+        let wsURL = WorkspaceManager.shared.currentURL
+        let securityOK = wsURL?.startAccessingSecurityScopedResource() ?? false
+        defer {
+            if securityOK { wsURL?.stopAccessingSecurityScopedResource() }
         }
         return await withCheckedContinuation { continuation in
             let creds = Credentials.plaintext(username: "x-access-token", password: token)
@@ -633,6 +669,11 @@ final class GitHubPlugin: Plugin {
             return ToolResult(text: "Repository created: \(htmlURL)\nNo workspace to push.")
         }
 
+        let securityOK = wsURL.startAccessingSecurityScopedResource()
+        defer {
+            if securityOK { wsURL.stopAccessingSecurityScopedResource() }
+        }
+
         let initOK = await withCheckedContinuation { (c: CheckedContinuation<Bool, Never>) in
             DispatchQueue.global(qos: .userInitiated).async { c.resume(returning: Repository.create(at: wsURL).isSuccess) }
         }
@@ -667,4 +708,14 @@ private extension Result {
         if case .success = self { return true }
         return false
     }
+}
+
+private final class LockedValue<T>: @unchecked Sendable {
+    private var _value: T
+    private let lock = NSLock()
+    var value: T {
+        get { lock.withLock { _value } }
+        set { lock.withLock { _value = newValue } }
+    }
+    init(_ value: T) { _value = value }
 }
