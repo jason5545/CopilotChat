@@ -33,6 +33,16 @@ iOS 原生的多 Provider LLM 聊天客戶端。純 SwiftUI，零第三方依賴
 - `web_screenshot` — 網頁截圖（支援 vision 模型）
 - `brave_web_search` — Brave 搜尋（API key 存 Keychain）
 - `tool_search` — MCP 工具搜尋（deferred loading 模式下自動注入）
+- `switch_mode` — chat / coding 協調者模式切換
+- `list_files` / `read_file` / `write_file` / `edit_file` / `create_file` / `delete_file` / `move_file` — iOS sandbox 內的 workspace 檔案操作
+
+### Coding Mode
+
+- chat / coding 雙模式 UI
+- coding mode 採 coordinator flow：模型先呼叫 `switch_mode`，再使用檔案工具
+- 透過 iOS Folder Picker 選擇專案資料夾
+- 使用 security-scoped bookmark 持久化 workspace 存取權限
+- mode-aware tool filtering：chat mode 不暴露 coding-only tools
 
 ### 對話管理
 
@@ -108,6 +118,14 @@ open CopilotChat.xcodeproj
 
 登入後直接在輸入框打字，按送出即可。預設模型為 `claude-sonnet-4-6`，可在設定中更改。
 
+### Coding Mode / Workspace
+
+1. 點 nav bar 右上角的 mode 圖示切到 coding mode
+2. 在 empty state 點 **Choose Folder** 選擇專案資料夾
+3. 模型可透過 `tool_search` 找到目前 mode 可用的工具
+4. 檔案修改優先使用 `edit_file`（精準 replace / patch-style 編輯）
+5. 若要更換專案，回到 coding mode empty state 點 **Change Folder**
+
 ### 設定 MCP Server
 
 1. 到 **Settings → MCP Servers → Add MCP Server**
@@ -118,6 +136,8 @@ open CopilotChat.xcodeproj
 3. 儲存後 App 會自動連線並載入 tools
 
 MCP tools 會自動注入到 API 的 `tools` 參數中。當 AI 回應包含 tool call 時，App 會自動透過 MCP server 執行並回傳結果，整個過程不需要手動介入。
+
+內建 file tools 不走 MCP server，而是直接在 app 內透過 workspace 權限執行。
 
 ## 認證流程
 
@@ -147,13 +167,14 @@ CopilotChat/
 ├── DesignSystem.swift                # Carbon 設計系統
 ├── Models/
 │   ├── AuthManager.swift             # GitHub Device Flow OAuth
-│   ├── BuiltInTools.swift            # 內建工具（web_fetch、brave_search、tool_search）
 │   ├── ChatModels.swift              # 資料模型（訊息、API 型別）
 │   ├── Conversation.swift            # 對話模型
 │   ├── ConversationStore.swift       # 對話歷史持久化
 │   ├── CopilotService.swift          # Chat Completions API + SSE
+│   ├── FileSystemPlugin.swift        # coding mode 檔案工具 + workspace 存取
 │   ├── MCPClient.swift               # MCP JSON-RPC client
 │   ├── MarkdownParser.swift          # Markdown 解析
+│   ├── PluginSystem.swift            # 內建 plugin / tool registry
 │   ├── SettingsStore.swift           # 設定持久化
 │   └── WebFetchService.swift         # 網頁抓取服務
 ├── Providers/
@@ -175,7 +196,8 @@ CopilotChat/
 │   ├── MarkdownView.swift            # Markdown 渲染器
 │   ├── MCPSettingsView.swift         # MCP server 管理
 │   ├── ModelPickerView.swift         # 模型選擇
-│   └── SettingsView.swift            # 設定頁
+│   ├── SettingsView.swift            # 設定頁
+│   └── WorkspaceSelectorView.swift   # 專案資料夾選擇 UI
 ├── Agents/
 │   └── AgentConfig.swift             # Agent 設定
 └── Utilities/
