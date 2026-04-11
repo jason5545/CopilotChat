@@ -294,17 +294,16 @@ final class GitHubPlugin: Plugin {
                     if total > 0 {
                         let file = path.map { $0.split(separator: "/").last.map(String.init) ?? "" } ?? ""
                         let pct = completed * 100 / total
-                        let label = file.isEmpty ? "Checking out… \(pct)%" : "Checking out \(file)… \(pct)%"
+                        let label = file.isEmpty ? "Checkout \(pct)%" : "Checkout \(file) \(pct)%"
                         progressText.value = label
                     }
                 }
                 switch Repository.clone(from: remoteURL, to: dest, depth: depth, credentials: creds, checkoutStrategy: .Force, checkoutProgress: checkoutProgress) {
                 case .success:
-                    progressText.value = "Done."
-                    continuation.resume(returning: ToolResult(text: "Cloned into \(repoName)/"))
+                    continuation.resume(returning: ToolResult(text: "Cloned into \(repoName)/ — \(progressText.value)"))
                 case .failure(let e):
                     try? FileManager.default.removeItem(at: dest)
-                    continuation.resume(returning: ToolResult(text: "Clone failed: \(e.localizedDescription)"))
+                    continuation.resume(returning: ToolResult(text: "Clone failed (\(progressText.value)): \(e.localizedDescription)"))
                 }
             }
         }
