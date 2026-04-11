@@ -1,5 +1,9 @@
 # CopilotChat for iOS
 
+<p align="center">
+  <img src="docs/images/app-icon.webp" alt="CopilotChat" width="128">
+</p>
+
 [中文](./README-TW.md)
 
 A native iOS multi-provider LLM chat client. Pure SwiftUI, zero third-party dependencies.

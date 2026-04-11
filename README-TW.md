@@ -1,5 +1,9 @@
 # CopilotChat for iOS
 
+<p align="center">
+  <img src="docs/images/app-icon.webp" alt="CopilotChat" width="128">
+</p>
+
 [English](./README.md)
 
 iOS 原生的多 Provider LLM 聊天客戶端。純 SwiftUI，零第三方依賴。
