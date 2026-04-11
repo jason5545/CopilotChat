@@ -1,0 +1,8 @@
+module Clibgit2 {
+    header "git2.h"
+    header "git2/stdint.h"
+    link "git2"
+    link "z"
+    link "iconv"
+    export *
+}
