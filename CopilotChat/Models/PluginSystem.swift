@@ -59,13 +59,16 @@ protocol Plugin: Sendable {
 struct PluginHooks: Sendable {
     let tools: [MCPTool]
     let onExecute: (@Sendable (String, String) async throws -> ToolResult)?
+    let onExecuteStreaming: (@Sendable (String, String, @escaping @Sendable (String) -> Void) async throws -> ToolResult)?
 
     init(
         tools: [MCPTool] = [],
-        onExecute: (@Sendable (String, String) async throws -> ToolResult)? = nil
+        onExecute: (@Sendable (String, String) async throws -> ToolResult)? = nil,
+        onExecuteStreaming: (@Sendable (String, String, @escaping @Sendable (String) -> Void) async throws -> ToolResult)? = nil
     ) {
         self.tools = tools
         self.onExecute = onExecute
+        self.onExecuteStreaming = onExecuteStreaming
     }
 }
 
@@ -167,6 +170,7 @@ final class PluginRegistry {
 
     private var plugins: [String: any Plugin] = [:]
     private var toolHandlers: [String: @Sendable (String) async throws -> ToolResult] = [:]
+    private var toolStreamingHandlers: [String: @Sendable (String, @escaping @Sendable (String) -> Void) async throws -> ToolResult] = [:]
     private var hooksMap: [String: PluginHooks] = [:]
     private var enabledPluginIds: Set<String> = []
 
@@ -248,6 +252,11 @@ final class PluginRegistry {
                 toolHandlers["\(pluginId).\(toolName)"] = { args in
                     try await hooks.onExecute?(toolName, args) ?? ToolResult(text: "Plugin not available")
                 }
+                if let streaming = hooks.onExecuteStreaming {
+                    toolStreamingHandlers["\(pluginId).\(toolName)"] = { args, progress in
+                        try await streaming(toolName, args, progress)
+                    }
+                }
             }
         }
         plugins[gitHubPlugin.id] = gitHubPlugin
@@ -262,6 +271,21 @@ final class PluginRegistry {
             throw PluginError.unknownTool(toolName)
         }
         return try await handler(argumentsJSON)
+    }
+
+    func executeToolStreaming(
+        pluginId: String,
+        toolName: String,
+        argumentsJSON: String,
+        progressHandler: @escaping @Sendable (String) -> Void
+    ) async throws -> ToolResult {
+        guard enabledPluginIds.contains(pluginId) else {
+            throw PluginError.pluginDisabled
+        }
+        guard let handler = toolStreamingHandlers["\(pluginId).\(toolName)"] else {
+            return try await executeTool(pluginId: pluginId, toolName: toolName, argumentsJSON: argumentsJSON)
+        }
+        return try await handler(argumentsJSON, progressHandler)
     }
 
     func plugin(for id: String) -> (any Plugin)? {

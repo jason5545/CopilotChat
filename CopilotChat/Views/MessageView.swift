@@ -511,6 +511,12 @@ struct MessageView: View {
                 Text(message.toolName ?? "Tool Result")
                     .font(.carbonMono(.caption2, weight: .semibold))
                     .foregroundStyle(Color.carbonTextSecondary)
+                if let progress = message.toolProgress {
+                    Spacer()
+                    Text(progress)
+                        .font(.carbonMono(.caption2))
+                        .foregroundStyle(Color.carbonAccent.opacity(0.8))
+                }
             }
             Text(message.content)
                 .font(.carbonMono(.caption2))

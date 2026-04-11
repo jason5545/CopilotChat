@@ -30,6 +30,9 @@ struct ChatMessage: Identifiable, Equatable, Codable {
     /// Why the model stopped generating. "error" is app-internal (connection lost mid-stream).
     var finishReason: FinishReason?
 
+    /// Transient tool execution progress streamed back to the UI (not persisted).
+    var toolProgress: String?
+
     enum FinishReason: String, Codable {
         case stop
         case length

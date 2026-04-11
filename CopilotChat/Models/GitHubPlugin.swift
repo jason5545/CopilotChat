@@ -113,6 +113,9 @@ final class GitHubPlugin: Plugin {
         return PluginHooks(tools: tools) { [weak self] toolName, argumentsJSON in
             guard let self else { return ToolResult(text: "Plugin unavailable") }
             return try await self.executeTool(name: toolName, argumentsJSON: argumentsJSON)
+        } onExecuteStreaming: { [weak self] toolName, argumentsJSON, progressHandler in
+            guard let self else { return ToolResult(text: "Plugin unavailable") }
+            return try await self.executeToolStreaming(name: toolName, argumentsJSON: argumentsJSON, progressHandler: progressHandler)
         }
     }
 
@@ -138,6 +141,86 @@ final class GitHubPlugin: Plugin {
         case "github_create_repo": return try await createRepo(argumentsJSON: argumentsJSON, token: token, subpath: subpath)
         default: throw PluginRegistry.PluginError.unknownTool(name)
         }
+    }
+
+    func executeToolStreaming(
+        name: String,
+        argumentsJSON: String,
+        progressHandler: @escaping @Sendable (String) -> Void
+    ) async throws -> ToolResult {
+        guard let token = cachedToken else {
+            return ToolResult(text: "Not authenticated. Please sign in with GitHub in Settings.")
+        }
+        let subpath = (try? parseArg(argumentsJSON, key: "path", default: nil)) ?? nil
+        switch name {
+        case "github_clone":
+            return try await cloneStreaming(argumentsJSON: argumentsJSON, token: token, progressHandler: progressHandler)
+        default:
+            return try await executeTool(name: name, argumentsJSON: argumentsJSON)
+        }
+    }
+
+    private func cloneStreaming(argumentsJSON: String, token: String, progressHandler: @escaping @Sendable (String) -> Void) async throws -> ToolResult {
+        let repoURLString = try parseArg(argumentsJSON, key: "repo_url")
+        let depth = intArg(argumentsJSON, key: "depth", default: 1)
+        guard let wsURL = WorkspaceManager.shared.currentURL else {
+            return ToolResult(text: "No workspace selected.")
+        }
+        let remoteURL: URL
+        switch Self.validatedGitHubRemoteURL(from: repoURLString) {
+        case .failure(let error):
+            return ToolResult(text: error.message)
+        case .success(let url):
+            remoteURL = url
+        }
+        let repoName = remoteURL.lastPathComponent.replacingOccurrences(of: ".git", with: "")
+        let dest = wsURL.appendingPathComponent(repoName)
+        var isDir: ObjCBool = false
+        if FileManager.default.fileExists(atPath: dest.path, isDirectory: &isDir), isDir.boolValue {
+            return ToolResult(text: "Directory already exists: \(repoName)/")
+        }
+
+        let securityOK = wsURL.startAccessingSecurityScopedResource()
+        defer {
+            if securityOK {
+                wsURL.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        var pendingResult: ToolResult?
+
+        let stream = AsyncStream<String> { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let checkoutProgress: CheckoutProgressBlock = { path, completed, total in
+                    if total > 0 {
+                        let file = path.map { $0.split(separator: "/").last.map(String.init) ?? "" } ?? ""
+                        let pct = completed * 100 / total
+                        let label = file.isEmpty ? "Checkout \(pct)%" : "Checkout \(file) \(pct)%"
+                        DispatchQueue.main.async { progressHandler(label) }
+                        continuation.yield(label)
+                    }
+                }
+                let creds = Credentials.plaintext(username: "x-access-token", password: token)
+                let result = Repository.clone(from: remoteURL, to: dest, depth: depth, credentials: creds, checkoutStrategy: .Force, checkoutProgress: checkoutProgress)
+                switch result {
+                case .success:
+                    let text = "Cloned into \(repoName)/"
+                    DispatchQueue.main.async { progressHandler("Done.") }
+                    continuation.yield("Done.")
+                    pendingResult = ToolResult(text: text)
+                case .failure(let e):
+                    try? FileManager.default.removeItem(at: dest)
+                    let label = "Failed: \(e.localizedDescription)"
+                    DispatchQueue.main.async { progressHandler(label) }
+                    continuation.yield(label)
+                    pendingResult = ToolResult(text: label)
+                }
+                continuation.finish()
+            }
+        }
+
+        for await _ in stream {}
+        return pendingResult ?? ToolResult(text: "Clone failed: unknown error")
     }
 
     // MARK: - Helpers
@@ -717,4 +800,8 @@ private final class LockedValue<T>: @unchecked Sendable {
         set { lock.withLock { _value = newValue } }
     }
     init(_ value: T) { _value = value }
+}
+
+private final class UnsafeContinuationHolder<T>: @unchecked Sendable {
+    var continuation: CheckedContinuation<T, Never>?
 }

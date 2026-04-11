@@ -432,6 +432,42 @@ final class CopilotService {
             } else if let pluginResult = try? await executePluginTool(call.function.name, argumentsJSON: call.function.arguments) {
                 text = pluginResult.text
                 imageData = pluginResult.imageData
+            } else if call.function.name == "github_clone" {
+                toolCallStatuses[call.id] = .pending
+                let message = ChatMessage(
+                    role: .tool, content: "Cloning repository…",
+                    toolCallId: call.id, toolName: call.function.name
+                )
+                messages.append(message)
+                let messageId = message.id
+                do {
+                    let finalResult = try await executePluginToolStreaming(
+                        call.function.name,
+                        argumentsJSON: call.function.arguments,
+                        progressHandler: { [weak self] progress in
+                            guard let self = self else { return }
+                            MainActor.assumeIsolated {
+                                if let idx = self.messages.firstIndex(where: { $0.id == messageId }) {
+                                    self.messages[idx].toolProgress = progress
+                                    self.contentRevision &+= 1
+                                }
+                            }
+                        }
+                    )
+                    if let idx = messages.firstIndex(where: { $0.id == messageId }) {
+                        messages[idx].content = finalResult.text
+                        messages[idx].toolProgress = nil
+                        messages[idx].imageData = finalResult.imageData
+                    }
+                    toolCallStatuses[call.id] = .completed
+                } catch {
+                    if let idx = messages.firstIndex(where: { $0.id == messageId }) {
+                        messages[idx].content = "Error: \(error.localizedDescription)"
+                        messages[idx].toolProgress = nil
+                    }
+                    toolCallStatuses[call.id] = .failed(error.localizedDescription)
+                }
+                return
             } else {
                 text = try await settingsStore.callTool(
                     name: call.function.name,
@@ -488,6 +524,32 @@ final class CopilotService {
             }
         }
         throw PluginRegistry.PluginError.unknownTool(name)
+    }
+
+    private func executePluginToolStreaming(
+        _ name: String,
+        argumentsJSON: String,
+        progressHandler: @escaping @Sendable (String) -> Void
+    ) async throws -> ToolResult {
+        var foundId: String?
+        for (pluginId, hooks) in hooksMap {
+            for tool in hooks.tools {
+                if tool.name == name {
+                    foundId = pluginId
+                    break
+                }
+            }
+            if foundId != nil { break }
+        }
+        guard let id = foundId else {
+            throw PluginRegistry.PluginError.unknownTool(name)
+        }
+        return try await PluginRegistry.shared.executeToolStreaming(
+            pluginId: id,
+            toolName: name,
+            argumentsJSON: argumentsJSON,
+            progressHandler: progressHandler
+        )
     }
 
     private var hooksMap: [String: PluginHooks] {
