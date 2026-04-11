@@ -123,6 +123,7 @@ struct ModelsDevProvider: Codable, Sendable, Identifiable, Hashable {
 
     var requiresAPIKey: Bool { !env.isEmpty }
     var isCodingPlan: Bool { id.contains("coding-plan") }
+    var isAPIBased: Bool { npm == nil || npm?.isEmpty == true }
     var isChinaRegion: Bool { id.contains("-cn") }
 }
 
@@ -132,15 +133,23 @@ struct ModelsDevModel: Codable, Sendable, Identifiable {
     let reasoning: Bool
     let attachment: Bool
     let toolCall: Bool
+    let structuredOutput: Bool
     let temperature: Bool
     let cost: ModelsDevCost?
     let limit: ModelsDevLimit
     let releaseDate: String?
     let status: String?
+    let family: String?
+    let knowledge: String?
+    let modalities: ModelsDevModalities?
+    let openWeights: Bool?
+    let lastUpdated: String?
+    let isSubscriptonPlan: Bool
 
     var contextWindow: Int { limit.context }
     var maxOutputTokens: Int { limit.output }
     var isFree: Bool { cost == nil || (cost?.input == 0 && cost?.output == 0) }
+    var isVision: Bool { modalities?.input?.contains("image") ?? false }
 
     var displayContextWindow: String {
         let tokens = limit.context
@@ -150,6 +159,7 @@ struct ModelsDevModel: Codable, Sendable, Identifiable {
     }
 
     var displayCost: String {
+        if isSubscriptonPlan { return "Plan" }
         guard let cost, !isFree else { return "Free" }
         if cost.input < 0 || cost.output < 0 { return "Subscription" }
         return "$\(String(format: "%.2f", cost.input))/$\(String(format: "%.2f", cost.output)) per 1M"
@@ -167,6 +177,11 @@ struct ModelsDevCost: Codable, Sendable {
         case cacheRead = "cache_read"
         case cacheWrite = "cache_write"
     }
+}
+
+struct ModelsDevModalities: Codable, Sendable {
+    let input: [String]?
+    let output: [String]?
 }
 
 struct ModelsDevLimit: Codable, Sendable {
@@ -187,8 +202,9 @@ private struct ModelsDevRawProvider: Codable {
     let models: [String: ModelsDevRawModel]
 
     func toProvider() -> ModelsDevProvider {
+        let providerIsSubscriptionPlan = (id ?? "").contains("-coding-plan")
         let convertedModels = models.compactMapValues { raw -> ModelsDevModel? in
-            return raw.toModel()
+            return raw.toModel(providerIsSubscriptionPlan: providerIsSubscriptionPlan)
         }
         return ModelsDevProvider(
             id: id ?? "",
@@ -208,11 +224,17 @@ private struct ModelsDevRawModel: Codable {
     let reasoning: Bool?
     let attachment: Bool?
     let toolCall: Bool?
+    let structuredOutput: Bool?
     let temperature: Bool?
     let cost: ModelsDevCost?
     let limit: ModelsDevRawLimit?
     let releaseDate: String?
     let status: String?
+    let family: String?
+    let knowledge: String?
+    let modalities: ModelsDevModalities?
+    let openWeights: Bool?
+    let lastUpdated: String?
 
     struct ModelsDevRawLimit: Codable {
         let context: Int?
@@ -223,10 +245,14 @@ private struct ModelsDevRawModel: Codable {
     enum CodingKeys: String, CodingKey {
         case id, name, reasoning, attachment, temperature, cost, limit, status
         case toolCall = "tool_call"
+        case structuredOutput = "structured_output"
         case releaseDate = "release_date"
+        case family, knowledge, modalities
+        case openWeights = "open_weights"
+        case lastUpdated = "last_updated"
     }
 
-    func toModel() -> ModelsDevModel? {
+    func toModel(providerIsSubscriptionPlan: Bool) -> ModelsDevModel? {
         let ctx = limit?.context ?? 0
         let out = limit?.output ?? 4096
         guard ctx > 0 else { return nil }
@@ -237,11 +263,18 @@ private struct ModelsDevRawModel: Codable {
             reasoning: reasoning ?? false,
             attachment: attachment ?? false,
             toolCall: toolCall ?? false,
+            structuredOutput: structuredOutput ?? false,
             temperature: temperature ?? true,
             cost: cost,
             limit: ModelsDevLimit(context: ctx, output: out, input: limit?.input),
             releaseDate: releaseDate,
-            status: status
+            status: status,
+            family: family,
+            knowledge: knowledge,
+            modalities: modalities,
+            openWeights: openWeights,
+            lastUpdated: lastUpdated,
+            isSubscriptonPlan: providerIsSubscriptionPlan
         )
     }
 }

@@ -91,110 +91,140 @@ final class ProviderRegistry {
         let codexModels: [String: ModelsDevModel] = [
             "codex-mini-latest": ModelsDevModel(
                 id: "codex-mini-latest", name: "Codex Mini",
-                reasoning: true, attachment: true, toolCall: true, temperature: false,
+                reasoning: true, attachment: true, toolCall: true, structuredOutput: false, temperature: false,
                 cost: ModelsDevCost(input: 1.5, output: 6, cacheRead: 0.375, cacheWrite: nil),
                 limit: ModelsDevLimit(context: 200_000, output: 100_000, input: nil),
-                releaseDate: "2025-05-16", status: nil
+                releaseDate: "2025-05-16", status: nil,
+                family: "gpt-codex", knowledge: nil, modalities: nil, openWeights: nil, lastUpdated: nil,
+                isSubscriptonPlan: false
             ),
             "gpt-5.1-codex": ModelsDevModel(
                 id: "gpt-5.1-codex", name: "GPT-5.1 Codex",
-                reasoning: true, attachment: true, toolCall: true, temperature: false,
+                reasoning: true, attachment: true, toolCall: true, structuredOutput: false, temperature: false,
                 cost: ModelsDevCost(input: 1.25, output: 10, cacheRead: 0.125, cacheWrite: nil),
                 limit: ModelsDevLimit(context: 400_000, output: 128_000, input: 272_000),
-                releaseDate: "2025-11-13", status: nil
+                releaseDate: "2025-11-13", status: nil,
+                family: "gpt-codex", knowledge: nil, modalities: nil, openWeights: nil, lastUpdated: nil,
+                isSubscriptonPlan: false
             ),
             "gpt-5.3-codex": ModelsDevModel(
                 id: "gpt-5.3-codex", name: "GPT-5.3 Codex",
-                reasoning: true, attachment: true, toolCall: true, temperature: false,
+                reasoning: true, attachment: true, toolCall: true, structuredOutput: false, temperature: false,
                 cost: ModelsDevCost(input: 1.75, output: 14, cacheRead: 0.175, cacheWrite: nil),
                 limit: ModelsDevLimit(context: 400_000, output: 128_000, input: 272_000),
-                releaseDate: "2026-02-05", status: nil
+                releaseDate: "2026-02-05", status: nil,
+                family: "gpt-codex", knowledge: nil, modalities: nil, openWeights: nil, lastUpdated: nil,
+                isSubscriptonPlan: false
             ),
             "gpt-5.3-codex-spark": ModelsDevModel(
                 id: "gpt-5.3-codex-spark", name: "GPT-5.3 Codex Spark",
-                reasoning: true, attachment: true, toolCall: true, temperature: false,
+                reasoning: true, attachment: true, toolCall: true, structuredOutput: false, temperature: false,
                 cost: ModelsDevCost(input: 1.75, output: 14, cacheRead: 0.175, cacheWrite: nil),
                 limit: ModelsDevLimit(context: 128_000, output: 32_000, input: 100_000),
-                releaseDate: "2026-02-05", status: nil
+                releaseDate: "2026-02-05", status: nil,
+                family: "gpt-codex", knowledge: nil, modalities: nil, openWeights: nil, lastUpdated: nil,
+                isSubscriptonPlan: false
             ),
         ]
         let augmentModels: [String: ModelsDevModel] = [
             "claude-haiku-4-5": ModelsDevModel(
                 id: "claude-haiku-4-5", name: "Haiku 4.5",
-                reasoning: false, attachment: true, toolCall: true, temperature: true,
+                reasoning: false, attachment: true, toolCall: true, structuredOutput: false, temperature: true,
                 cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
                 limit: ModelsDevLimit(context: 200_000, output: 8_192, input: nil),
-                releaseDate: nil, status: nil
+                releaseDate: nil, status: nil,
+                family: nil, knowledge: nil, modalities: nil, openWeights: nil, lastUpdated: nil,
+                isSubscriptonPlan: false
             ),
             "claude-sonnet-4": ModelsDevModel(
                 id: "claude-sonnet-4", name: "Sonnet 4",
-                reasoning: true, attachment: true, toolCall: true, temperature: true,
+                reasoning: true, attachment: true, toolCall: true, structuredOutput: false, temperature: true,
                 cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
                 limit: ModelsDevLimit(context: 200_000, output: 16_384, input: nil),
-                releaseDate: nil, status: nil
+                releaseDate: nil, status: nil,
+                family: nil, knowledge: nil, modalities: nil, openWeights: nil, lastUpdated: nil,
+                isSubscriptonPlan: false
             ),
             "claude-sonnet-4-5": ModelsDevModel(
                 id: "claude-sonnet-4-5", name: "Sonnet 4.5",
-                reasoning: true, attachment: true, toolCall: true, temperature: true,
+                reasoning: true, attachment: true, toolCall: true, structuredOutput: false, temperature: true,
                 cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
                 limit: ModelsDevLimit(context: 200_000, output: 16_384, input: nil),
-                releaseDate: nil, status: nil
+                releaseDate: nil, status: nil,
+                family: nil, knowledge: nil, modalities: nil, openWeights: nil, lastUpdated: nil,
+                isSubscriptonPlan: false
             ),
             "claude-sonnet-4-6": ModelsDevModel(
                 id: "claude-sonnet-4-6", name: "Sonnet 4.6",
-                reasoning: true, attachment: true, toolCall: true, temperature: true,
+                reasoning: true, attachment: true, toolCall: true, structuredOutput: false, temperature: true,
                 cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
                 limit: ModelsDevLimit(context: 200_000, output: 24_576, input: nil),
-                releaseDate: nil, status: nil
+                releaseDate: nil, status: nil,
+                family: nil, knowledge: nil, modalities: nil, openWeights: nil, lastUpdated: nil,
+                isSubscriptonPlan: false
             ),
             "claude-opus-4-5": ModelsDevModel(
                 id: "claude-opus-4-5", name: "Opus 4.5",
-                reasoning: true, attachment: true, toolCall: true, temperature: true,
+                reasoning: true, attachment: true, toolCall: true, structuredOutput: false, temperature: true,
                 cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
                 limit: ModelsDevLimit(context: 200_000, output: 16_384, input: nil),
-                releaseDate: nil, status: nil
+                releaseDate: nil, status: nil,
+                family: nil, knowledge: nil, modalities: nil, openWeights: nil, lastUpdated: nil,
+                isSubscriptonPlan: false
             ),
             "claude-opus-4-6": ModelsDevModel(
                 id: "claude-opus-4-6", name: "Opus 4.6",
-                reasoning: true, attachment: true, toolCall: true, temperature: true,
+                reasoning: true, attachment: true, toolCall: true, structuredOutput: false, temperature: true,
                 cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
                 limit: ModelsDevLimit(context: 200_000, output: 24_576, input: nil),
-                releaseDate: nil, status: nil
+                releaseDate: nil, status: nil,
+                family: nil, knowledge: nil, modalities: nil, openWeights: nil, lastUpdated: nil,
+                isSubscriptonPlan: false
             ),
             "gemini-3-1-pro-preview": ModelsDevModel(
                 id: "gemini-3-1-pro-preview", name: "Gemini 3.1 Pro",
-                reasoning: true, attachment: true, toolCall: true, temperature: true,
+                reasoning: true, attachment: true, toolCall: true, structuredOutput: false, temperature: true,
                 cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
                 limit: ModelsDevLimit(context: 200_000, output: 65_536, input: nil),
-                releaseDate: nil, status: nil
+                releaseDate: nil, status: nil,
+                family: nil, knowledge: nil, modalities: nil, openWeights: nil, lastUpdated: nil,
+                isSubscriptonPlan: false
             ),
             "gpt-5": ModelsDevModel(
                 id: "gpt-5", name: "GPT-5",
-                reasoning: true, attachment: true, toolCall: true, temperature: true,
+                reasoning: true, attachment: true, toolCall: true, structuredOutput: false, temperature: true,
                 cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
                 limit: ModelsDevLimit(context: 200_000, output: 16_384, input: nil),
-                releaseDate: nil, status: nil
+                releaseDate: nil, status: nil,
+                family: nil, knowledge: nil, modalities: nil, openWeights: nil, lastUpdated: nil,
+                isSubscriptonPlan: false
             ),
             "gpt-5-1": ModelsDevModel(
                 id: "gpt-5-1", name: "GPT-5.1",
-                reasoning: true, attachment: true, toolCall: true, temperature: true,
+                reasoning: true, attachment: true, toolCall: true, structuredOutput: false, temperature: true,
                 cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
                 limit: ModelsDevLimit(context: 200_000, output: 16_384, input: nil),
-                releaseDate: nil, status: nil
+                releaseDate: nil, status: nil,
+                family: nil, knowledge: nil, modalities: nil, openWeights: nil, lastUpdated: nil,
+                isSubscriptonPlan: false
             ),
             "gpt-5-2": ModelsDevModel(
                 id: "gpt-5-2", name: "GPT-5.2",
-                reasoning: true, attachment: true, toolCall: true, temperature: true,
+                reasoning: true, attachment: true, toolCall: true, structuredOutput: false, temperature: true,
                 cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
                 limit: ModelsDevLimit(context: 200_000, output: 16_384, input: nil),
-                releaseDate: nil, status: nil
+                releaseDate: nil, status: nil,
+                family: nil, knowledge: nil, modalities: nil, openWeights: nil, lastUpdated: nil,
+                isSubscriptonPlan: false
             ),
             "gpt-5-4": ModelsDevModel(
                 id: "gpt-5-4", name: "GPT-5.4",
-                reasoning: true, attachment: true, toolCall: true, temperature: true,
+                reasoning: true, attachment: true, toolCall: true, structuredOutput: false, temperature: true,
                 cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
                 limit: ModelsDevLimit(context: 272_000, output: 32_768, input: nil),
-                releaseDate: nil, status: nil
+                releaseDate: nil, status: nil,
+                family: nil, knowledge: nil, modalities: nil, openWeights: nil, lastUpdated: nil,
+                isSubscriptonPlan: false
             ),
         ]
         return [
@@ -287,9 +317,14 @@ final class ProviderRegistry {
                 updated[apiModel.id] = ModelsDevModel(
                     id: mdModel.id, name: mdModel.name,
                     reasoning: mdModel.reasoning, attachment: mdModel.attachment,
-                    toolCall: mdModel.toolCall, temperature: mdModel.temperature,
+                    toolCall: mdModel.toolCall, structuredOutput: mdModel.structuredOutput,
+                    temperature: mdModel.temperature,
                     cost: mdModel.cost, limit: newLimit,
-                    releaseDate: mdModel.releaseDate, status: mdModel.status
+                    releaseDate: mdModel.releaseDate, status: mdModel.status,
+                    family: mdModel.family, knowledge: mdModel.knowledge,
+                    modalities: mdModel.modalities, openWeights: mdModel.openWeights,
+                    lastUpdated: mdModel.lastUpdated,
+                    isSubscriptonPlan: false
                 )
             }
         }

@@ -10,6 +10,12 @@ struct SettingsView: View {
     @State private var showProviderPicker = false
     @State private var providerAPIKeyInput = ""
     @State private var selectedProviderForKey: ModelsDevProvider?
+    @State private var showModelPicker = false
+    @State private var isSystemPromptCollapsed = false
+    @State private var isProviderCollapsed = false
+    @State private var isMCPCollapsed = false
+    @State private var isToolAccessCollapsed = false
+    @State private var isMCPPermissionsCollapsed = false
 
     var body: some View {
         NavigationStack {
@@ -193,68 +199,90 @@ struct SettingsView: View {
     // MARK: - Provider Section
 
     private var providerSection: some View {
-        Section {
-            if let registry = copilotService.providerRegistry {
-                // Configured providers
-                ForEach(registry.configuredProviders) { provider in
-                    let isActive = registry.activeProviderId == provider.id
-                    Button {
-                        registry.activeProviderId = provider.id
-                    } label: {
-                        HStack(spacing: 12) {
-                            // Radio indicator with subtle glow when active
-                            ZStack {
-                                Circle()
-                                    .stroke(isActive ? Color.carbonAccent : Color.carbonBorder, lineWidth: 1.5)
-                                    .frame(width: 18, height: 18)
-                                if isActive {
+        DisclosureGroup(isExpanded: $isProviderCollapsed) {
+            Section {
+                if let registry = copilotService.providerRegistry {
+                    ForEach(registry.configuredProviders) { provider in
+                        let isActive = registry.activeProviderId == provider.id
+                        Button {
+                            registry.activeProviderId = provider.id
+                        } label: {
+                            HStack(spacing: 12) {
+                                ZStack {
                                     Circle()
-                                        .fill(Color.carbonAccent)
-                                        .frame(width: 10, height: 10)
-                                }
-                            }
-
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(provider.name)
-                                    .font(.carbonSans(.subheadline, weight: .medium))
-                                    .foregroundStyle(isActive ? Color.carbonText : Color.carbonTextSecondary)
-                                HStack(spacing: 6) {
-                                    Text("\(provider.models.count) MODELS")
-                                        .font(.carbonMono(.caption2, weight: .medium))
-                                        .kerning(0.4)
-                                        .foregroundStyle(Color.carbonTextTertiary)
-                                    if provider.isCodingPlan {
-                                        Text("CODING PLAN")
-                                            .font(.carbonMono(.caption2, weight: .bold))
-                                            .kerning(0.3)
-                                            .foregroundStyle(Color.carbonAccent)
-                                            .padding(.horizontal, 5)
-                                            .padding(.vertical, 1)
-                                            .background(Color.carbonAccentMuted)
-                                            .clipShape(RoundedRectangle(cornerRadius: 3))
+                                        .stroke(isActive ? Color.carbonAccent : Color.carbonBorder, lineWidth: 1.5)
+                                        .frame(width: 18, height: 18)
+                                    if isActive {
+                                        Circle()
+                                            .fill(Color.carbonAccent)
+                                            .frame(width: 10, height: 10)
                                     }
                                 }
-                            }
 
-                            Spacer()
-
-                            if provider.id == "openai-codex" {
-                                if registry.codexAuth.isAuthenticated {
-                                    // OAuth — sign out
-                                    Button {
-                                        registry.codexAuth.signOut()
-                                    } label: {
-                                        Image(systemName: "rectangle.portrait.and.arrow.right")
-                                            .font(.caption2)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(provider.name)
+                                        .font(.carbonSans(.subheadline, weight: .medium))
+                                        .foregroundStyle(isActive ? Color.carbonText : Color.carbonTextSecondary)
+                                    HStack(spacing: 6) {
+                                        Text("\(provider.models.count) MODELS")
+                                            .font(.carbonMono(.caption2, weight: .medium))
+                                            .kerning(0.4)
                                             .foregroundStyle(Color.carbonTextTertiary)
-                                            .padding(6)
-                                            .background(Color.carbonElevated)
-                                            .clipShape(Circle())
+                                        if provider.isCodingPlan {
+                                            Text("CODING PLAN")
+                                                .font(.carbonMono(.caption2, weight: .bold))
+                                                .kerning(0.3)
+                                                .foregroundStyle(Color.carbonAccent)
+                                                .padding(.horizontal, 5)
+                                                .padding(.vertical, 1)
+                                                .background(Color.carbonAccentMuted)
+                                                .clipShape(RoundedRectangle(cornerRadius: 3))
+                                        }
                                     }
-                                    .buttonStyle(.plain)
                                 }
-                                if registry.loadAPIKey(for: provider.id) != nil {
-                                    // Also has API key — edit & remove
+
+                                Spacer()
+
+                                if provider.id == "openai-codex" {
+                                    if registry.codexAuth.isAuthenticated {
+                                        Button {
+                                            registry.codexAuth.signOut()
+                                        } label: {
+                                            Image(systemName: "rectangle.portrait.and.arrow.right")
+                                                .font(.caption2)
+                                                .foregroundStyle(Color.carbonTextTertiary)
+                                                .padding(6)
+                                                .background(Color.carbonElevated)
+                                                .clipShape(Circle())
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                    if registry.loadAPIKey(for: provider.id) != nil {
+                                        Button {
+                                            selectedProviderForKey = provider
+                                        } label: {
+                                            Image(systemName: "key")
+                                                .font(.caption2)
+                                                .foregroundStyle(Color.carbonTextTertiary)
+                                                .padding(6)
+                                                .background(Color.carbonElevated)
+                                                .clipShape(Circle())
+                                        }
+                                        .buttonStyle(.plain)
+
+                                        Button {
+                                            registry.removeAPIKey(for: provider.id)
+                                        } label: {
+                                            Image(systemName: "trash")
+                                                .font(.caption2)
+                                                .foregroundStyle(Color.carbonTextTertiary)
+                                                .padding(6)
+                                                .background(Color.carbonElevated)
+                                                .clipShape(Circle())
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                } else if provider.id != "github-copilot" {
                                     Button {
                                         selectedProviderForKey = provider
                                     } label: {
@@ -279,78 +307,63 @@ struct SettingsView: View {
                                     }
                                     .buttonStyle(.plain)
                                 }
-                            } else if provider.id != "github-copilot" {
-                                // API key provider — edit key & remove
-                                Button {
-                                    selectedProviderForKey = provider
-                                } label: {
-                                    Image(systemName: "key")
-                                        .font(.caption2)
-                                        .foregroundStyle(Color.carbonTextTertiary)
-                                        .padding(6)
-                                        .background(Color.carbonElevated)
-                                        .clipShape(Circle())
-                                }
-                                .buttonStyle(.plain)
-
-                                Button {
-                                    registry.removeAPIKey(for: provider.id)
-                                } label: {
-                                    Image(systemName: "trash")
-                                        .font(.caption2)
-                                        .foregroundStyle(Color.carbonTextTertiary)
-                                        .padding(6)
-                                        .background(Color.carbonElevated)
-                                        .clipShape(Circle())
-                                }
-                                .buttonStyle(.plain)
                             }
+                            .padding(.vertical, 2)
                         }
-                        .padding(.vertical, 2)
+                        .listRowBackground(
+                            isActive
+                                ? Color.carbonAccent.opacity(0.06)
+                                : Color.carbonSurface
+                        )
                     }
-                    .listRowBackground(
-                        isActive
-                            ? Color.carbonAccent.opacity(0.06)
-                            : Color.carbonSurface
-                    )
-                }
 
-                // Add provider
-                Button {
-                    showProviderPicker = true
-                } label: {
+                    Button {
+                        showProviderPicker = true
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "plus")
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .foregroundStyle(Color.carbonBlack)
+                                .frame(width: 18, height: 18)
+                                .background(Color.carbonAccent)
+                                .clipShape(Circle())
+                            Text("Add Provider")
+                                .font(.carbonSans(.subheadline, weight: .medium))
+                                .foregroundStyle(Color.carbonAccent)
+                            Spacer()
+                            Text("120+")
+                                .font(.carbonMono(.caption2, weight: .medium))
+                                .foregroundStyle(Color.carbonTextTertiary)
+                        }
+                    }
+                    .listRowBackground(Color.carbonSurface)
+                } else {
                     HStack(spacing: 8) {
-                        Image(systemName: "plus")
-                            .font(.caption)
-                            .fontWeight(.bold)
-                            .foregroundStyle(Color.carbonBlack)
-                            .frame(width: 18, height: 18)
-                            .background(Color.carbonAccent)
-                            .clipShape(Circle())
-                        Text("Add Provider")
-                            .font(.carbonSans(.subheadline, weight: .medium))
-                            .foregroundStyle(Color.carbonAccent)
-                        Spacer()
-                        Text("120+")
-                            .font(.carbonMono(.caption2, weight: .medium))
+                        ProgressView()
+                            .tint(Color.carbonAccent)
+                            .scaleEffect(0.7)
+                        Text("Loading providers...")
+                            .font(.carbonMono(.caption))
                             .foregroundStyle(Color.carbonTextTertiary)
                     }
+                    .listRowBackground(Color.carbonSurface)
                 }
-                .listRowBackground(Color.carbonSurface)
-            } else {
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .tint(Color.carbonAccent)
-                        .scaleEffect(0.7)
-                    Text("Loading providers...")
-                        .font(.carbonMono(.caption))
-                        .foregroundStyle(Color.carbonTextTertiary)
-                }
-                .listRowBackground(Color.carbonSurface)
             }
-        } header: {
-            CarbonSectionHeader(title: "Provider")
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: isProviderCollapsed ? "chevron.right" : "chevron.down")
+                    .font(.caption2)
+                    .foregroundStyle(Color.carbonTextTertiary)
+                    .frame(width: 16)
+                Text("Provider")
+                    .font(.carbonMono(.caption2, weight: .semibold))
+                    .kerning(0.5)
+                    .foregroundStyle(Color.carbonText)
+            }
         }
+        .disclosureGroupStyle(.automatic)
+        .listRowBackground(Color.carbonSurface)
     }
 
     // MARK: - Model Section
@@ -359,55 +372,37 @@ struct SettingsView: View {
         Section {
             if let registry = copilotService.providerRegistry,
                let provider = registry.modelsDevProviders[registry.activeProviderId] {
-                let models = provider.sortedModels
-                ForEach(models) { model in
-                    Button {
-                        registry.activeModelId = model.id
-                        // Sync to settingsStore for Copilot provider compatibility
-                        if registry.activeProviderId == "github-copilot" {
-                            settingsStore.selectedModel = model.id
-                        }
-                    } label: {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(model.name)
-                                    .font(.carbonSans(.subheadline))
-                                    .foregroundStyle(Color.carbonText)
-                                HStack(spacing: 6) {
-                                    Text(model.displayContextWindow)
-                                        .font(.carbonMono(.caption2))
-                                        .foregroundStyle(Color.carbonTextTertiary)
-                                    Text(model.displayCost)
-                                        .font(.carbonMono(.caption2))
-                                        .foregroundStyle(Color.carbonTextTertiary)
-                                    if model.reasoning {
-                                        Text("REASON")
-                                            .font(.carbonMono(.caption2, weight: .bold))
-                                            .kerning(0.2)
-                                            .foregroundStyle(Color.carbonAccent)
-                                    }
-                                    if model.toolCall {
-                                        Text("TOOLS")
-                                            .font(.carbonMono(.caption2, weight: .bold))
-                                            .kerning(0.2)
-                                            .foregroundStyle(Color.carbonSuccess)
+                let selectedId = registry.activeModelId
+                let displayModel = provider.models[selectedId]
+                NavigationLink {
+                    ModelPickerView(
+                        provider: provider,
+                        selectedModelId: Binding(
+                            get: { selectedId },
+                            set: { newId in
+                                if let newId {
+                                    registry.activeModelId = newId
+                                    if registry.activeProviderId == "github-copilot" {
+                                        settingsStore.selectedModel = newId
                                     }
                                 }
                             }
-                            Spacer()
-                            if registry.activeModelId == model.id {
-                                Image(systemName: "checkmark")
-                                    .font(.caption.bold())
-                                    .foregroundStyle(Color.carbonAccent)
+                        )
+                    )
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(displayModel?.name ?? selectedId)
+                                .font(.carbonSans(.subheadline))
+                                .foregroundStyle(Color.carbonText)
+                            if let model = displayModel {
+                                ModelTagsView(model: model)
                             }
                         }
+                        Spacer()
                     }
-                    .listRowBackground(
-                        registry.activeModelId == model.id
-                            ? Color.carbonAccent.opacity(0.06)
-                            : Color.carbonSurface
-                    )
                 }
+                .listRowBackground(Color.carbonSurface)
             } else {
                 Text(settingsStore.selectedModel)
                     .font(.carbonMono(.subheadline))
@@ -422,7 +417,7 @@ struct SettingsView: View {
     // MARK: - System Prompt Section
 
     private var systemPromptSection: some View {
-        Section {
+        DisclosureGroup(isExpanded: $isSystemPromptCollapsed) {
             @Bindable var store = settingsStore
             VStack(alignment: .leading, spacing: 8) {
                 TextEditor(text: $store.systemPrompt)
@@ -449,150 +444,196 @@ struct SettingsView: View {
             }
             .padding(.vertical, 4)
             .listRowBackground(Color.carbonSurface)
-        } header: {
-            CarbonSectionHeader(title: "System Prompt")
-        } footer: {
-            Text("Instructions sent to the model at the start of every conversation.")
-                .font(.carbonMono(.caption2))
-                .foregroundStyle(Color.carbonTextTertiary)
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: isSystemPromptCollapsed ? "chevron.right" : "chevron.down")
+                    .font(.caption2)
+                    .foregroundStyle(Color.carbonTextTertiary)
+                    .frame(width: 16)
+                Text("System Prompt")
+                    .font(.carbonMono(.caption2, weight: .semibold))
+                    .kerning(0.5)
+                    .foregroundStyle(Color.carbonText)
+            }
         }
+        .disclosureGroupStyle(.automatic)
+        .listRowBackground(Color.carbonSurface)
     }
 
     // MARK: - MCP Section
 
     private var mcpSection: some View {
-        Section {
-            ForEach(settingsStore.mcpServers) { server in
-                NavigationLink {
-                    MCPServerDetailView(server: server)
-                } label: {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(server.name)
-                                .font(.carbonSans(.subheadline, weight: .medium))
-                                .foregroundStyle(Color.carbonText)
-                            Text(server.url)
-                                .font(.carbonMono(.caption2))
-                                .foregroundStyle(Color.carbonTextTertiary)
-                                .lineLimit(1)
+        DisclosureGroup(isExpanded: $isMCPCollapsed) {
+            Section {
+                ForEach(settingsStore.mcpServers) { server in
+                    NavigationLink {
+                        MCPServerDetailView(server: server)
+                    } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(server.name)
+                                    .font(.carbonSans(.subheadline, weight: .medium))
+                                    .foregroundStyle(Color.carbonText)
+                                Text(server.url)
+                                    .font(.carbonMono(.caption2))
+                                    .foregroundStyle(Color.carbonTextTertiary)
+                                    .lineLimit(1)
+                            }
+                            Spacer()
+                            serverStatusIndicator(for: server)
                         }
-                        Spacer()
-                        serverStatusIndicator(for: server)
+                    }
+                    .listRowBackground(Color.carbonSurface)
+                }
+                .onDelete { offsets in
+                    settingsStore.removeServer(at: offsets)
+                }
+
+                Button {
+                    showAddMCPServer = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "plus")
+                            .font(.caption)
+                            .foregroundStyle(Color.carbonAccent)
+                        Text("Add MCP Server")
+                            .font(.carbonSans(.subheadline))
+                            .foregroundStyle(Color.carbonAccent)
                     }
                 }
                 .listRowBackground(Color.carbonSurface)
-            }
-            .onDelete { offsets in
-                settingsStore.removeServer(at: offsets)
-            }
-
-            Button {
-                showAddMCPServer = true
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "plus")
-                        .font(.caption)
-                        .foregroundStyle(Color.carbonAccent)
-                    Text("Add MCP Server")
-                        .font(.carbonSans(.subheadline))
-                        .foregroundStyle(Color.carbonAccent)
+            } footer: {
+                VStack(alignment: .leading, spacing: 3) {
+                    if !settingsStore.mcpTools.isEmpty {
+                        Text("\(settingsStore.mcpTools.count) tools available")
+                            .font(.carbonMono(.caption2))
+                            .foregroundStyle(Color.carbonTextTertiary)
+                    }
+                    if !settingsStore.alwaysAllowedServers.isEmpty {
+                        Text("\(settingsStore.alwaysAllowedServers.count) server(s) always allowed")
+                            .font(.carbonMono(.caption2))
+                            .foregroundStyle(Color.carbonSuccess.opacity(0.7))
+                    }
                 }
             }
-            .listRowBackground(Color.carbonSurface)
-        } header: {
-            CarbonSectionHeader(title: "MCP Servers")
-        } footer: {
-            VStack(alignment: .leading, spacing: 3) {
-                if !settingsStore.mcpTools.isEmpty {
-                    Text("\(settingsStore.mcpTools.count) tools available")
-                        .font(.carbonMono(.caption2))
-                        .foregroundStyle(Color.carbonTextTertiary)
-                }
-                if !settingsStore.alwaysAllowedServers.isEmpty {
-                    Text("\(settingsStore.alwaysAllowedServers.count) server(s) always allowed")
-                        .font(.carbonMono(.caption2))
-                        .foregroundStyle(Color.carbonSuccess.opacity(0.7))
-                }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: isMCPCollapsed ? "chevron.right" : "chevron.down")
+                    .font(.caption2)
+                    .foregroundStyle(Color.carbonTextTertiary)
+                    .frame(width: 16)
+                Text("MCP Servers")
+                    .font(.carbonMono(.caption2, weight: .semibold))
+                    .kerning(0.5)
+                    .foregroundStyle(Color.carbonText)
             }
         }
+        .disclosureGroupStyle(.automatic)
+        .listRowBackground(Color.carbonSurface)
     }
 
     // MARK: - Tool Access Mode Section
 
     private var toolAccessModeSection: some View {
-        Section {
-            @Bindable var store = settingsStore
-            if settingsStore.mcpServers.isEmpty {
-                HStack(spacing: 8) {
-                    Image(systemName: "wrench.and.screwdriver")
-                        .font(.caption)
-                        .foregroundStyle(Color.carbonTextTertiary)
-                    Text("Add MCP servers to configure tool loading")
-                        .font(.carbonSans(.caption))
-                        .foregroundStyle(Color.carbonTextTertiary)
-                }
-                .listRowBackground(Color.carbonSurface)
-            } else {
-                Picker("Tool Access Mode", selection: $store.toolAccessMode) {
-                    ForEach(ToolAccessMode.allCases, id: \.self) { mode in
-                        Text(mode.label).tag(mode)
+        DisclosureGroup(isExpanded: $isToolAccessCollapsed) {
+            Section {
+                @Bindable var store = settingsStore
+                if settingsStore.mcpServers.isEmpty {
+                    HStack(spacing: 8) {
+                        Image(systemName: "wrench.and.screwdriver")
+                            .font(.caption)
+                            .foregroundStyle(Color.carbonTextTertiary)
+                        Text("Add MCP servers to configure tool loading")
+                            .font(.carbonSans(.caption))
+                            .foregroundStyle(Color.carbonTextTertiary)
                     }
+                    .listRowBackground(Color.carbonSurface)
+                } else {
+                    Picker("Tool Access Mode", selection: $store.toolAccessMode) {
+                        ForEach(ToolAccessMode.allCases, id: \.self) { mode in
+                            Text(mode.label).tag(mode)
+                        }
+                    }
+                    .font(.carbonSans(.subheadline, weight: .medium))
+                    .foregroundStyle(Color.carbonText)
+                    .listRowBackground(Color.carbonSurface)
                 }
-                .font(.carbonSans(.subheadline, weight: .medium))
-                .foregroundStyle(Color.carbonText)
-                .listRowBackground(Color.carbonSurface)
+            } footer: {
+                Text(settingsStore.toolAccessMode.description)
+                    .font(.carbonMono(.caption2))
+                    .foregroundStyle(Color.carbonTextTertiary)
             }
-        } header: {
-            CarbonSectionHeader(title: "Tool Loading")
-        } footer: {
-            Text(settingsStore.toolAccessMode.description)
-                .font(.carbonMono(.caption2))
-                .foregroundStyle(Color.carbonTextTertiary)
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: isToolAccessCollapsed ? "chevron.right" : "chevron.down")
+                    .font(.caption2)
+                    .foregroundStyle(Color.carbonTextTertiary)
+                    .frame(width: 16)
+                Text("Tool Loading")
+                    .font(.carbonMono(.caption2, weight: .semibold))
+                    .kerning(0.5)
+                    .foregroundStyle(Color.carbonText)
+            }
         }
+        .disclosureGroupStyle(.automatic)
+        .listRowBackground(Color.carbonSurface)
     }
 
     // MARK: - MCP Permissions Section
 
     private var mcpPermissionsSection: some View {
-        Section {
-            if settingsStore.mcpServers.isEmpty {
-                HStack(spacing: 8) {
-                    Image(systemName: "shield.lefthalf.filled")
-                        .font(.caption)
-                        .foregroundStyle(Color.carbonTextTertiary)
-                    Text("No MCP servers configured")
-                        .font(.carbonSans(.caption))
-                        .foregroundStyle(Color.carbonTextTertiary)
-                }
-                .listRowBackground(Color.carbonSurface)
-            } else {
-                ForEach(settingsStore.mcpServers) { server in
-                    let summary = permissionSummary(for: server.name)
-                    NavigationLink {
-                        MCPPermissionDetailView(serverName: server.name)
-                    } label: {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(server.name)
-                                    .font(.carbonSans(.subheadline, weight: .medium))
-                                    .foregroundStyle(Color.carbonText)
-                                Text(summary.label)
-                                    .font(.carbonMono(.caption2))
-                                    .foregroundStyle(summary.color)
-                            }
-                            Spacer()
-                        }
+        DisclosureGroup(isExpanded: $isMCPPermissionsCollapsed) {
+            Section {
+                if settingsStore.mcpServers.isEmpty {
+                    HStack(spacing: 8) {
+                        Image(systemName: "shield.lefthalf.filled")
+                            .font(.caption)
+                            .foregroundStyle(Color.carbonTextTertiary)
+                        Text("No MCP servers configured")
+                            .font(.carbonSans(.caption))
+                            .foregroundStyle(Color.carbonTextTertiary)
                     }
                     .listRowBackground(Color.carbonSurface)
+                } else {
+                    ForEach(settingsStore.mcpServers) { server in
+                        let summary = permissionSummary(for: server.name)
+                        NavigationLink {
+                            MCPPermissionDetailView(serverName: server.name)
+                        } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(server.name)
+                                        .font(.carbonSans(.subheadline, weight: .medium))
+                                        .foregroundStyle(Color.carbonText)
+                                    Text(summary.label)
+                                        .font(.carbonMono(.caption2))
+                                        .foregroundStyle(summary.color)
+                                }
+                                Spacer()
+                            }
+                        }
+                        .listRowBackground(Color.carbonSurface)
+                    }
                 }
+            } footer: {
+                Text("Tap a server to configure per-tool permissions.")
+                    .font(.carbonMono(.caption2))
+                    .foregroundStyle(Color.carbonTextTertiary)
             }
-        } header: {
-            CarbonSectionHeader(title: "Tool Permissions")
-        } footer: {
-            Text("Tap a server to configure per-tool permissions.")
-                .font(.carbonMono(.caption2))
-                .foregroundStyle(Color.carbonTextTertiary)
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: isMCPPermissionsCollapsed ? "chevron.right" : "chevron.down")
+                    .font(.caption2)
+                    .foregroundStyle(Color.carbonTextTertiary)
+                    .frame(width: 16)
+                Text("Tool Permissions")
+                    .font(.carbonMono(.caption2, weight: .semibold))
+                    .kerning(0.5)
+                    .foregroundStyle(Color.carbonText)
+            }
         }
+        .disclosureGroupStyle(.automatic)
+        .listRowBackground(Color.carbonSurface)
     }
 
     private func permissionSummary(for serverName: String) -> (label: String, color: Color) {
