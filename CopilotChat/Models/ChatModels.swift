@@ -751,3 +751,9 @@ struct NonStreamingResponsesResponse: Decodable {
         let text: String?
     }
 }
+
+// MARK: - Notifications
+
+extension Notification.Name {
+    static let requestWorkspaceSelection = Notification.Name("requestWorkspaceSelection")
+}

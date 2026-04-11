@@ -390,19 +390,45 @@ final class CopilotService {
         await executeSingleToolCall(call)
     }
 
+    private static let fileSystemToolNames: Set<String> = [
+        "list_files", "read_file", "write_file", "edit_file", "create_file", "delete_file", "move_file", "switch_mode"
+    ]
+
     private func executeSingleToolCall(_ call: ToolCall) async {
         toolCallStatuses[call.id] = .executing
         do {
             let text: String
             var imageData: Data?
-                    if call.function.name == "tool_search" {
-                        let (query, maxResults) = Self.parseToolSearchArgs(call.function.arguments)
-                        let (resultText, matchedNames) = PluginRegistry.shared.searchTools(
-                            query: query, maxResults: maxResults, in: settingsStore.mcpTools
-                        )
-                        discoveredMCPTools.formUnion(matchedNames)
-                        text = resultText
+
+            if call.function.name == "tool_search" {
+                let (query, maxResults) = Self.parseToolSearchArgs(call.function.arguments)
+                let pluginTools = PluginRegistry.shared.allTools(for: settingsStore.appMode)
+                let availableTools = pluginTools + settingsStore.mcpTools
+                let (resultText, matchedNames) = PluginRegistry.shared.searchTools(
+                    query: query, maxResults: maxResults, in: availableTools
+                )
+                discoveredMCPTools.formUnion(matchedNames)
+                text = resultText
                 imageData = nil
+            } else if call.function.name == "switch_mode" {
+                let newMode = Self.parseSwitchModeArgs(call.function.arguments)
+                settingsStore.appMode = newMode
+                if newMode == .coding && !WorkspaceManager.shared.hasWorkspace {
+                    text = "Switched to coding mode. Please select a project folder to enable file operations."
+                    await requestWorkspaceSelection()
+                } else {
+                    text = "Switched to \(newMode.label) mode."
+                }
+                imageData = nil
+            } else if Self.fileSystemToolNames.contains(call.function.name) {
+                if !WorkspaceManager.shared.hasWorkspace {
+                    text = "No workspace selected. Please switch to coding mode and select a project folder first."
+                    imageData = nil
+                } else {
+                    let pluginResult = try await executePluginTool(call.function.name, argumentsJSON: call.function.arguments)
+                    text = pluginResult.text
+                    imageData = pluginResult.imageData
+                }
             } else if let pluginResult = try? await executePluginTool(call.function.name, argumentsJSON: call.function.arguments) {
                 text = pluginResult.text
                 imageData = pluginResult.imageData
@@ -411,6 +437,7 @@ final class CopilotService {
                     name: call.function.name,
                     argumentsJSON: call.function.arguments
                 )
+                imageData = nil
             }
             toolCallStatuses[call.id] = .completed
             messages.append(ChatMessage(
@@ -436,6 +463,22 @@ final class CopilotService {
         }
         let maxResults = args["max_results"] as? Int ?? 5
         return (query, maxResults)
+    }
+
+    private static func parseSwitchModeArgs(_ argumentsJSON: String) -> AppMode {
+        guard let data = argumentsJSON.data(using: .utf8),
+              let args = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let modeStr = args["mode"] as? String,
+              let mode = AppMode(rawValue: modeStr) else {
+            return .chat
+        }
+        return mode
+    }
+
+    private func requestWorkspaceSelection() async {
+        await MainActor.run {
+            NotificationCenter.default.post(name: .requestWorkspaceSelection, object: nil)
+        }
     }
 
     private func executePluginTool(_ name: String, argumentsJSON: String) async throws -> ToolResult {
@@ -501,7 +544,7 @@ final class CopilotService {
 
         // Merge plugin tools with MCP tools (filtered by access mode)
         let allTools: [MCPTool]
-        let pluginTools = await PluginRegistry.shared.allTools
+        let pluginTools = await PluginRegistry.shared.allTools(for: settingsStore.appMode)
         if settingsStore.toolAccessMode == .loadWhenNeeded && !tools.isEmpty {
             let discovered = tools.filter { discoveredMCPTools.contains($0.name) }
             allTools = pluginTools + discovered
@@ -609,7 +652,7 @@ final class CopilotService {
         let model = currentModelId
         // Merge built-in tools with MCP tools
         let allTools: [MCPTool]
-        let pluginTools = await PluginRegistry.shared.allTools
+        let pluginTools = await PluginRegistry.shared.allTools(for: settingsStore.appMode)
         let isAugment = providerRegistry?.activeProviderId == "augment"
         // Augment can't use tool_search effectively, so always send all MCP tools
         if settingsStore.toolAccessMode == .loadWhenNeeded && !tools.isEmpty && !isAugment {
@@ -1108,7 +1151,7 @@ final class CopilotService {
     // MARK: - Compaction
 
     private var systemInstructions: String {
-        let prompt = settingsStore.systemPrompt
+        let prompt = settingsStore.effectiveSystemPrompt
         return prompt.isEmpty ? SettingsStore.defaultSystemPrompt : prompt
     }
 

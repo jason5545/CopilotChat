@@ -11,6 +11,7 @@ struct ChatView: View {
     @State private var showToolPicker = false
     @State private var showSettings = false
     @State private var showHistory = false
+    @State private var showWorkspaceSelector = false
     @State private var editingMessageId: UUID?
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var attachedImageData: Data?
@@ -65,6 +66,18 @@ struct ChatView: View {
                         }
 
                         Button {
+                            settingsStore.appMode = settingsStore.appMode == .chat ? .coding : .chat
+                        } label: {
+                            Image(systemName: settingsStore.appMode.icon)
+                                .font(.subheadline)
+                            .foregroundStyle(settingsStore.appMode == .coding ? Color.carbonAccent : Color.carbonTextSecondary)
+                            .frame(width: 28, height: 28)
+                            .padding(.vertical, 4)
+                            .background(settingsStore.appMode == .coding ? Color.carbonAccentMuted : Color.carbonElevated)
+                            .clipShape(Capsule())
+                        }
+
+                        Button {
                             showSettings = true
                         } label: {
                             Image(systemName: "gearshape")
@@ -86,6 +99,12 @@ struct ChatView: View {
                     copilotService.sendMessage("[Calling tool: \(tool.name)]", tools: settingsStore.mcpTools)
                 }
                 .presentationDetents([.medium, .large])
+            }
+            .sheet(isPresented: $showWorkspaceSelector) {
+                WorkspaceSelectorView()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .requestWorkspaceSelection)) { _ in
+                showWorkspaceSelector = true
             }
         }
     }
@@ -168,7 +187,7 @@ struct ChatView: View {
                 }
 
                 if copilotService.messages.isEmpty {
-                    emptyState.flippedForChat()
+                    emptyStateContent.flippedForChat()
                 }
 
                 if let error = copilotService.streamingError {
@@ -212,7 +231,16 @@ struct ChatView: View {
 
     // MARK: - Empty State
 
-    private var emptyState: some View {
+    @ViewBuilder
+    private var emptyStateContent: some View {
+        if settingsStore.appMode == .coding {
+            emptyStateCoding
+        } else {
+            emptyStateDefault
+        }
+    }
+
+    private var emptyStateDefault: some View {
         VStack(spacing: 20) {
             Spacer()
 
@@ -223,13 +251,13 @@ struct ChatView: View {
                 Circle()
                     .fill(Color.carbonAccent.opacity(0.05))
                     .frame(width: 120, height: 120)
-                Image(systemName: "chevron.left.forwardslash.chevron.right")
+                Image(systemName: settingsStore.appMode == .coding ? "chevron.left.forwardslash.chevron.right" : "bubble.left")
                     .font(.system(size: 32, weight: .light))
                     .foregroundStyle(Color.carbonAccent.opacity(0.6))
             }
 
             VStack(spacing: 8) {
-                Text("Start a conversation")
+                Text(settingsStore.appMode == .coding ? "Start coding" : "Start a conversation")
                     .font(.carbonSerif(.title3, weight: .medium))
                     .foregroundStyle(Color.carbonText)
 
@@ -252,10 +280,70 @@ struct ChatView: View {
                     .padding(.top, 4)
                 }
 
-                Text(copilotService.providerRegistry?.activeModelId ?? settingsStore.selectedModel)
-                    .font(.carbonMono(.caption2))
-                    .foregroundStyle(Color.carbonTextTertiary)
-                    .padding(.top, 2)
+                if let providerModelLabel {
+                    Text(providerModelLabel)
+                        .font(.carbonMono(.caption2))
+                        .foregroundStyle(Color.carbonTextTertiary)
+                        .padding(.top, 2)
+                }
+            }
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 80)
+    }
+
+    private var emptyStateCoding: some View {
+        VStack(spacing: 20) {
+            Spacer()
+
+            ZStack {
+                Circle()
+                    .fill(Color.carbonAccent.opacity(0.08))
+                    .frame(width: 88, height: 88)
+                Circle()
+                    .fill(Color.carbonAccent.opacity(0.05))
+                    .frame(width: 120, height: 120)
+                Image(systemName: "folder.badge.questionmark")
+                    .font(.system(size: 32, weight: .light))
+                    .foregroundStyle(Color.carbonAccent.opacity(0.8))
+            }
+
+            VStack(spacing: 8) {
+                Text(WorkspaceManager.shared.trackedHasWorkspace ? "Start coding" : "Select a project folder")
+                    .font(.carbonSerif(.title3, weight: .medium))
+                    .foregroundStyle(Color.carbonText)
+
+                if let workspaceName = WorkspaceManager.shared.trackedWorkspaceName,
+                   WorkspaceManager.shared.trackedHasWorkspace {
+                    Text(workspaceName)
+                        .font(.carbonMono(.caption2))
+                        .foregroundStyle(Color.carbonTextTertiary)
+                        .padding(.top, 2)
+                }
+
+                if let providerModelLabel {
+                    Text(providerModelLabel)
+                        .font(.carbonMono(.caption2))
+                        .foregroundStyle(Color.carbonTextTertiary)
+                }
+
+                Button {
+                    showWorkspaceSelector = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "folder.badge.plus")
+                            .font(.caption)
+                        Text(WorkspaceManager.shared.trackedHasWorkspace ? "Change Folder" : "Choose Folder")
+                            .font(.carbonMono(.caption, weight: .medium))
+                    }
+                    .foregroundStyle(Color.carbonBlack)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+                    .background(Color.carbonAccent)
+                    .clipShape(Capsule())
+                }
             }
 
             Spacer()
@@ -265,6 +353,17 @@ struct ChatView: View {
     }
 
     // MARK: - Streaming Indicator
+
+    private var providerModelLabel: String? {
+        let providerName = copilotService.providerRegistry?.activeProvider()?.displayName
+        let modelName = copilotService.providerRegistry?.activeModelId ?? settingsStore.selectedModel
+
+        if let providerName, !providerName.isEmpty, !modelName.isEmpty {
+            return "\(providerName) · \(modelName)"
+        }
+
+        return modelName.isEmpty ? nil : modelName
+    }
 
     /// Label for the streaming indicator based on actual model state.
     private var streamingLabel: String {

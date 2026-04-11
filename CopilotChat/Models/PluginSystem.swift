@@ -76,7 +76,20 @@ struct PluginHooks: Sendable {
 final class PluginRegistry {
     static let shared = PluginRegistry()
 
-    var allTools: [MCPTool] {
+    func allTools(for mode: AppMode) -> [MCPTool] {
+        var result = baseTools
+        for (pluginId, hooks) in hooksMap {
+            if enabledPluginIds.contains(pluginId) {
+                let filteredTools = hooks.tools.filter { tool in
+                    ToolModeAvailability.isAvailable(tool.name, for: mode)
+                }
+                result.append(contentsOf: filteredTools)
+            }
+        }
+        return result
+    }
+
+    func allPluginTools() -> [MCPTool] {
         var result = baseTools
         for (pluginId, hooks) in hooksMap {
             if enabledPluginIds.contains(pluginId) {
@@ -211,6 +224,20 @@ final class PluginRegistry {
         }
         plugins[braveSearchPlugin.id] = braveSearchPlugin
         enabledPluginIds.insert(braveSearchPlugin.id)
+
+        let fileSystemPlugin = FileSystemPlugin()
+        if let hooks = try? await fileSystemPlugin.configure(with: input) {
+            hooksMap[fileSystemPlugin.id] = hooks
+            for tool in hooks.tools {
+                let pluginId = fileSystemPlugin.id
+                let toolName = tool.name
+                toolHandlers["\(pluginId).\(toolName)"] = { args in
+                    try await hooks.onExecute?(toolName, args) ?? ToolResult(text: "Plugin not available")
+                }
+            }
+        }
+        plugins[fileSystemPlugin.id] = fileSystemPlugin
+        enabledPluginIds.insert(fileSystemPlugin.id)
     }
 
     func executeTool(pluginId: String, toolName: String, argumentsJSON: String) async throws -> ToolResult {

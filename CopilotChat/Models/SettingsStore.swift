@@ -60,6 +60,58 @@ enum ToolAccessMode: String, CaseIterable, Codable, Sendable {
     }
 }
 
+// MARK: - App Mode
+
+enum AppMode: String, CaseIterable, Codable, Sendable {
+    case chat
+    case coding
+
+    var label: String {
+        switch self {
+        case .chat: "Chat"
+        case .coding: "Coding"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .chat: "bubble.left"
+        case .coding: "chevron.left.forwardslash.chevron.right"
+        }
+    }
+
+    var systemPrompt: String {
+        switch self {
+        case .chat:
+            return "You are a helpful AI assistant. Respond in the user's language."
+        case .coding:
+            return "You are an expert coding assistant. You have access to file system tools to read, write, edit, and manage code files. When the user asks to view, create, edit, or modify code, use the appropriate file system tools. Be precise and thorough with code changes. Always maintain clean code style."
+        }
+    }
+}
+
+// MARK: - Tool Mode Availability
+
+enum ToolModeAvailability {
+    static let codingOnlyTools: Set<String> = [
+        "list_files", "read_file", "write_file", "create_file", "delete_file", "move_file"
+    ]
+
+    static let alwaysAvailableTools: Set<String> = [
+        "switch_mode", "tool_search"
+    ]
+
+    static func isAvailable(_ toolName: String, for mode: AppMode) -> Bool {
+        if alwaysAvailableTools.contains(toolName) {
+            return true
+        }
+        if codingOnlyTools.contains(toolName) {
+            return mode == .coding
+        }
+        return true
+    }
+}
+
 @Observable
 @MainActor
 final class SettingsStore {
@@ -70,6 +122,7 @@ final class SettingsStore {
     private static let reasoningEffortKey = "reasoningEffort"
     private static let systemPromptKey = "systemPrompt"
     private static let toolAccessModeKey = "toolAccessMode"
+    private static let appModeKey = "appMode"
     private static let defaultModel = "claude-sonnet-4-6"
     static let defaultSystemPrompt = "You are a helpful AI assistant. Respond in the user's language."
 
@@ -93,6 +146,17 @@ final class SettingsStore {
             guard toolAccessMode != oldValue else { return }
             UserDefaults.standard.set(toolAccessMode.rawValue, forKey: Self.toolAccessModeKey)
         }
+    }
+
+    var appMode: AppMode {
+        didSet {
+            guard appMode != oldValue else { return }
+            UserDefaults.standard.set(appMode.rawValue, forKey: Self.appModeKey)
+        }
+    }
+
+    var effectiveSystemPrompt: String {
+        appMode == .coding ? appMode.systemPrompt : systemPrompt
     }
 
     var mcpServers: [MCPServerConfig] {
@@ -147,6 +211,11 @@ final class SettingsStore {
                   let mode = ToolAccessMode(rawValue: raw) else { return .alwaysLoaded }
             return mode
         }()
+        self.appMode = {
+            guard let raw = UserDefaults.standard.string(forKey: Self.appModeKey),
+                  let mode = AppMode(rawValue: raw) else { return .chat }
+            return mode
+        }()
 
         // One-time migration: move MCP headers from UserDefaults JSON → Keychain
         if !UserDefaults.standard.bool(forKey: Self.mcpHeadersMigratedKey) {
@@ -196,7 +265,7 @@ final class SettingsStore {
 
     func checkPermission(toolName: String, serverName: String) -> PermissionCheckResult {
         // 0. Plugin tools are always allowed
-        if PluginRegistry.shared.allTools.contains(where: { $0.name == toolName }) {
+        if PluginRegistry.shared.allPluginTools().contains(where: { $0.name == toolName }) {
             return .allowed
         }
         // 1. Tool-level override takes priority
@@ -238,7 +307,7 @@ final class SettingsStore {
     }
 
     func serverNameForTool(_ toolName: String) -> String? {
-        if let pluginTool = PluginRegistry.shared.allTools.first(where: { $0.name == toolName }) {
+        if let pluginTool = PluginRegistry.shared.allPluginTools().first(where: { $0.name == toolName }) {
             return pluginTool.serverName
         }
         return mcpTools.first(where: { $0.name == toolName })?.serverName

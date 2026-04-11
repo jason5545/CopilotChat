@@ -656,7 +656,7 @@ struct SettingsView: View {
         } header: {
             CarbonSectionHeader(title: "Plugins")
         } footer: {
-            Text("\(PluginRegistry.shared.allTools.count) tool(s) available")
+            Text("\(PluginRegistry.shared.allPluginTools().count) tool(s) available")
                 .font(.carbonMono(.caption2))
                 .foregroundStyle(Color.carbonTextTertiary)
         }
@@ -692,7 +692,7 @@ struct PluginPermissionsView: View {
     var body: some View {
         List {
             Section {
-                ForEach(PluginRegistry.shared.registeredPlugins, id: \.id) { plugin in
+                ForEach(PluginRegistry.shared.registeredPlugins.filter { $0.id != "com.copilotchat.filesystem" }, id: \.id) { plugin in
                     pluginRow(plugin)
                         .listRowBackground(Color.carbonSurface)
                 }
@@ -715,7 +715,7 @@ struct PluginPermissionsView: View {
                     Text("\(PluginRegistry.shared.pluginCount) plugin(s)")
                         .font(.carbonMono(.caption2))
                         .foregroundStyle(Color.carbonTextTertiary)
-                    Text("\(PluginRegistry.shared.allTools.count) tool(s) available")
+                    Text("\(PluginRegistry.shared.allPluginTools().count) tool(s) available")
                         .font(.carbonMono(.caption2))
                         .foregroundStyle(Color.carbonTextTertiary)
                 }

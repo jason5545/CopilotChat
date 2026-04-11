@@ -8,10 +8,12 @@
 
 /* Begin PBXBuildFile section */
 		03CBBD0AF52DA3259CCA59D2 /* WebFetchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B5F057E1594CDDB8C4D0293 /* WebFetchService.swift */; };
+		1024A26EC417D71BDF9632EE /* FileSystemPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D840D2EA9136B089B1E2903 /* FileSystemPlugin.swift */; };
 		157BFBF72A2B850E6A5D832E /* APIMessageEncodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC320742E69744CF3BEC9972 /* APIMessageEncodingTests.swift */; };
 		1642E88F49621293AC8EC307 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F8C8F50D0B29A8A7443C454 /* SettingsStore.swift */; };
 		17E6FDC95EBBCC13F2106A07 /* MCPSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAEE40518E4F65DA4E50E674 /* MCPSettingsView.swift */; };
 		1D92D9F9B34EBFEE478B0A29 /* CopilotChatApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A877976EB8149831636E8E06 /* CopilotChatApp.swift */; };
+		1DBD301D1C4E8B5482A3CD64 /* WorkspaceSelectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A087A7775242FEFB3318278 /* WorkspaceSelectorView.swift */; };
 		245E035ACB480E48764C62A4 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73E1C308EAC55AC71B9FE65D /* ContentView.swift */; };
 		2C303CE1B8E56BEAF2FC2AC6 /* ConversationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7156A2F3FCF640CE82D1D4D /* ConversationStore.swift */; };
 		366FB1F9BC38A7EECD186BA1 /* ModelPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5552AFC87E5FCBAE9ACE1C4A /* ModelPickerView.swift */; };
@@ -65,10 +67,12 @@
 		0E4C54DF2D9B605822055885 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
 		10F4C84C35E01FB46BEE9B08 /* AgentConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentConfig.swift; sourceTree = "<group>"; };
 		16DB1EC5909ACF0B5B392F63 /* ChatModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatModels.swift; sourceTree = "<group>"; };
+		1A087A7775242FEFB3318278 /* WorkspaceSelectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceSelectorView.swift; sourceTree = "<group>"; };
 		1F8D008BBFD2D4C734E8D385 /* CopilotChatTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = CopilotChatTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		209BCAEE6572124412782E61 /* MarkdownView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownView.swift; sourceTree = "<group>"; };
 		2B5F057E1594CDDB8C4D0293 /* WebFetchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebFetchService.swift; sourceTree = "<group>"; };
 		37F4264FC897CA031C3160B9 /* OpenAICodexProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAICodexProvider.swift; sourceTree = "<group>"; };
+		3D840D2EA9136B089B1E2903 /* FileSystemPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileSystemPlugin.swift; sourceTree = "<group>"; };
 		3F8C8F50D0B29A8A7443C454 /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
 		440A37F7E09FA9A23C5758FB /* OpenAICompatibleProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAICompatibleProvider.swift; sourceTree = "<group>"; };
 		48053902E27A9A12DCC0ADE3 /* GeminiProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeminiProvider.swift; sourceTree = "<group>"; };
@@ -111,6 +115,7 @@
 				80321460D59EA7CCC12B17C1 /* Conversation.swift */,
 				B7156A2F3FCF640CE82D1D4D /* ConversationStore.swift */,
 				D4D6D250CD46F217D156DA5E /* CopilotService.swift */,
+				3D840D2EA9136B089B1E2903 /* FileSystemPlugin.swift */,
 				4DC0848F789894EADCC4F3EC /* MarkdownParser.swift */,
 				0360B8A2EA009CB9636C0D4D /* MCPClient.swift */,
 				96FBE408B7A6CF04BC50D1A0 /* PluginSystem.swift */,
@@ -193,6 +198,7 @@
 				B96E5A9BE12959957495FCCA /* MessageView.swift */,
 				5552AFC87E5FCBAE9ACE1C4A /* ModelPickerView.swift */,
 				C2B7AC6BD497F71C56B82001 /* SettingsView.swift */,
+				1A087A7775242FEFB3318278 /* WorkspaceSelectorView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -214,7 +220,7 @@
 			);
 			sourceTree = "<group>";
 		};
-		"TEMP_09080B76-D015-474A-B1B7-287E684CD6AB" /* Theme */ = {
+		"TEMP_830B3FAA-5DCA-43B7-8E0C-81E33734589F" /* Theme */ = {
 			isa = PBXGroup;
 			children = (
 			);
@@ -341,6 +347,7 @@
 				697D8324FDD2F308CDCCE128 /* CopilotProvider.swift in Sources */,
 				780C1E6B6A3D696CB6882F87 /* CopilotService.swift in Sources */,
 				5308035D2EF7B4053EEFE38C /* DesignSystem.swift in Sources */,
+				1024A26EC417D71BDF9632EE /* FileSystemPlugin.swift in Sources */,
 				F7449ACD98E7665F63A6EE36 /* GeminiProvider.swift in Sources */,
 				82EA680B0A0A23D8DCE40446 /* KeychainHelper.swift in Sources */,
 				798090EBA4EE822753024570 /* LLMProvider.swift in Sources */,
@@ -360,6 +367,7 @@
 				1642E88F49621293AC8EC307 /* SettingsStore.swift in Sources */,
 				D1E9BB44D1210C75CD6D0AF9 /* SettingsView.swift in Sources */,
 				03CBBD0AF52DA3259CCA59D2 /* WebFetchService.swift in Sources */,
+				1DBD301D1C4E8B5482A3CD64 /* WorkspaceSelectorView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
