@@ -30,7 +30,13 @@ targets:
     type: application
     platform: iOS
     sources:
-      - CopilotChat
+      - path: CopilotChat
+        excludes:
+          - "Clibgit2.xcframework/**"
+    resources:
+      - path: CopilotChat/PrivacyInfo.xcprivacy
+    entitlements:
+      path: CopilotChat/CopilotChat.entitlements
     dependencies:
       - framework: CopilotChat/Clibgit2.xcframework
         embed: false

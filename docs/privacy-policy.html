@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Copilot Chat — Privacy Policy</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 680px; margin: 0 auto; padding: 40px 20px; color: #1d1d1f; line-height: 1.6; }
+  h1 { font-size: 1.8em; margin-bottom: 0.3em; }
+  p.date { color: #6e6e73; margin-top: 0; }
+  h2 { margin-top: 2em; font-size: 1.2em; }
+  ul { padding-left: 1.5em; }
+  a { color: #0066cc; }
+</style>
+</head>
+<body>
+
+<h1>Privacy Policy for Copilot Chat</h1>
+<p class="date">Effective date: April 11, 2026</p>
+
+<h2>Overview</h2>
+<p>Copilot Chat ("the App") is a native iOS multi-provider LLM chat client developed by Jui Chen Chien ("Developer"). The App connects to third-party AI providers (such as GitHub Copilot, OpenAI, Anthropic, Google, and others) selected by the user. The Developer does not operate any servers or intermediary services — all communications occur directly between the user's device and the chosen provider.</p>
+
+<h2>Data We Collect</h2>
+<p>The App does not collect, transmit, or store any personal data on Developer-controlled servers. Specifically:</p>
+<ul>
+  <li><strong>No analytics or tracking:</strong> The App contains no analytics SDKs, advertising identifiers, or tracking mechanisms.</li>
+  <li><strong>No server-side storage:</strong> Conversation history, settings, and credentials are stored exclusively on the user's device.</li>
+  <li><strong>No user accounts:</strong> The App does not require creating an account with the Developer.</li>
+</ul>
+
+<h2>Data Stored On Your Device</h2>
+<ul>
+  <li><strong>API keys and tokens:</strong> Stored securely in the iOS Keychain (kSecAttrAccessibleAfterFirstUnlock).</li>
+  <li><strong>Conversation history:</strong> Stored as JSON files in the App's sandboxed Documents directory.</li>
+  <li><strong>Settings and preferences:</strong> Stored locally via UserDefaults.</li>
+</ul>
+
+<h2>Data Shared with Third Parties</h2>
+<p>When you use the App, your messages and any attached content (text, images) are sent directly to the AI provider you have selected. The Developer has no access to this data. Each provider has its own privacy policy governing how they handle your data:</p>
+<ul>
+  <li><a href="https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement">GitHub Privacy Statement</a></li>
+  <li><a href="https://openai.com/privacy">OpenAI Privacy Policy</a></li>
+  <li><a href="https://www.anthropic.com/privacy">Anthropic Privacy Policy</a></li>
+  <li><a href="https://policies.google.com/privacy">Google Privacy Policy</a></li>
+</ul>
+<p>Users are responsible for reviewing the privacy policies of their chosen providers.</p>
+
+<h2>MCP (Model Context Protocol) Servers</h2>
+<p>The App supports connecting to user-configured MCP servers. Authentication headers for these servers are stored in the iOS Keychain. Communication with MCP servers occurs directly from the user's device. The Developer has no access to MCP server connections or data.</p>
+
+<h2>Community Plugins (.cex)</h2>
+<p>The App supports user-imported community plugins that run in a sandboxed JavaScriptCore environment. Plugins may request permissions for network access, clipboard, and notifications. Plugin network requests are restricted to user-configured domain whitelists. The Developer does not distribute or control third-party plugins.</p>
+
+<h2>Photos and Media</h2>
+<p>The App allows users to attach photos to chat messages via the iOS photo picker. Photos are processed in-memory and sent to the selected AI provider as part of the conversation. Photos are not stored by the App beyond the active conversation.</p>
+
+<h2>Coding Mode and File Access</h2>
+<p>Coding Mode allows the App to access user-selected project folders via the iOS document picker. File access is granted through security-scoped bookmarks and persists only with explicit user permission. The App reads and writes files solely within the user-selected workspace directory.</p>
+
+<h2>Children's Privacy</h2>
+<p>The App is not directed at children under 13. The Developer does not knowingly collect personal information from children.</p>
+
+<h2>Data Retention</h2>
+<p>Since the Developer does not collect or store any user data, there is no data retention policy applicable to the Developer. Data stored on the user's device remains until the user deletes it or uninstalls the App.</p>
+
+<h2>Changes to This Policy</h2>
+<p>The Developer may update this privacy policy from time to time. Changes will be reflected by updating the "Effective date" above.</p>
+
+<h2>Contact</h2>
+<p>For privacy-related inquiries, please contact:<br>
+<a href="mailto:jianruicheng@icloud.com">jianruicheng@icloud.com</a></p>
+
+</body>
+</html>
