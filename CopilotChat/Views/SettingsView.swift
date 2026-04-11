@@ -694,6 +694,23 @@ struct SettingsView: View {
                 }
             }
             .listRowBackground(Color.carbonSurface)
+
+            NavigationLink {
+                CExtPluginsView()
+            } label: {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Community Plugins")
+                            .font(.carbonSans(.subheadline, weight: .medium))
+                            .foregroundStyle(Color.carbonText)
+                        Text("Load .cex JavaScript plugins")
+                            .font(.carbonMono(.caption2))
+                            .foregroundStyle(Color.carbonTextTertiary)
+                    }
+                    Spacer()
+                }
+            }
+            .listRowBackground(Color.carbonSurface)
         } header: {
             CarbonSectionHeader(title: "Plugins")
         } footer: {

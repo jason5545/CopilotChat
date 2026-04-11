@@ -183,6 +183,21 @@ final class PluginRegistry {
         return plugin.id
     }
 
+    func registerExternalPlugin(pluginId: String, hooks: PluginHooks, toolNames: [String]) {
+        hooksMap[pluginId] = hooks
+        for toolName in toolNames {
+            toolHandlers["\(pluginId).\(toolName)"] = { args in
+                try await hooks.onExecute?(toolName, args) ?? ToolResult(text: "Plugin not available")
+            }
+            if let streaming = hooks.onExecuteStreaming {
+                toolStreamingHandlers["\(pluginId).\(toolName)"] = { args, progress in
+                    try await streaming(toolName, args, progress)
+                }
+            }
+        }
+        enabledPluginIds.insert(pluginId)
+    }
+
     func isEnabled(pluginId: String) -> Bool {
         enabledPluginIds.contains(pluginId)
     }

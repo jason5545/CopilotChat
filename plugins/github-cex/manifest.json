@@ -1,0 +1,12 @@
+{
+  "id": "com.copilotchat.github-cex",
+  "name": "GitHub JS",
+  "version": "1.0.0",
+  "description": "GitHub REST API tools. Supports issues, repos, search, and file operations.",
+  "permissions": {
+    "network": ["api.github.com"],
+    "clipboard": true,
+    "notification": false,
+    "openURL": true
+  }
+}
