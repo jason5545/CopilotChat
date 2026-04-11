@@ -199,10 +199,12 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
     var currentURL: URL? { _currentURL }
     var workspaceName: String? { _workspaceName }
     var isAccessing: Bool { _isAccessing }
+    var isICloudWorkspace: Bool { _isICloudWorkspace }
 
     private var _currentURL: URL?
     private var _workspaceName: String?
     private var _isAccessing: Bool = false
+    private var _isICloudWorkspace: Bool = false
 
     private var _trackedHasWorkspace: Bool = false
     var trackedHasWorkspace: Bool {
@@ -235,6 +237,7 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
         _currentURL = nil
         _workspaceName = nil
         _isAccessing = false
+        _isICloudWorkspace = false
         _trackedHasWorkspace = false
         _trackedWorkspaceName = nil
         UserDefaults.standard.removeObject(forKey: bookmarkKey)
@@ -266,15 +269,26 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
             }
 
             if url.startAccessingSecurityScopedResource() {
-                _currentURL = url
-                _workspaceName = url.lastPathComponent
-                _isAccessing = true
-                _trackedHasWorkspace = true
-                _trackedWorkspaceName = url.lastPathComponent
+                updateWorkspaceState(for: url)
             }
         } catch {
             UserDefaults.standard.removeObject(forKey: bookmarkKey)
         }
+    }
+
+    private func updateWorkspaceState(for url: URL) {
+        _currentURL = url
+        _workspaceName = url.lastPathComponent
+        _isAccessing = true
+        _isICloudWorkspace = isICloudDirectory(url)
+        _trackedHasWorkspace = true
+        _trackedWorkspaceName = url.lastPathComponent
+    }
+
+    private func isICloudDirectory(_ url: URL) -> Bool {
+        let keys: Set<URLResourceKey> = [.isUbiquitousItemKey]
+        let values = try? url.resourceValues(forKeys: keys)
+        return values?.isUbiquitousItem ?? false
     }
 
     private func resolvePath(_ path: String) -> URL? {
@@ -312,6 +326,54 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
         return nil
     }
 
+    private func coordinatedRead<T>(at url: URL, accessor: (URL) throws -> T) throws -> T {
+        if !_isICloudWorkspace {
+            return try accessor(url)
+        }
+
+        var coordinationError: NSError?
+        var result: Result<T, Error>?
+        let coordinator = NSFileCoordinator()
+
+        coordinator.coordinate(readingItemAt: url, options: [], error: &coordinationError) { coordinatedURL in
+            result = Result { try accessor(coordinatedURL) }
+        }
+
+        if let coordinationError {
+            throw coordinationError
+        }
+        guard let result else {
+            throw FileSystemPluginError.operationFailed("File coordination failed during read")
+        }
+        return try result.get()
+    }
+
+    private func coordinatedWrite<T>(accessor: () throws -> T) throws -> T {
+        if !_isICloudWorkspace {
+            return try accessor()
+        }
+
+        guard let workspaceURL = _currentURL else {
+            throw FileSystemPluginError.operationFailed("Workspace not accessible")
+        }
+
+        var coordinationError: NSError?
+        var result: Result<T, Error>?
+        let coordinator = NSFileCoordinator()
+
+        coordinator.coordinate(writingItemAt: workspaceURL, options: [], error: &coordinationError) { _ in
+            result = Result { try accessor() }
+        }
+
+        if let coordinationError {
+            throw coordinationError
+        }
+        guard let result else {
+            throw FileSystemPluginError.operationFailed("File coordination failed during write")
+        }
+        return try result.get()
+    }
+
     func listFiles(argumentsJSON: String) -> ToolResult {
         guard _currentURL != nil, _isAccessing else {
             return ToolResult(text: "Workspace not accessible")
@@ -329,11 +391,13 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
         }
 
         do {
-            let contents = try FileManager.default.contentsOfDirectory(
-                at: targetURL,
-                includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey],
-                options: [.skipsHiddenFiles]
-            )
+            let contents = try coordinatedRead(at: targetURL) { coordinatedURL in
+                try FileManager.default.contentsOfDirectory(
+                    at: coordinatedURL,
+                    includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey],
+                    options: [.skipsHiddenFiles]
+                )
+            }
 
             var lines: [String] = []
             for fileURL in contents.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
@@ -377,7 +441,9 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
         }
 
         do {
-            let content = try String(contentsOf: targetURL, encoding: .utf8)
+            let content = try coordinatedRead(at: targetURL) { coordinatedURL in
+                try String(contentsOf: coordinatedURL, encoding: .utf8)
+            }
             return ToolResult(text: content)
         } catch {
             return ToolResult(text: "Error reading file: \(error.localizedDescription)")
@@ -407,10 +473,12 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
         }
 
         do {
-            guard let data = content.data(using: .utf8) else {
-                return ToolResult(text: "Error writing file: content is not valid UTF-8")
+            try coordinatedWrite {
+                guard let data = content.data(using: .utf8) else {
+                    throw FileSystemPluginError.operationFailed("Content is not valid UTF-8")
+                }
+                try data.write(to: targetURL, options: .atomic)
             }
-            try data.write(to: targetURL, options: .atomic)
             return ToolResult(text: "Successfully wrote to \(path)")
         } catch {
             return ToolResult(text: "Error writing file: \(error.localizedDescription)")
@@ -439,8 +507,16 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
             return ToolResult(text: "Invalid path: \(path)")
         }
 
-        guard let originalData = try? Data(contentsOf: targetURL),
-              let original = String(data: originalData, encoding: .utf8) else {
+        let original: String
+        do {
+            original = try coordinatedRead(at: targetURL) { coordinatedURL in
+                let originalData = try Data(contentsOf: coordinatedURL)
+                guard let original = String(data: originalData, encoding: .utf8) else {
+                    throw FileSystemPluginError.operationFailed("File is not valid UTF-8")
+                }
+                return original
+            }
+        } catch {
             return ToolResult(text: "Error reading file for edit: \(path)")
         }
 
@@ -462,7 +538,9 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
         }
 
         do {
-            try updatedData.write(to: targetURL, options: .atomic)
+            try coordinatedWrite {
+                try updatedData.write(to: targetURL, options: .atomic)
+            }
             return ToolResult(text: "Successfully edited \(path)")
         } catch {
             return ToolResult(text: "Error editing file: \(error.localizedDescription)")
@@ -490,9 +568,11 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
         }
 
         do {
-            let created = FileManager.default.createFile(atPath: targetURL.path, contents: Data())
-            guard created else {
-                return ToolResult(text: "Error creating file: FileManager could not create the file")
+            try coordinatedWrite {
+                let created = FileManager.default.createFile(atPath: targetURL.path, contents: Data())
+                guard created else {
+                    throw FileSystemPluginError.operationFailed("FileManager could not create the file")
+                }
             }
             return ToolResult(text: "Successfully created \(path)")
         } catch {
@@ -517,7 +597,9 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
         }
 
         do {
-            try FileManager.default.removeItem(at: targetURL)
+            try coordinatedWrite {
+                try FileManager.default.removeItem(at: targetURL)
+            }
             return ToolResult(text: "Successfully deleted \(path)")
         } catch {
             return ToolResult(text: "Error deleting file: \(error.localizedDescription)")
@@ -551,7 +633,9 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
         }
 
         do {
-            try FileManager.default.moveItem(at: sourceURL, to: destURL)
+            try coordinatedWrite {
+                try FileManager.default.moveItem(at: sourceURL, to: destURL)
+            }
             return ToolResult(text: "Successfully moved \(source) to \(destination)")
         } catch {
             return ToolResult(text: "Error moving file: \(error.localizedDescription)")
@@ -592,11 +676,7 @@ extension WorkspaceManager: UIDocumentPickerDelegate {
         Task { @MainActor in
             do {
                 try saveBookmark(for: url)
-                _currentURL = url
-                _workspaceName = url.lastPathComponent
-                _isAccessing = true
-                _trackedHasWorkspace = true
-                _trackedWorkspaceName = url.lastPathComponent
+                updateWorkspaceState(for: url)
             } catch {
                 url.stopAccessingSecurityScopedResource()
             }
