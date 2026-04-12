@@ -227,6 +227,8 @@ final class PluginRegistry {
         }
     }
 
+    // MARK: - Plugin Loading
+
     func loadPlugins() async {
         await registerBuiltInPlugins()
     }
@@ -235,89 +237,48 @@ final class PluginRegistry {
         await registerBuiltInPlugins()
 
         let codexPlugin = CodexPlugin()
-        if let hooks = try? await codexPlugin.configure(with: PluginInput(deviceId: UIDevice.current.identifierForVendor?.uuidString ?? "unknown")) {
-            hooksMap[codexPlugin.id] = hooks
-        }
-        plugins[codexPlugin.id] = codexPlugin
-        enabledPluginIds.insert(codexPlugin.id)
+        await registerAndConfigure(codexPlugin)
 
         let taskPlugin = TaskPlugin(authManager: authManager, settingsStore: settingsStore, providerRegistry: providerRegistry)
-        if let hooks = try? await taskPlugin.configure(with: PluginInput(deviceId: UIDevice.current.identifierForVendor?.uuidString ?? "unknown")) {
-            hooksMap[taskPlugin.id] = hooks
-            for tool in hooks.tools {
-                let pluginId = taskPlugin.id
-                let toolName = tool.name
-                toolHandlers["\(pluginId).\(toolName)"] = { args in
-                    try await hooks.onExecute?(toolName, args) ?? ToolResult(text: "Plugin not available")
-                }
-            }
-        }
-        plugins[taskPlugin.id] = taskPlugin
-        enabledPluginIds.insert(taskPlugin.id)
+        await registerAndConfigure(taskPlugin)
     }
 
     private func registerBuiltInPlugins() async {
+        let plugins: [any Plugin] = [
+            BrowserPlugin(),
+            BraveSearchPlugin(),
+            FileSystemPlugin(),
+            GitHubPlugin(),
+        ]
+        for plugin in plugins {
+            await registerAndConfigure(plugin)
+        }
+    }
+
+    /// Configures a plugin, registers its tool/streaming handlers, and enables it.
+    private func registerAndConfigure(_ plugin: any Plugin) async {
         let input = PluginInput(deviceId: UIDevice.current.identifierForVendor?.uuidString ?? "unknown")
-        let browserPlugin = BrowserPlugin()
-        if let hooks = try? await browserPlugin.configure(with: input) {
-            hooksMap[browserPlugin.id] = hooks
-            for tool in hooks.tools {
-                let pluginId = browserPlugin.id
-                let toolName = tool.name
-                toolHandlers["\(pluginId).\(toolName)"] = { args in
-                    try await hooks.onExecute?(toolName, args) ?? ToolResult(text: "Plugin not available")
-                }
-            }
+        if let hooks = try? await plugin.configure(with: input) {
+            hooksMap[plugin.id] = hooks
+            registerToolHandlers(pluginId: plugin.id, hooks: hooks)
         }
-        plugins[browserPlugin.id] = browserPlugin
-        enabledPluginIds.insert(browserPlugin.id)
+        plugins[plugin.id] = plugin
+        enabledPluginIds.insert(plugin.id)
+    }
 
-        let braveSearchPlugin = BraveSearchPlugin()
-        if let hooks = try? await braveSearchPlugin.configure(with: input) {
-            hooksMap[braveSearchPlugin.id] = hooks
-            for tool in hooks.tools {
-                let pluginId = braveSearchPlugin.id
-                let toolName = tool.name
-                toolHandlers["\(pluginId).\(toolName)"] = { args in
-                    try await hooks.onExecute?(toolName, args) ?? ToolResult(text: "Plugin not available")
+    /// Registers tool and streaming handlers for a plugin's hooks.
+    private func registerToolHandlers(pluginId: String, hooks: PluginHooks) {
+        for tool in hooks.tools {
+            let toolName = tool.name
+            toolHandlers["\(pluginId).\(toolName)"] = { args in
+                try await hooks.onExecute?(toolName, args) ?? ToolResult(text: "Plugin not available")
+            }
+            if let streaming = hooks.onExecuteStreaming {
+                toolStreamingHandlers["\(pluginId).\(toolName)"] = { args, progress in
+                    try await streaming(toolName, args, progress)
                 }
             }
         }
-        plugins[braveSearchPlugin.id] = braveSearchPlugin
-        enabledPluginIds.insert(braveSearchPlugin.id)
-
-        let fileSystemPlugin = FileSystemPlugin()
-        if let hooks = try? await fileSystemPlugin.configure(with: input) {
-            hooksMap[fileSystemPlugin.id] = hooks
-            for tool in hooks.tools {
-                let pluginId = fileSystemPlugin.id
-                let toolName = tool.name
-                toolHandlers["\(pluginId).\(toolName)"] = { args in
-                    try await hooks.onExecute?(toolName, args) ?? ToolResult(text: "Plugin not available")
-                }
-            }
-        }
-        plugins[fileSystemPlugin.id] = fileSystemPlugin
-        enabledPluginIds.insert(fileSystemPlugin.id)
-
-        let gitHubPlugin = GitHubPlugin()
-        if let hooks = try? await gitHubPlugin.configure(with: input) {
-            hooksMap[gitHubPlugin.id] = hooks
-            for tool in hooks.tools {
-                let pluginId = gitHubPlugin.id
-                let toolName = tool.name
-                toolHandlers["\(pluginId).\(toolName)"] = { args in
-                    try await hooks.onExecute?(toolName, args) ?? ToolResult(text: "Plugin not available")
-                }
-                if let streaming = hooks.onExecuteStreaming {
-                    toolStreamingHandlers["\(pluginId).\(toolName)"] = { args, progress in
-                        try await streaming(toolName, args, progress)
-                    }
-                }
-            }
-        }
-        plugins[gitHubPlugin.id] = gitHubPlugin
-        enabledPluginIds.insert(gitHubPlugin.id)
     }
 
     func executeTool(pluginId: String, toolName: String, argumentsJSON: String) async throws -> ToolResult {
