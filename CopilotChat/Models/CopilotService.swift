@@ -437,10 +437,19 @@ final class CopilotService {
                     imageData = pluginResult.imageData
                 }
             } else if call.function.name == "task" {
+                if let (agentType, description) = Self.parseTaskArgs(call.function.arguments) {
+                    TaskSessionTracker.shared.startSession(
+                        id: UUID().uuidString,
+                        toolCallId: call.id,
+                        agentType: agentType,
+                        description: description
+                    )
+                }
+                TaskSessionTracker.shared.incrementIterations(forToolCallId: call.id)
                 let pluginResult = try await executePluginTool(call.function.name, argumentsJSON: call.function.arguments)
                 text = pluginResult.text
                 imageData = pluginResult.imageData
-                TaskSessionTracker.shared.completeSessionWithResult(toolCallId: call.id, result: text)
+                TaskSessionTracker.shared.complete(toolCallId: call.id, result: text, messages: [])
             } else if let pluginResult = try? await executePluginTool(call.function.name, argumentsJSON: call.function.arguments) {
                 text = pluginResult.text
                 imageData = pluginResult.imageData
@@ -515,6 +524,16 @@ final class CopilotService {
         }
         let maxResults = args["max_results"] as? Int ?? 5
         return (query, maxResults)
+    }
+
+    private static func parseTaskArgs(_ argumentsJSON: String) -> (agentType: String, description: String)? {
+        guard let data = argumentsJSON.data(using: .utf8),
+              let args = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let agentType = args["subagent_type"] as? String,
+              let description = args["description"] as? String else {
+            return nil
+        }
+        return (agentType, description)
     }
 
     private func executePluginTool(_ name: String, argumentsJSON: String) async throws -> ToolResult {
