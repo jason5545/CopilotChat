@@ -80,7 +80,9 @@ final class PluginRegistry {
     static let shared = PluginRegistry()
 
     func allTools(for mode: AppMode) -> [MCPTool] {
-        var result = baseTools
+        var result = baseTools.filter { tool in
+            ToolModeAvailability.isAvailable(tool.name, for: mode)
+        }
         for (pluginId, hooks) in hooksMap {
             if enabledPluginIds.contains(pluginId) {
                 let filteredTools = hooks.tools.filter { tool in
@@ -214,6 +216,24 @@ final class PluginRegistry {
         await registerBuiltInPlugins()
     }
 
+    func loadPlugins(authManager: AuthManager, settingsStore: SettingsStore, providerRegistry: ProviderRegistry) async {
+        await registerBuiltInPlugins()
+
+        let taskPlugin = TaskPlugin(authManager: authManager, settingsStore: settingsStore, providerRegistry: providerRegistry)
+        if let hooks = try? await taskPlugin.configure(with: PluginInput(deviceId: UIDevice.current.identifierForVendor?.uuidString ?? "unknown")) {
+            hooksMap[taskPlugin.id] = hooks
+            for tool in hooks.tools {
+                let pluginId = taskPlugin.id
+                let toolName = tool.name
+                toolHandlers["\(pluginId).\(toolName)"] = { args in
+                    try await hooks.onExecute?(toolName, args) ?? ToolResult(text: "Plugin not available")
+                }
+            }
+        }
+        plugins[taskPlugin.id] = taskPlugin
+        enabledPluginIds.insert(taskPlugin.id)
+    }
+
     private func registerBuiltInPlugins() async {
         let input = PluginInput(deviceId: UIDevice.current.identifierForVendor?.uuidString ?? "unknown")
         let browserPlugin = BrowserPlugin()
@@ -309,6 +329,10 @@ final class PluginRegistry {
 
     func hooks(for id: String) -> PluginHooks? {
         hooksMap[id]
+    }
+
+    var hooksMapSnapshot: [String: PluginHooks] {
+        hooksMap
     }
 
     enum PluginError: LocalizedError {

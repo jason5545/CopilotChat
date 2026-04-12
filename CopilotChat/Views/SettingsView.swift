@@ -750,7 +750,7 @@ struct PluginPermissionsView: View {
     var body: some View {
         List {
             Section {
-                ForEach(PluginRegistry.shared.registeredPlugins.filter { $0.id != "com.copilotchat.filesystem" && $0.id != "com.copilotchat.github" }, id: \.id) { plugin in
+                ForEach(PluginRegistry.shared.registeredPlugins.filter { $0.id != "com.copilotchat.filesystem" && $0.id != "com.copilotchat.github" && $0.id != "com.copilotchat.task" }, id: \.id) { plugin in
                     pluginRow(plugin)
                         .listRowBackground(Color.carbonSurface)
                 }

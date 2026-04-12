@@ -217,7 +217,7 @@ final class CopilotService {
             if call.function.name == "tool_search" {
                 let (query, maxResults) = Self.parseToolSearchArgs(call.function.arguments)
                 let (resultText, matchedNames) = PluginRegistry.shared.searchTools(
-                    query: query, maxResults: maxResults, in: settingsStore.mcpTools
+                    query: query, maxResults: maxResults, in: settingsStore.mcpTools.filter { ToolModeAvailability.isAvailable($0.name, for: settingsStore.appMode) }
                 )
                         discoveredMCPTools.formUnion(matchedNames)
                     }
@@ -407,7 +407,7 @@ final class CopilotService {
     }
 
     private static let fileSystemToolNames: Set<String> = [
-        "list_files", "read_file", "write_file", "edit_file", "create_file", "delete_file", "move_file", "switch_mode"
+        "list_files", "read_file", "write_file", "edit_file", "create_file", "delete_file", "move_file"
     ]
 
     private func executeSingleToolCall(_ call: ToolCall) async {
@@ -419,26 +419,17 @@ final class CopilotService {
             if call.function.name == "tool_search" {
                 let (query, maxResults) = Self.parseToolSearchArgs(call.function.arguments)
                 let pluginTools = PluginRegistry.shared.allTools(for: settingsStore.appMode)
-                let availableTools = pluginTools + settingsStore.mcpTools
+                let mcpTools = settingsStore.mcpTools.filter { ToolModeAvailability.isAvailable($0.name, for: settingsStore.appMode) }
+                let availableTools = pluginTools + mcpTools
                 let (resultText, matchedNames) = PluginRegistry.shared.searchTools(
                     query: query, maxResults: maxResults, in: availableTools
                 )
                 discoveredMCPTools.formUnion(matchedNames)
                 text = resultText
                 imageData = nil
-            } else if call.function.name == "switch_mode" {
-                let newMode = Self.parseSwitchModeArgs(call.function.arguments)
-                settingsStore.appMode = newMode
-                if newMode == .coding && !WorkspaceManager.shared.hasWorkspace {
-                    text = "Switched to coding mode. Please select a project folder to enable file operations."
-                    await requestWorkspaceSelection()
-                } else {
-                    text = "Switched to \(newMode.label) mode."
-                }
-                imageData = nil
             } else if Self.fileSystemToolNames.contains(call.function.name) {
                 if !WorkspaceManager.shared.hasWorkspace {
-                    text = "No workspace selected. Please switch to coding mode and select a project folder first."
+                    text = "No workspace selected. Please select a project folder to enable file operations."
                     imageData = nil
                 } else {
                     let pluginResult = try await executePluginTool(call.function.name, argumentsJSON: call.function.arguments)
@@ -507,6 +498,10 @@ final class CopilotService {
         }
     }
 
+    static func parseToolSearchArgsPublic(_ argumentsJSON: String) -> (query: String, maxResults: Int) {
+        parseToolSearchArgs(argumentsJSON)
+    }
+
     private static func parseToolSearchArgs(_ argumentsJSON: String) -> (query: String, maxResults: Int) {
         guard let data = argumentsJSON.data(using: .utf8),
               let args = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -515,22 +510,6 @@ final class CopilotService {
         }
         let maxResults = args["max_results"] as? Int ?? 5
         return (query, maxResults)
-    }
-
-    private static func parseSwitchModeArgs(_ argumentsJSON: String) -> AppMode {
-        guard let data = argumentsJSON.data(using: .utf8),
-              let args = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let modeStr = args["mode"] as? String,
-              let mode = AppMode(rawValue: modeStr) else {
-            return .chat
-        }
-        return mode
-    }
-
-    private func requestWorkspaceSelection() async {
-        await MainActor.run {
-            NotificationCenter.default.post(name: .requestWorkspaceSelection, object: nil)
-        }
     }
 
     private func executePluginTool(_ name: String, argumentsJSON: String) async throws -> ToolResult {
@@ -650,7 +629,7 @@ final class CopilotService {
         let model = settingsStore.selectedModel
         let stream: AsyncThrowingStream<SSEEvent, Error>
 
-        // Merge plugin tools with MCP tools (filtered by access mode)
+        // Merge plugin tools (mode-filtered) with MCP tools (always available)
         let allTools: [MCPTool]
         let pluginTools = await PluginRegistry.shared.allTools(for: settingsStore.appMode)
         if settingsStore.toolAccessMode == .loadWhenNeeded && !tools.isEmpty {
@@ -757,7 +736,7 @@ final class CopilotService {
 
     private func streamWithProvider(_ provider: any LLMProvider, updatingAt index: Int, tools: [MCPTool]) async throws {
         let model = currentModelId
-        // Merge built-in tools with MCP tools
+        // Merge built-in tools (mode-filtered) with MCP tools (always available)
         let allTools: [MCPTool]
         let pluginTools = await PluginRegistry.shared.allTools(for: settingsStore.appMode)
         let isAugment = providerRegistry?.activeProviderId == "augment"

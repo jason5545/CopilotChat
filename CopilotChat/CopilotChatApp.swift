@@ -38,7 +38,11 @@ struct CopilotChatApp: App {
                     await registry.loadProviders()
 
                     // Initialize plugin system
-                    await PluginRegistry.shared.loadPlugins()
+                    await PluginRegistry.shared.loadPlugins(
+                        authManager: authManager,
+                        settingsStore: settingsStore,
+                        providerRegistry: registry
+                    )
                 }
             }
             .preferredColorScheme(.dark)

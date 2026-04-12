@@ -49,6 +49,86 @@ struct AgentConfig: Sendable {
         """
 }
 
+// MARK: - Subagent Configuration
+
+enum SubagentMode: String, Sendable {
+    case primary  = "primary"
+    case subagent = "subagent"
+}
+
+struct SubagentDefinition: Sendable {
+    let name: String
+    let mode: SubagentMode
+    let description: String
+    let systemPrompt: String
+    let allowedTools: Set<String>?
+    let deniedTools: Set<String>?
+    let maxIterations: Int
+    let maxOutputTokens: Int?
+    let temperature: Double?
+    let model: String?
+    let thoroughness: SubagentThoroughness?
+
+    struct SubagentThoroughness: Sendable {
+        let label: String
+        let description: String
+    }
+}
+
+enum SubagentRegistry: Sendable {
+
+    static let explore = SubagentDefinition(
+        name: "explore",
+        mode: .subagent,
+        description: "Fast agent specialized for exploring codebases. Use this agent when you need to quickly find files by patterns (e.g. \"src/**/*.tsx\"), search code for keywords (e.g. \"API endpoints\"), or answer questions about the codebase (e.g. \"how do API endpoints work?\"). When calling this agent, specify the desired thoroughness level: quick for basic searches, medium for moderate exploration, or very thorough for comprehensive analysis across multiple locations and naming conventions.",
+        systemPrompt: """
+            You are a fast codebase exploration agent. Your job is to search and read files to answer questions about the codebase. You have access to read-only tools: list_files, read_file, grep_files, tool_search, and switch_mode.
+
+            IMPORTANT RULES:
+            - NEVER edit, write, create, delete, or move any files
+            - NEVER execute shell commands or scripts
+            - Only use tools to READ and SEARCH the codebase
+            - Be thorough but efficient — read files in parallel when possible
+            - Return your findings as a concise, well-organized summary
+            - Include specific file paths and line numbers when referencing code
+            - If you cannot find the answer, say so clearly rather than guessing
+            """,
+        allowedTools: ["list_files", "read_file", "grep_files", "tool_search", "switch_mode", "brave_web_search"],
+        deniedTools: ["write_file", "edit_file", "create_file", "delete_file", "move_file", "curl_request", "wget_download", "web_screenshot"],
+        maxIterations: 10,
+        maxOutputTokens: nil,
+        temperature: nil,
+        model: nil,
+        thoroughness: .init(label: "thoroughness", description: "Desired thoroughness level for exploration: quick, medium, very thorough")
+    )
+
+    static let general = SubagentDefinition(
+        name: "general",
+        mode: .subagent,
+        description: "General-purpose agent for researching complex questions and executing multi-step tasks that require combining multiple tools. Use this agent when you need to perform multiple related searches, fetch web content, and synthesize information from various sources.",
+        systemPrompt: """
+            You are a general-purpose research agent. You can search the codebase, fetch web content, and use available tools to answer questions comprehensively. Focus on being thorough and returning well-organized results. Include specific references (file paths, URLs) in your findings.
+            """,
+        allowedTools: nil,
+        deniedTools: ["write_file", "edit_file", "create_file", "delete_file", "move_file"],
+        maxIterations: 15,
+        maxOutputTokens: nil,
+        temperature: nil,
+        model: nil,
+        thoroughness: nil
+    )
+
+    private static let all: [SubagentDefinition] = [explore, general]
+
+    static func resolve(_ name: String) -> SubagentDefinition? {
+        all.first { $0.name == name }
+    }
+
+    static func availableTypes() -> [SubagentDefinition] {
+        all.filter { $0.mode == .subagent }
+    }
+}
+
 // MARK: - Title Generator
 
 /// Generates conversation titles using a lightweight LLM call.

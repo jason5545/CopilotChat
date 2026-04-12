@@ -164,22 +164,6 @@ final class FileSystemPlugin: Plugin {
                 ],
                 serverName: name
             ),
-            MCPTool(
-                name: "switch_mode",
-                description: "Switch between chat and coding mode. Use 'coding' mode when you need to read, write, or modify code files. Use 'chat' mode for general conversation.",
-                inputSchema: [
-                    "type": AnyCodable("object"),
-                    "properties": AnyCodable([
-                        "mode": [
-                            "type": "string",
-                            "description": "The mode to switch to: 'chat' for general conversation, 'coding' for file operations.",
-                            "enum": ["chat", "coding"],
-                        ] as [String: Any],
-                    ] as [String: Any]),
-                    "required": AnyCodable(["mode"]),
-                ],
-                serverName: name
-            ),
         ]
 
         return PluginHooks(tools: tools) { [weak self] toolName, argumentsJSON in

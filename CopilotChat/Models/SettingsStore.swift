@@ -101,16 +101,10 @@ enum ToolModeAvailability {
         "github_branch_create", "github_remote_list", "github_tag_list",
         "github_list_repos", "github_create_repo",
         "curl_request", "wget_download",
-    ]
-
-    static let alwaysAvailableTools: Set<String> = [
-        "switch_mode", "tool_search"
+        "task",
     ]
 
     static func isAvailable(_ toolName: String, for mode: AppMode) -> Bool {
-        if alwaysAvailableTools.contains(toolName) {
-            return true
-        }
         if codingOnlyTools.contains(toolName) {
             return mode == .coding
         }
