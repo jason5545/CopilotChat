@@ -436,6 +436,11 @@ final class CopilotService {
                     text = pluginResult.text
                     imageData = pluginResult.imageData
                 }
+            } else if call.function.name == "task" {
+                let pluginResult = try await executePluginTool(call.function.name, argumentsJSON: call.function.arguments)
+                text = pluginResult.text
+                imageData = pluginResult.imageData
+                TaskSessionTracker.shared.completeSessionWithResult(toolCallId: call.id, result: text)
             } else if let pluginResult = try? await executePluginTool(call.function.name, argumentsJSON: call.function.arguments) {
                 text = pluginResult.text
                 imageData = pluginResult.imageData

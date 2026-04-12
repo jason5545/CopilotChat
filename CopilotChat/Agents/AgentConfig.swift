@@ -56,13 +56,42 @@ enum SubagentMode: String, Sendable {
     case subagent = "subagent"
 }
 
+enum ToolPermissionAction: String, Sendable {
+    case allow
+    case deny
+    case ask
+}
+
+struct ToolPermissionRule: Sendable, Hashable {
+    let toolName: String
+    let pattern: String
+    let action: ToolPermissionAction
+
+    init(_ toolName: String, pattern: String = "*", action: ToolPermissionAction) {
+        self.toolName = toolName
+        self.pattern = pattern
+        self.action = action
+    }
+
+    static func defaultRules(denyAll: Bool = false) -> [ToolPermissionRule] {
+        var rules: [ToolPermissionRule] = [
+            .init("tool_search", action: .allow),
+            .init("todowrite", action: denyAll ? .deny : .allow),
+            .init("task", action: denyAll ? .deny : .allow),
+        ]
+        if denyAll {
+            rules.append(.init("*", action: .deny))
+        }
+        return rules
+    }
+}
+
 struct SubagentDefinition: Sendable {
     let name: String
     let mode: SubagentMode
     let description: String
     let systemPrompt: String
-    let allowedTools: Set<String>?
-    let deniedTools: Set<String>?
+    let permissionRules: [ToolPermissionRule]
     let maxIterations: Int
     let maxOutputTokens: Int?
     let temperature: Double?
@@ -82,7 +111,7 @@ enum SubagentRegistry: Sendable {
         mode: .subagent,
         description: "Fast agent specialized for exploring codebases. Use this agent when you need to quickly find files by patterns (e.g. \"src/**/*.tsx\"), search code for keywords (e.g. \"API endpoints\"), or answer questions about the codebase (e.g. \"how do API endpoints work?\"). When calling this agent, specify the desired thoroughness level: quick for basic searches, medium for moderate exploration, or very thorough for comprehensive analysis across multiple locations and naming conventions.",
         systemPrompt: """
-            You are a fast codebase exploration agent. Your job is to search and read files to answer questions about the codebase. You have access to read-only tools: list_files, read_file, grep_files, tool_search, and switch_mode.
+            You are a fast codebase exploration agent. Your job is to search and read files to answer questions about the codebase. You have access to read-only tools: list_files, read_file, grep_files, tool_search, switch_mode, and web search.
 
             IMPORTANT RULES:
             - NEVER edit, write, create, delete, or move any files
@@ -93,8 +122,25 @@ enum SubagentRegistry: Sendable {
             - Include specific file paths and line numbers when referencing code
             - If you cannot find the answer, say so clearly rather than guessing
             """,
-        allowedTools: ["list_files", "read_file", "grep_files", "tool_search", "switch_mode", "brave_web_search"],
-        deniedTools: ["write_file", "edit_file", "create_file", "delete_file", "move_file", "curl_request", "wget_download", "web_screenshot"],
+        permissionRules: [
+            .init("list_files", action: .allow),
+            .init("read_file", action: .allow),
+            .init("grep_files", action: .allow),
+            .init("tool_search", action: .allow),
+            .init("switch_mode", action: .allow),
+            .init("brave_web_search", action: .allow),
+            .init("write_file", action: .deny),
+            .init("edit_file", action: .deny),
+            .init("create_file", action: .deny),
+            .init("delete_file", action: .deny),
+            .init("move_file", action: .deny),
+            .init("curl_request", action: .deny),
+            .init("wget_download", action: .deny),
+            .init("web_screenshot", action: .deny),
+            .init("todowrite", action: .deny),
+            .init("task", action: .deny),
+            .init("*", action: .deny),
+        ],
         maxIterations: 10,
         maxOutputTokens: nil,
         temperature: nil,
@@ -109,8 +155,15 @@ enum SubagentRegistry: Sendable {
         systemPrompt: """
             You are a general-purpose research agent. You can search the codebase, fetch web content, and use available tools to answer questions comprehensively. Focus on being thorough and returning well-organized results. Include specific references (file paths, URLs) in your findings.
             """,
-        allowedTools: nil,
-        deniedTools: ["write_file", "edit_file", "create_file", "delete_file", "move_file"],
+        permissionRules: [
+            .init("todowrite", action: .deny),
+            .init("task", action: .deny),
+            .init("write_file", action: .deny),
+            .init("edit_file", action: .deny),
+            .init("create_file", action: .deny),
+            .init("delete_file", action: .deny),
+            .init("move_file", action: .deny),
+        ],
         maxIterations: 15,
         maxOutputTokens: nil,
         temperature: nil,

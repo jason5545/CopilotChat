@@ -504,6 +504,20 @@ struct MessageView: View {
     }
 
     private var toolResultMessage: some View {
+        if let toolCallId = message.toolCallId,
+           message.toolName == "task",
+           TaskSessionTracker.shared.isTaskToolResult(toolCallId) {
+            AnyView(
+                TaskMessageView(toolCallId: toolCallId)
+                    .padding(.horizontal, Carbon.messagePaddingH)
+                    .padding(.vertical, Carbon.spacingTight)
+            )
+        } else {
+            AnyView(standardToolResult)
+        }
+    }
+
+    private var standardToolResult: some View {
         VStack(alignment: .leading, spacing: Carbon.spacingTight) {
             HStack(spacing: 6) {
                 toolCallStatusIcon(toolResultStatus)
