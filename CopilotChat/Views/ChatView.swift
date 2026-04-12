@@ -123,6 +123,7 @@ struct ChatView: View {
             LazyVStack(spacing: 0) {
                 if copilotService.isStreaming {
                     streamingIndicator
+                        .flippedForChat()
                 }
 
                 ForEach(copilotService.messages.reversed()) { message in
@@ -151,6 +152,7 @@ struct ChatView: View {
                             Haptics.impact(.medium)
                         } : nil
                     )
+                    .flippedForChat()
                     .contextMenu {
                         if message.role == .user || message.role == .assistant {
                             if !message.content.isEmpty {
@@ -181,19 +183,23 @@ struct ChatView: View {
 
                     if isSummary {
                         compactionDivider
+                            .flippedForChat()
                     }
                 }
 
                 if copilotService.messages.isEmpty {
                     emptyStateContent
+                        .flippedForChat()
                 }
 
                 if let error = copilotService.streamingError {
                     errorBanner(error)
+                        .flippedForChat()
                 }
             }
             .padding(.vertical, Carbon.spacingBase)
         }
+        .flippedForChat()
         .scrollPosition($scrollPosition)
         .defaultScrollAnchor(.bottom)
         .scrollDismissesKeyboard(.interactively)
