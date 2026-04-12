@@ -53,9 +53,6 @@ final class ProviderRegistry {
     /// Loading state
     var isLoadingProviders = false
 
-    /// OpenAI Codex OAuth
-    let codexAuth = OpenAICodexAuth()
-
     private let authManager: AuthManager
 
     init(authManager: AuthManager) {
@@ -264,7 +261,7 @@ final class ProviderRegistry {
 
         // Special case: OpenAI Codex (OAuth or API key)
         if providerId == "openai-codex" {
-            if codexAuth.isAuthenticated {
+            if let codexAuth = PluginRegistry.shared.codexAuth, codexAuth.isAuthenticated {
                 return OpenAICodexProvider(auth: codexAuth)
             }
             if let mdProvider = modelsDevProviders[providerId],
@@ -362,7 +359,7 @@ final class ProviderRegistry {
             result.append(copilot)
         }
         // Show Codex if authenticated (OAuth or API key)
-        if codexAuth.isAuthenticated || loadAPIKey(for: "openai-codex") != nil,
+        if (PluginRegistry.shared.codexAuth?.isAuthenticated ?? false) || loadAPIKey(for: "openai-codex") != nil,
            let codex = modelsDevProviders["openai-codex"] {
             result.append(codex)
         }
@@ -432,7 +429,7 @@ final class ProviderRegistry {
 
     func hasAPIKey(for providerId: String) -> Bool {
         if providerId == "github-copilot" { return authManager.isAuthenticated }
-        if providerId == "openai-codex" { return codexAuth.isAuthenticated || loadAPIKey(for: providerId) != nil }
+        if providerId == "openai-codex" { return (PluginRegistry.shared.codexAuth?.isAuthenticated ?? false) || loadAPIKey(for: providerId) != nil }
         if providerId == "augment" { return loadAPIKey(for: providerId) != nil && loadAugmentTenantURL() != nil }
         return loadAPIKey(for: providerId) != nil
     }

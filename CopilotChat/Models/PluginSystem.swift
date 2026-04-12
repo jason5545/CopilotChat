@@ -56,19 +56,34 @@ protocol Plugin: Sendable {
     func configure(with input: PluginInput) async throws -> PluginHooks
 }
 
+struct AuthHook: Sendable {
+    let providerId: String
+    let isAuthenticated: @MainActor @Sendable () -> Bool
+    let isAuthenticating: @MainActor @Sendable () -> Bool
+    let authError: @MainActor @Sendable () -> String?
+    let deviceUserCode: @MainActor @Sendable () -> String?
+    let startDeviceFlow: @MainActor @Sendable () async -> Void
+    let signOut: @MainActor @Sendable () -> Void
+    let validAccessToken: @Sendable () async throws -> String
+    let accountId: @MainActor @Sendable () -> String?
+}
+
 struct PluginHooks: Sendable {
     let tools: [MCPTool]
     let onExecute: (@Sendable (String, String) async throws -> ToolResult)?
     let onExecuteStreaming: (@Sendable (String, String, @escaping @Sendable (String) -> Void) async throws -> ToolResult)?
+    let auth: AuthHook?
 
     init(
         tools: [MCPTool] = [],
         onExecute: (@Sendable (String, String) async throws -> ToolResult)? = nil,
-        onExecuteStreaming: (@Sendable (String, String, @escaping @Sendable (String) -> Void) async throws -> ToolResult)? = nil
+        onExecuteStreaming: (@Sendable (String, String, @escaping @Sendable (String) -> Void) async throws -> ToolResult)? = nil,
+        auth: AuthHook? = nil
     ) {
         self.tools = tools
         self.onExecute = onExecute
         self.onExecuteStreaming = onExecuteStreaming
+        self.auth = auth
     }
 }
 
@@ -219,6 +234,13 @@ final class PluginRegistry {
     func loadPlugins(authManager: AuthManager, settingsStore: SettingsStore, providerRegistry: ProviderRegistry) async {
         await registerBuiltInPlugins()
 
+        let codexPlugin = CodexPlugin()
+        if let hooks = try? await codexPlugin.configure(with: PluginInput(deviceId: UIDevice.current.identifierForVendor?.uuidString ?? "unknown")) {
+            hooksMap[codexPlugin.id] = hooks
+        }
+        plugins[codexPlugin.id] = codexPlugin
+        enabledPluginIds.insert(codexPlugin.id)
+
         let taskPlugin = TaskPlugin(authManager: authManager, settingsStore: settingsStore, providerRegistry: providerRegistry)
         if let hooks = try? await taskPlugin.configure(with: PluginInput(deviceId: UIDevice.current.identifierForVendor?.uuidString ?? "unknown")) {
             hooksMap[taskPlugin.id] = hooks
@@ -329,6 +351,19 @@ final class PluginRegistry {
 
     func hooks(for id: String) -> PluginHooks? {
         hooksMap[id]
+    }
+
+    func authHook(for providerId: String) -> AuthHook? {
+        for (_, hooks) in hooksMap {
+            if let auth = hooks.auth, auth.providerId == providerId {
+                return auth
+            }
+        }
+        return nil
+    }
+
+    var codexAuth: OpenAICodexAuth? {
+        (plugins["com.copilotchat.codex"] as? CodexPlugin)?.auth
     }
 
     var hooksMapSnapshot: [String: PluginHooks] {

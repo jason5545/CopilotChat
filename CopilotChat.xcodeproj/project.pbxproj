@@ -33,6 +33,7 @@
 		6C543946749F610AEFF911FB /* Repository.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0940E2105768196D8EDEAA4 /* Repository.swift */; };
 		6D7281536891819B22222881 /* InlineMarkdownText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BCA1ABF6355F286581ED29D /* InlineMarkdownText.swift */; };
 		6DE0A934AAB7EA289796F680 /* AugmentProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F16905024963E4B56A1A1AD6 /* AugmentProvider.swift */; };
+		71CA60AEAD628A8AAF4E3B18 /* CodexPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9F69842DB8F0CFA801E58B /* CodexPlugin.swift */; };
 		7428DAB3E58F070AE15DC483 /* AnthropicCompatibleProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A7952ABDE829166129173B6 /* AnthropicCompatibleProvider.swift */; };
 		780C1E6B6A3D696CB6882F87 /* CopilotService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4D6D250CD46F217D156DA5E /* CopilotService.swift */; };
 		798090EBA4EE822753024570 /* LLMProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85E7A0731D3332AC0E687019 /* LLMProvider.swift */; };
@@ -153,6 +154,7 @@
 		EDE8D6B39D4CE3CC02F64DC5 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		F10C45584AE57D7B8B18535A /* Errors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Errors.swift; sourceTree = "<group>"; };
 		F16905024963E4B56A1A1AD6 /* AugmentProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AugmentProvider.swift; sourceTree = "<group>"; };
+		FA9F69842DB8F0CFA801E58B /* CodexPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexPlugin.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -174,6 +176,7 @@
 				1779C9901FB3A2DA63DE4C80 /* CExtPlugin.swift */,
 				87F036A16CF5AE6B700305D3 /* CExtPluginManager.swift */,
 				16DB1EC5909ACF0B5B392F63 /* ChatModels.swift */,
+				FA9F69842DB8F0CFA801E58B /* CodexPlugin.swift */,
 				80321460D59EA7CCC12B17C1 /* Conversation.swift */,
 				B7156A2F3FCF640CE82D1D4D /* ConversationStore.swift */,
 				D4D6D250CD46F217D156DA5E /* CopilotService.swift */,
@@ -321,7 +324,7 @@
 			);
 			sourceTree = "<group>";
 		};
-		"TEMP_E0912F9E-AE46-40EA-BB56-A265C4A15852" /* Theme */ = {
+		"TEMP_B3D2D484-E863-4251-943C-F4681F572909" /* Theme */ = {
 			isa = PBXGroup;
 			children = (
 			);
@@ -446,6 +449,7 @@
 				F5BCCA22632FE40F5BE33602 /* ChatModels.swift in Sources */,
 				618203C783472CF073B70DBA /* ChatView.swift in Sources */,
 				2172D58D819B5A91FCB3527F /* CheckoutStrategy.swift in Sources */,
+				71CA60AEAD628A8AAF4E3B18 /* CodexPlugin.swift in Sources */,
 				7E8EF459F2E1EC13FDC76506 /* CommitIterator.swift in Sources */,
 				245E035ACB480E48764C62A4 /* ContentView.swift in Sources */,
 				ECF63E50B10ECC6E57BEB873 /* Conversation.swift in Sources */,

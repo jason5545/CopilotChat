@@ -244,9 +244,9 @@ struct SettingsView: View {
                                 Spacer()
 
                                 if provider.id == "openai-codex" {
-                                    if registry.codexAuth.isAuthenticated {
+                                    if PluginRegistry.shared.codexAuth?.isAuthenticated == true {
                                         Button {
-                                            registry.codexAuth.signOut()
+                                            PluginRegistry.shared.codexAuth?.signOut()
                                         } label: {
                                             Image(systemName: "rectangle.portrait.and.arrow.right")
                                                 .font(.caption2)
@@ -791,6 +791,16 @@ struct PluginPermissionsView: View {
     }
 
     @ViewBuilder
+    private func pluginDescription(_ plugin: any Plugin) -> String {
+        let hooks = PluginRegistry.shared.hooks(for: plugin.id)
+        if let auth = hooks?.auth {
+            return auth.isAuthenticated() ? "OAuth authenticated" : "OAuth"
+        }
+        let count = hooks?.tools.count ?? 0
+        return "\(count) tool\(count == 1 ? "" : "s")"
+    }
+
+    @ViewBuilder
     private func pluginRow(_ plugin: any Plugin) -> some View {
         if plugin.id == "com.copilotchat.brave-search" {
             VStack(alignment: .leading, spacing: 8) {
@@ -799,7 +809,7 @@ struct PluginPermissionsView: View {
                         Text(plugin.name)
                             .font(.carbonSans(.subheadline, weight: .medium))
                             .foregroundStyle(Color.carbonText)
-                        Text("\(PluginRegistry.shared.hooks(for: plugin.id)?.tools.count ?? 0) tools")
+                        Text(pluginDescription(plugin))
                             .font(.carbonMono(.caption2))
                             .foregroundStyle(Color.carbonTextTertiary)
                     }
@@ -876,7 +886,7 @@ struct PluginPermissionsView: View {
                     Text(plugin.name)
                         .font(.carbonSans(.subheadline, weight: .medium))
                         .foregroundStyle(Color.carbonText)
-                    Text("\(PluginRegistry.shared.hooks(for: plugin.id)?.tools.count ?? 0) tools")
+                    Text(pluginDescription(plugin))
                         .font(.carbonMono(.caption2))
                         .foregroundStyle(Color.carbonTextTertiary)
                 }
@@ -1569,13 +1579,13 @@ struct ProviderPickerView: View {
             // OAuth option (for providers that support it)
             if provider.id == "openai-codex" {
                 Section {
-                    if registry?.codexAuth.isAuthenticating == true {
+                    if PluginRegistry.shared.codexAuth?.isAuthenticating == true {
                         HStack(spacing: 10) {
                             ProgressView()
                                 .tint(Color.carbonAccent)
                                 .scaleEffect(0.8)
                             VStack(alignment: .leading, spacing: 2) {
-                                if let code = registry?.codexAuth.deviceUserCode {
+                                if let code = PluginRegistry.shared.codexAuth?.deviceUserCode {
                                     Text("Code: \(code)")
                                         .font(.carbonMono(.subheadline, weight: .bold))
                                         .foregroundStyle(Color.carbonAccent)
@@ -1593,8 +1603,8 @@ struct ProviderPickerView: View {
                     } else {
                         Button {
                             Task {
-                                await registry?.codexAuth.startDeviceFlow()
-                                if registry?.codexAuth.isAuthenticated == true {
+                                await PluginRegistry.shared.codexAuth?.startDeviceFlow()
+                                if PluginRegistry.shared.codexAuth?.isAuthenticated == true {
                                     registry?.activeProviderId = provider.id
                                     dismiss()
                                 }
@@ -1616,7 +1626,7 @@ struct ProviderPickerView: View {
                         .listRowBackground(Color.carbonSurface)
                     }
 
-                    if let error = registry?.codexAuth.authError {
+                    if let error = PluginRegistry.shared.codexAuth?.authError {
                         Text(error)
                             .font(.carbonMono(.caption2))
                             .foregroundStyle(Color.carbonWarning)
