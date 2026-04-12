@@ -39,12 +39,12 @@
 		7E8EF459F2E1EC13FDC76506 /* CommitIterator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E2CF0071C7693B6CD6264B4 /* CommitIterator.swift */; };
 		7F60716EF05D8ECC845214A9 /* Credentials.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67240B30469D6484EEF2634F /* Credentials.swift */; };
 		82EA680B0A0A23D8DCE40446 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F9FAE980CC6C7D80EA66144 /* KeychainHelper.swift */; };
+		8363C5ADC4F82B296A51511B /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B58A576E495CB3AA8A9BC9C9 /* PrivacyInfo.xcprivacy */; };
 		950435E7A28E106814422C1A /* ChatModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FD38A96474027CB84715BBB /* ChatModelsTests.swift */; };
 		9594396D7C49C3E8523AA1DC /* MarkdownParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E727D66DA592BDBB40BFE139 /* MarkdownParserTests.swift */; };
 		9E7C959C42469CB554361ECD /* SSEParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = B227DEC32A2814C3394FAE76 /* SSEParser.swift */; };
 		A0085F026C04E57011AACD5E /* GitHubPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3D53A8C8EF2A56D9D60B5EE /* GitHubPlugin.swift */; };
 		A9666FCA126D95072BF68F32 /* CExtPluginsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DBB39AB40216F734E2CA921 /* CExtPluginsView.swift */; };
-		B8C18F1261E0958AB5379277 /* Clibgit2.xcframework in Resources */ = {isa = PBXBuildFile; fileRef = FD665D6C3600F9F3CD1114A9 /* Clibgit2.xcframework */; };
 		B9ABB2CF6F8B94253655D35C /* MessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B96E5A9BE12959957495FCCA /* MessageView.swift */; };
 		BDE2ED665348FE70F1164F8A /* Diffs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 538FEDAA63DF405FF22CE701 /* Diffs.swift */; };
 		C0EB0BE2107A048AE2457395 /* AgentConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10F4C84C35E01FB46BEE9B08 /* AgentConfig.swift */; };
@@ -85,6 +85,7 @@
 		095D95CCFBFE3A4CB52AED3A /* ConversationHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationHistoryView.swift; sourceTree = "<group>"; };
 		0E27429D563A6EF3071A17A0 /* BuildAPIMessagesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildAPIMessagesTests.swift; sourceTree = "<group>"; };
 		0E4C54DF2D9B605822055885 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
+		0E94D5F865D2408864A2AF3C /* CopilotChat.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CopilotChat.entitlements; sourceTree = "<group>"; };
 		10F4C84C35E01FB46BEE9B08 /* AgentConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentConfig.swift; sourceTree = "<group>"; };
 		16DB1EC5909ACF0B5B392F63 /* ChatModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatModels.swift; sourceTree = "<group>"; };
 		1779C9901FB3A2DA63DE4C80 /* CExtPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CExtPlugin.swift; sourceTree = "<group>"; };
@@ -127,6 +128,7 @@
 		B0940E2105768196D8EDEAA4 /* Repository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Repository.swift; sourceTree = "<group>"; };
 		B227DEC32A2814C3394FAE76 /* SSEParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSEParser.swift; sourceTree = "<group>"; };
 		B2ABD5318D1C1FEAD11AFD93 /* CopilotChat.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = CopilotChat.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B58A576E495CB3AA8A9BC9C9 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		B7156A2F3FCF640CE82D1D4D /* ConversationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationStore.swift; sourceTree = "<group>"; };
 		B96E5A9BE12959957495FCCA /* MessageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageView.swift; sourceTree = "<group>"; };
 		BA03BAA5F84B352A026DF189 /* Remotes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Remotes.swift; sourceTree = "<group>"; };
@@ -143,7 +145,6 @@
 		EDE8D6B39D4CE3CC02F64DC5 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		F10C45584AE57D7B8B18535A /* Errors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Errors.swift; sourceTree = "<group>"; };
 		F16905024963E4B56A1A1AD6 /* AugmentProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AugmentProvider.swift; sourceTree = "<group>"; };
-		FD665D6C3600F9F3CD1114A9 /* Clibgit2.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Clibgit2.xcframework; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -259,10 +260,11 @@
 			isa = PBXGroup;
 			children = (
 				A7B782DFE064DC7FD97C4A83 /* Assets.xcassets */,
-				FD665D6C3600F9F3CD1114A9 /* Clibgit2.xcframework */,
 				73E1C308EAC55AC71B9FE65D /* ContentView.swift */,
+				0E94D5F865D2408864A2AF3C /* CopilotChat.entitlements */,
 				A877976EB8149831636E8E06 /* CopilotChatApp.swift */,
 				0E4C54DF2D9B605822055885 /* DesignSystem.swift */,
+				B58A576E495CB3AA8A9BC9C9 /* PrivacyInfo.xcprivacy */,
 				ECCDEEBAA676A10076B4015C /* Agents */,
 				12F4A27B9A5B53598863A0FA /* Models */,
 				4C7EBE1F4AB1856589D3B840 /* Providers */,
@@ -307,7 +309,7 @@
 			);
 			sourceTree = "<group>";
 		};
-		"TEMP_255BA15A-9B3A-4DA2-9FE0-DE029A648D45" /* Theme */ = {
+		"TEMP_3FF5F0B3-0160-4FDB-95A6-3103F59172D9" /* Theme */ = {
 			isa = PBXGroup;
 			children = (
 			);
@@ -399,7 +401,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				7ABC55784E0EBBF9AFFB150B /* Assets.xcassets in Resources */,
-				B8C18F1261E0958AB5379277 /* Clibgit2.xcframework in Resources */,
+				8363C5ADC4F82B296A51511B /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -530,6 +532,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = CopilotChat/CopilotChat.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = MW4GWYGX56;
@@ -692,6 +695,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = CopilotChat/CopilotChat.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = MW4GWYGX56;

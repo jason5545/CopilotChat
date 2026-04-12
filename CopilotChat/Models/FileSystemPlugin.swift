@@ -138,6 +138,33 @@ final class FileSystemPlugin: Plugin {
                 serverName: name
             ),
             MCPTool(
+                name: "grep_files",
+                description: "Search file contents for a pattern across the workspace. Returns matching file paths, line numbers, and matching lines.",
+                inputSchema: [
+                    "type": AnyCodable("object"),
+                    "properties": AnyCodable([
+                        "pattern": [
+                            "type": "string",
+                            "description": "The text or regex pattern to search for.",
+                        ] as [String: Any],
+                        "path": [
+                            "type": "string",
+                            "description": "The directory path to search in. Use \".\" for the workspace root.",
+                        ] as [String: Any],
+                        "include": [
+                            "type": "string",
+                            "description": "Glob pattern to filter files (e.g. \"*.swift\", \"*.{ts,tsx}\"). Default: all files.",
+                        ] as [String: Any],
+                        "case_insensitive": [
+                            "type": "boolean",
+                            "description": "Perform case-insensitive search. Default: false.",
+                        ] as [String: Any],
+                    ] as [String: Any]),
+                    "required": AnyCodable(["pattern"]),
+                ],
+                serverName: name
+            ),
+            MCPTool(
                 name: "switch_mode",
                 description: "Switch between chat and coding mode. Use 'coding' mode when you need to read, write, or modify code files. Use 'chat' mode for general conversation.",
                 inputSchema: [
@@ -183,6 +210,8 @@ final class FileSystemPlugin: Plugin {
             return workspaceManager.deleteFile(argumentsJSON: argumentsJSON)
         case "move_file":
             return workspaceManager.moveFile(argumentsJSON: argumentsJSON)
+        case "grep_files":
+            return try await workspaceManager.grepFiles(argumentsJSON: argumentsJSON)
         default:
             throw PluginRegistry.PluginError.unknownTool(name)
         }
@@ -372,6 +401,10 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
             throw FileSystemPluginError.operationFailed("File coordination failed during write")
         }
         return try result.get()
+    }
+
+    func resolvePathPublic(_ path: String) -> URL? {
+        resolvePath(path)
     }
 
     func listFiles(argumentsJSON: String) -> ToolResult {
@@ -640,6 +673,111 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
         } catch {
             return ToolResult(text: "Error moving file: \(error.localizedDescription)")
         }
+    }
+
+    func grepFiles(argumentsJSON: String) async throws -> ToolResult {
+        guard _currentURL != nil, _isAccessing else {
+            return ToolResult(text: "Workspace not accessible")
+        }
+
+        let pattern: String
+        let path: String
+        let include: String?
+        let caseInsensitive: Bool
+        do {
+            pattern = try parseArgument(argumentsJSON, key: "pattern")
+            path = try parseArgument(argumentsJSON, key: "path", defaultValue: ".")
+            include = try? parseArgument(argumentsJSON, key: "include", defaultValue: nil)
+            caseInsensitive = parseBoolArgument(argumentsJSON, key: "case_insensitive", defaultValue: false)
+        } catch {
+            return ToolResult(text: "Error parsing arguments: \(error.localizedDescription)")
+        }
+
+        guard let searchURL = resolvePath(path) else {
+            return ToolResult(text: "Invalid path: \(path)")
+        }
+
+        let regexOptions: NSRegularExpression.Options = caseInsensitive ? [.caseInsensitive] : []
+        let regex: NSRegularExpression
+        do {
+            regex = try NSRegularExpression(pattern: pattern, options: regexOptions)
+        } catch {
+            return ToolResult(text: "Invalid regex pattern: \(error.localizedDescription)")
+        }
+
+        let extensions = parseIncludeGlob(include)
+        var results: [String] = []
+        let maxResults = 50
+
+        func searchDirectory(_ dirURL: URL) {
+            guard let enumerator = FileManager.default.enumerator(
+                at: dirURL,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            ) else { return }
+
+            for case let fileURL as URL in enumerator {
+                guard results.count < maxResults else { break }
+
+                var isDir: ObjCBool = false
+                guard FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDir),
+                      !isDir.boolValue else { continue }
+
+                if !extensions.isEmpty {
+                    let ext = fileURL.pathExtension.lowercased()
+                    if !extensions.contains(ext) {
+                        continue
+                    }
+                }
+
+                guard let content = try? String(contentsOf: fileURL, encoding: .utf8) else { continue }
+
+                let nsContent = content as NSString
+                let fullRange = NSRange(location: 0, length: nsContent.length)
+                let matches = regex.matches(in: content as String, options: [], range: fullRange)
+
+                guard !matches.isEmpty else { continue }
+
+                let relativePath: String
+                if let root = _currentURL {
+                    relativePath = String(fileURL.path.dropFirst(root.path.count + 1))
+                } else {
+                    relativePath = fileURL.lastPathComponent
+                }
+
+                for match in matches.prefix(10) {
+                    let lineRange = nsContent.lineRange(for: match.range)
+                    let lineNumber = nsContent.substring(with: NSRange(location: 0, length: lineRange.lowerBound))
+                        .components(separatedBy: .newlines).count
+                    let lineText = nsContent.substring(with: lineRange).trimmingCharacters(in: .newlines)
+                    results.append("\(relativePath):\(lineNumber): \(lineText)")
+                }
+            }
+        }
+
+        try? coordinatedRead(at: searchURL) { coordinatedURL in
+            searchDirectory(coordinatedURL)
+        }
+
+        if results.isEmpty {
+            return ToolResult(text: "No matches found for pattern: \(pattern)")
+        }
+
+        let truncated = results.count >= maxResults ? "\n\n(Results truncated at \(maxResults) matches)" : ""
+        return ToolResult(text: results.joined(separator: "\n") + truncated)
+    }
+
+    private func parseIncludeGlob(_ glob: String?) -> [String] {
+        guard let glob, !glob.isEmpty else { return [] }
+        if glob.hasPrefix("*.") {
+            let ext = String(glob.dropFirst(2)).lowercased()
+            if ext.hasPrefix("{") && ext.hasSuffix("}") {
+                let inner = String(ext.dropFirst().dropLast())
+                return inner.split(separator: ",").map(String.init)
+            }
+            return [ext]
+        }
+        return []
     }
 
     private func parseArgument(_ json: String, key: String, defaultValue: String? = nil) throws -> String {

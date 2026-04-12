@@ -366,6 +366,65 @@ final class BrowserPlugin: Plugin {
                 ],
                 serverName: name
             ),
+            MCPTool(
+                name: "curl_request",
+                description: "Make an HTTP request and return the response body, status code, and headers. Supports GET, POST, PUT, DELETE, PATCH, HEAD, and OPTIONS methods.",
+                inputSchema: [
+                    "type": AnyCodable("object"),
+                    "properties": AnyCodable([
+                        "url": [
+                            "type": "string",
+                            "description": "The URL to request (must start with http:// or https://)",
+                        ] as [String: Any],
+                        "method": [
+                            "type": "string",
+                            "description": "HTTP method: GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS. Default: GET.",
+                            "enum": ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"],
+                        ] as [String: Any],
+                        "headers": [
+                            "type": "object",
+                            "description": "HTTP headers as key-value pairs.",
+                        ] as [String: Any],
+                        "body": [
+                            "type": "string",
+                            "description": "Request body (for POST, PUT, PATCH).",
+                        ] as [String: Any],
+                        "timeout": [
+                            "type": "integer",
+                            "description": "Timeout in seconds (default: 30).",
+                        ] as [String: Any],
+                    ] as [String: Any]),
+                    "required": AnyCodable(["url"]),
+                ],
+                serverName: name
+            ),
+            MCPTool(
+                name: "wget_download",
+                description: "Download a file from a URL and save it directly to the workspace. Unlike curl_request, this has no body size limit and saves the raw response to disk.",
+                inputSchema: [
+                    "type": AnyCodable("object"),
+                    "properties": AnyCodable([
+                        "url": [
+                            "type": "string",
+                            "description": "The URL to download from (must start with http:// or https://)",
+                        ] as [String: Any],
+                        "save_path": [
+                            "type": "string",
+                            "description": "The file path within the workspace to save the downloaded content. If omitted, uses the filename from the URL.",
+                        ] as [String: Any],
+                        "headers": [
+                            "type": "object",
+                            "description": "HTTP headers as key-value pairs.",
+                        ] as [String: Any],
+                        "timeout": [
+                            "type": "integer",
+                            "description": "Timeout in seconds (default: 60).",
+                        ] as [String: Any],
+                    ] as [String: Any]),
+                    "required": AnyCodable(["url"]),
+                ],
+                serverName: name
+            ),
         ]
 
         return PluginHooks(tools: tools) { [weak self] toolName, argumentsJSON in
@@ -389,6 +448,10 @@ final class BrowserPlugin: Plugin {
             }
             let (desc, imageData) = try await WebFetchService.screenshot(url: url)
             return ToolResult(text: desc, imageData: imageData)
+        case "curl_request":
+            return try await executeCurlRequest(argumentsJSON: argumentsJSON)
+        case "wget_download":
+            return try await executeWgetDownload(argumentsJSON: argumentsJSON)
         default:
             throw PluginRegistry.PluginError.unknownTool(name)
         }
@@ -401,6 +464,121 @@ final class BrowserPlugin: Plugin {
             return nil
         }
         return url
+    }
+
+    @MainActor
+    private func executeCurlRequest(argumentsJSON: String) async throws -> ToolResult {
+        guard let data = argumentsJSON.data(using: .utf8),
+              let args = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let urlString = args["url"] as? String,
+              let url = URL(string: urlString) else {
+            throw PluginError.invalidArguments("curl_request requires a valid 'url' string argument")
+        }
+
+        let method = (args["method"] as? String ?? "GET").uppercased()
+        let headers = args["headers"] as? [String: String] ?? [:]
+        let body = args["body"] as? String
+        let timeout = TimeInterval(args["timeout"] as? Int ?? 30)
+
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.timeoutInterval = timeout
+
+        for (key, value) in headers {
+            request.setValue(value, forHTTPHeaderField: key)
+        }
+
+        if let body {
+            request.httpBody = body.data(using: .utf8)
+            if headers["Content-Type"] == nil {
+                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            }
+        }
+
+        let (responseData, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            return ToolResult(text: "Error: Non-HTTP response received")
+        }
+
+        var output = "HTTP \(httpResponse.statusCode)\n"
+
+        let responseHeaders = httpResponse.allHeaderFields
+            .sorted { ($0.key as? String ?? "") < ($1.key as? String ?? "") }
+            .map { "\($0.key): \($0.value)" }
+            .joined(separator: "\n")
+        output += responseHeaders + "\n\n"
+
+        let responseBody = String(data: responseData, encoding: .utf8)
+            ?? String(data: responseData, encoding: .ascii)
+            ?? "(binary data, \(responseData.count) bytes)"
+
+        if responseBody.count > 10_000 {
+            output += String(responseBody.prefix(10_000)) + "\n\n(truncated at 10000 chars)"
+        } else {
+            output += responseBody
+        }
+
+        return ToolResult(text: output)
+    }
+
+    @MainActor
+    private func executeWgetDownload(argumentsJSON: String) async throws -> ToolResult {
+        let workspaceManager = WorkspaceManager.shared
+
+        guard workspaceManager.hasWorkspace else {
+            return ToolResult(text: "No workspace selected. Please select a project folder first.")
+        }
+
+        guard let data = argumentsJSON.data(using: .utf8),
+              let args = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let urlString = args["url"] as? String,
+              let url = URL(string: urlString) else {
+            throw PluginError.invalidArguments("wget_download requires a valid 'url' string argument")
+        }
+
+        let headers = args["headers"] as? [String: String] ?? [:]
+        let timeout = TimeInterval(args["timeout"] as? Int ?? 60)
+
+        let savePath: String
+        if let customPath = args["save_path"] as? String, !customPath.isEmpty {
+            savePath = customPath
+        } else {
+            savePath = url.lastPathComponent.isEmpty ? "download" : url.lastPathComponent
+        }
+
+        guard let saveURL = WorkspaceManager.shared.resolvePathPublic(savePath) else {
+            return ToolResult(text: "Invalid save path: \(savePath)")
+        }
+
+        let parentDir = saveURL.deletingLastPathComponent()
+        if !FileManager.default.fileExists(atPath: parentDir.path) {
+            try FileManager.default.createDirectory(at: parentDir, withIntermediateDirectories: true)
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = timeout
+        for (key, value) in headers {
+            request.setValue(value, forHTTPHeaderField: key)
+        }
+
+        let (responseData, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            return ToolResult(text: "Error: Non-HTTP response received")
+        }
+
+        guard httpResponse.statusCode >= 200 && httpResponse.statusCode < 300 else {
+            let body = String(data: responseData, encoding: .utf8) ?? "(binary, \(responseData.count) bytes)"
+            return ToolResult(text: "HTTP \(httpResponse.statusCode)\n\(body)")
+        }
+
+        try responseData.write(to: saveURL, options: .atomic)
+
+        let byteCount = ByteCountFormatter.string(fromByteCount: Int64(responseData.count), countStyle: .file)
+        let mimeType = httpResponse.mimeType ?? "unknown"
+        return ToolResult(text: "Downloaded \(urlString)\nSaved to: \(savePath)\nSize: \(byteCount)\nType: \(mimeType)")
     }
 }
 
