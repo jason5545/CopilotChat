@@ -199,9 +199,8 @@ struct ChatView: View {
             }
             .padding(.vertical, Carbon.spacingBase)
         }
-        .flippedForChat()
         .scrollPosition($scrollPosition)
-        .defaultScrollAnchor(.bottom)
+        .flippedForChat()
         .scrollDismissesKeyboard(.interactively)
         .onScrollGeometryChange(for: Bool.self) { geo in
             geo.contentOffset.y > 300
@@ -227,7 +226,7 @@ struct ChatView: View {
         .overlay(alignment: .bottom) {
             if isScrolledUp {
                 Button {
-                    scrollPosition.scrollTo(edge: .bottom)
+                    scrollPosition.scrollTo(edge: .top)
                 } label: {
                     Image(systemName: "arrow.down")
                         .font(.caption.bold())
