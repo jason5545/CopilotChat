@@ -14,6 +14,7 @@ enum WebFetchService {
         "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1"
 
     private static var sharedWebView: WKWebView?
+    private static var offscreenWindow: UIWindow?
 
     private static func getSharedWebView() -> WKWebView {
         if let existing = sharedWebView { return existing }
@@ -21,6 +22,16 @@ enum WebFetchService {
         config.websiteDataStore = .nonPersistent()
         let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 390, height: 844), configuration: config)
         webView.customUserAgent = mobileUserAgent
+
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.addSubview(webView)
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.rootViewController = UIViewController()
+        window.rootViewController?.view = webView
+        window.makeKeyAndVisible()
+        offscreenWindow = window
+
         sharedWebView = webView
         return webView
     }
