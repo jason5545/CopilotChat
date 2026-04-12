@@ -14,8 +14,16 @@ final class GitHubPlugin: Plugin {
         var errorDescription: String? { message }
     }
 
+    private var _cachedToken: String?
+    private var _cachedTokenDate: Date?
+
     private var cachedToken: String? {
-        KeychainHelper.loadString(key: AuthManager.keychainKey)
+        if let cached = _cachedToken, let date = _cachedTokenDate,
+           Date().timeIntervalSince(date) < 300 { return cached }
+        let token = KeychainHelper.loadString(key: AuthManager.keychainKey)
+        _cachedToken = token
+        _cachedTokenDate = Date()
+        return token
     }
 
     private static let repoPathParam: [String: Any] = ["type": "string", "description": "Subdirectory path within the workspace (for parent folder workspaces with multiple repos)"]

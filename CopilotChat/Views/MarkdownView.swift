@@ -5,10 +5,11 @@ struct MarkdownView: View {
 
     @State private var blocks: [MarkdownBlock] = []
     @State private var parseTask: Task<Void, Never>?
+    @State private var attributedCache: [String: AttributedString] = [:]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
+            ForEach(blocks, id: \.debugId) { block in
                 renderBlock(block)
             }
         }
@@ -21,13 +22,23 @@ struct MarkdownView: View {
         parseTask?.cancel()
         parseTask = Task {
             if debounce {
-                try? await Task.sleep(for: .milliseconds(80))
+                try? await Task.sleep(for: .milliseconds(250))
                 guard !Task.isCancelled else { return }
             }
             let parsed = await Task.detached { MarkdownParser.parse(input) }.value
             guard !Task.isCancelled else { return }
             blocks = parsed
         }
+    }
+
+    private func cachedAttributedString(for text: String) -> AttributedString? {
+        if let cached = attributedCache[text] { return cached }
+        if let attributed = try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
+            if attributedCache.count > 100 { attributedCache.removeAll(keepingCapacity: true) }
+            attributedCache[text] = attributed
+            return attributed
+        }
+        return nil
     }
 
     // MARK: - Renderers
@@ -221,7 +232,7 @@ struct MarkdownView: View {
     // MARK: - Inline
 
     private func inlineMarkdown(_ text: String) -> Text {
-        if let attributed = try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
+        if let attributed = cachedAttributedString(for: text) {
             return Text(attributed)
         }
         return Text(text)

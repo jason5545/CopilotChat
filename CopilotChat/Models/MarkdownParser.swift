@@ -4,7 +4,7 @@ enum TableAlignment: Equatable {
     case left, center, right
 }
 
-enum MarkdownBlock: Equatable {
+enum MarkdownBlock: Equatable, Identifiable {
     case paragraph(String)
     case codeBlock(language: String?, code: String)
     case heading(level: Int, text: String)
@@ -13,6 +13,21 @@ enum MarkdownBlock: Equatable {
     case blockquote(String)
     case horizontalRule
     case table(headers: [String], alignments: [TableAlignment], rows: [[String]])
+
+    var id: String { debugId }
+
+    var debugId: String {
+        switch self {
+        case .paragraph(let t): "p-\(t.prefix(50).hashValue)"
+        case .codeBlock(let l, let c): "cb-\(l ?? "")-\(c.prefix(50).hashValue)"
+        case .heading(let l, let t): "h\(l)-\(t.prefix(50).hashValue)"
+        case .unorderedList(let items): "ul-\(items.count)-\(items.first?.prefix(20).hashValue ?? 0)"
+        case .orderedList(let items): "ol-\(items.count)-\(items.first?.1.prefix(20).hashValue ?? 0)"
+        case .blockquote(let t): "bq-\(t.prefix(50).hashValue)"
+        case .horizontalRule: "hr"
+        case .table(let h, _, _): "tbl-\(h.joined(separator: "|").hashValue)"
+        }
+    }
 
     static func == (lhs: MarkdownBlock, rhs: MarkdownBlock) -> Bool {
         switch (lhs, rhs) {

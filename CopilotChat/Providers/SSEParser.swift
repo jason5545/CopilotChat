@@ -291,6 +291,7 @@ extension SSEParser {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 180
         config.timeoutIntervalForResource = 600
-        return URLSession(configuration: config, delegate: nil, delegateQueue: OperationQueue())
+        config.urlCache = URLCache(memoryCapacity: 4 * 1024 * 1024, diskCapacity: 20 * 1024 * 1024)
+        return URLSession(configuration: config)
     }()
 }

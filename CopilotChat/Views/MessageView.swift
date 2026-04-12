@@ -553,14 +553,23 @@ struct UserBubbleView: View {
     let message: ChatMessage
     var lineLimit: Int? = nil
 
+    @State private var cachedImage: UIImage?
+
+    private func loadImage(_ data: Data) {
+        if cachedImage == nil { cachedImage = UIImage(data: data) }
+    }
+
     var body: some View {
         VStack(alignment: .trailing, spacing: 8) {
-            if let imageData = message.imageData, let uiImage = UIImage(data: imageData) {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: 200, maxHeight: 200)
-                    .clipShape(RoundedRectangle(cornerRadius: Carbon.radiusSmall))
+            if let imageData = message.imageData {
+                let _ = loadImage(imageData)
+                if let uiImage = cachedImage {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: 200, maxHeight: 200)
+                        .clipShape(RoundedRectangle(cornerRadius: Carbon.radiusSmall))
+                }
             }
             if !message.content.isEmpty {
                 Text(message.content)

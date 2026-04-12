@@ -69,7 +69,7 @@ struct ChatMessage: Identifiable, Equatable, Codable {
     }
 
     static func == (lhs: ChatMessage, rhs: ChatMessage) -> Bool {
-        lhs.id == rhs.id && lhs.content == rhs.content && lhs.reasoning == rhs.reasoning
+        lhs.id == rhs.id
     }
 }
 

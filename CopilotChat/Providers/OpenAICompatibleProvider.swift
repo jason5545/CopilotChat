@@ -6,17 +6,25 @@ actor ProviderRequestSerialGate {
     static let shared = ProviderRequestSerialGate()
 
     private var activeKeys: Set<String> = []
+    private var waiters: [String: [CheckedContinuation<Void, Never>]] = [:]
 
-    func acquire(_ key: String) async throws {
-        while activeKeys.contains(key) {
-            try Task.checkCancellation()
-            try await Task.sleep(nanoseconds: 200_000_000)
+    func acquire(_ key: String) async {
+        if activeKeys.contains(key) {
+            await withCheckedContinuation { cont in
+                waiters[key, default: []].append(cont)
+            }
         }
         activeKeys.insert(key)
     }
 
     func release(_ key: String) {
         activeKeys.remove(key)
+        if let first = waiters[key]?.removeFirst() {
+            first.resume()
+        }
+        if let remaining = waiters[key], remaining.isEmpty {
+            waiters.removeValue(forKey: key)
+        }
     }
 }
 
@@ -83,7 +91,7 @@ struct OpenAICompatibleProvider: LLMProvider, @unchecked Sendable {
             return try await operation()
         }
 
-        try await ProviderRequestSerialGate.shared.acquire(key)
+        await ProviderRequestSerialGate.shared.acquire(key)
         defer {
             Task {
                 await ProviderRequestSerialGate.shared.release(key)

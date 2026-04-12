@@ -115,16 +115,15 @@ struct ChatView: View {
     /// content appears at the scroll origin. No scrollTo needed during streaming.
     @State private var isScrolledUp = false
     @State private var scrollPosition: ScrollPosition = .init(edge: .top)
+    @State private var cachedOutOfContextIds: Set<UUID> = []
+    @Environment(\.scenePhase) private var scenePhase
 
     private var messagesList: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
                 if copilotService.isStreaming {
-                    streamingIndicator.flippedForChat()
+                    streamingIndicator
                 }
-
-                let dimmedIds = outOfContextIds
-                let regenId = lastAssistantId
 
                 ForEach(copilotService.messages.reversed()) { message in
                     let isLast = message.id == copilotService.messages.last?.id
@@ -147,12 +146,11 @@ struct ChatView: View {
                             isInputFocused = true
                             Haptics.impact(.light)
                         },
-                        onRegenerate: (!copilotService.isStreaming && message.id == regenId) ? {
+                        onRegenerate: (!copilotService.isStreaming && message.id == lastAssistantId) ? {
                             copilotService.regenerateLastResponse(tools: settingsStore.mcpTools)
                             Haptics.impact(.medium)
                         } : nil
                     )
-                    .flippedForChat()
                     .contextMenu {
                         if message.role == .user || message.role == .assistant {
                             if !message.content.isEmpty {
@@ -178,26 +176,26 @@ struct ChatView: View {
                     } preview: {
                         MessageContextPreview(message: message)
                     }
-                    .opacity(dimmedIds.contains(message.id) ? 0.45 : 1.0)
+                    .opacity(cachedOutOfContextIds.contains(message.id) ? 0.45 : 1.0)
                     .id(message.id)
 
                     if isSummary {
-                        compactionDivider.flippedForChat()
+                        compactionDivider
                     }
                 }
 
                 if copilotService.messages.isEmpty {
-                    emptyStateContent.flippedForChat()
+                    emptyStateContent
                 }
 
                 if let error = copilotService.streamingError {
-                    errorBanner(error).flippedForChat()
+                    errorBanner(error)
                 }
             }
             .padding(.vertical, Carbon.spacingBase)
         }
         .scrollPosition($scrollPosition)
-        .flippedForChat()
+        .defaultScrollAnchor(.bottom)
         .scrollDismissesKeyboard(.interactively)
         .onScrollGeometryChange(for: Bool.self) { geo in
             geo.contentOffset.y > 300
@@ -209,10 +207,21 @@ struct ChatView: View {
                 autoSaveConversation()
             }
         }
+        .onChange(of: copilotService.summaryMessageId) { _, _ in
+            cachedOutOfContextIds = computeOutOfContextIds()
+        }
+        .onChange(of: copilotService.messages.count) { _, _ in
+            cachedOutOfContextIds = computeOutOfContextIds()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase != .active {
+                copilotService.stopStreaming()
+            }
+        }
         .overlay(alignment: .bottom) {
             if isScrolledUp {
                 Button {
-                    scrollPosition.scrollTo(edge: .top)
+                    scrollPosition.scrollTo(edge: .bottom)
                 } label: {
                     Image(systemName: "arrow.down")
                         .font(.caption.bold())
@@ -466,7 +475,7 @@ struct ChatView: View {
 
     // MARK: - Compaction UX
 
-    private var outOfContextIds: Set<UUID> {
+    private func computeOutOfContextIds() -> Set<UUID> {
         guard let summaryId = copilotService.summaryMessageId,
               let summaryIndex = copilotService.messages.firstIndex(where: { $0.id == summaryId })
         else { return [] }
@@ -611,7 +620,6 @@ struct ChatView: View {
                     .transition(.scale.combined(with: .opacity))
                 }
             }
-            .animation(.easeOut(duration: 0.2), value: copilotService.isStreaming)
             .padding(.horizontal, Carbon.messagePaddingH)
             .padding(.vertical, Carbon.spacingRelaxed)
             .background(Color.carbonSurface)

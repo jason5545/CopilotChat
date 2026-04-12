@@ -21,11 +21,10 @@ extension Color {
 
     // Accent — warm amber
     static let carbonAccent = Color(red: 0.961, green: 0.620, blue: 0.043)
-    static let carbonAccentMuted = Color(red: 0.961, green: 0.620, blue: 0.043).opacity(0.15)
+    static let carbonAccentMuted = Color(red: 0.961, green: 0.620, blue: 0.043, opacity: 0.15)
 
-    // User message — subtle warm tint
-    static let carbonUserBubble = Color(red: 0.961, green: 0.620, blue: 0.043).opacity(0.12)
-    static let carbonUserBorder = Color(red: 0.961, green: 0.620, blue: 0.043).opacity(0.25)
+    static let carbonUserBubble = Color(red: 0.961, green: 0.620, blue: 0.043, opacity: 0.12)
+    static let carbonUserBorder = Color(red: 0.961, green: 0.620, blue: 0.043, opacity: 0.25)
 
     // Semantic
     static let carbonSuccess = Color(red: 0.204, green: 0.827, blue: 0.600)
@@ -127,7 +126,7 @@ struct PulsingDot: View {
             .opacity(opacity)
             .onAppear {
                 withAnimation(
-                    .easeInOut(duration: 0.6)
+                    .easeInOut(duration: 1.2)
                     .repeatForever(autoreverses: true)
                     .delay(delay)
                 ) {
@@ -199,16 +198,27 @@ func formatTokenCount(_ tokens: Int) -> String {
 // MARK: - Haptic Feedback
 
 enum Haptics {
+    @MainActor private static let impactLight = UIImpactFeedbackGenerator(style: .light)
+    @MainActor private static let impactMedium = UIImpactFeedbackGenerator(style: .medium)
+    @MainActor private static let impactHeavy = UIImpactFeedbackGenerator(style: .heavy)
+    @MainActor private static let notificationGen = UINotificationFeedbackGenerator()
+    @MainActor private static let selectionGen = UISelectionFeedbackGenerator()
+
     static func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle = .medium) {
-        UIImpactFeedbackGenerator(style: style).impactOccurred()
+        switch style {
+        case .light: Task { @MainActor in impactLight.impactOccurred() }
+        case .medium: Task { @MainActor in impactMedium.impactOccurred() }
+        case .heavy: Task { @MainActor in impactHeavy.impactOccurred() }
+        default: Task { @MainActor in impactMedium.impactOccurred() }
+        }
     }
 
     static func notification(_ type: UINotificationFeedbackGenerator.FeedbackType) {
-        UINotificationFeedbackGenerator().notificationOccurred(type)
+        Task { @MainActor in notificationGen.notificationOccurred(type) }
     }
 
     static func selection() {
-        UISelectionFeedbackGenerator().selectionChanged()
+        Task { @MainActor in selectionGen.selectionChanged() }
     }
 
     static func copyToClipboard(_ text: String) {

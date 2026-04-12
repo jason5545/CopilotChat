@@ -26,7 +26,7 @@ final class ConversationStore {
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         storageDirectory = documentsPath.appendingPathComponent("Conversations", isDirectory: true)
         try? FileManager.default.createDirectory(at: storageDirectory, withIntermediateDirectories: true)
-        loadAllConversations()
+        Task { await loadAllConversations() }
     }
 
     // MARK: - Current Conversation
@@ -207,11 +207,12 @@ final class ConversationStore {
         return conv.messages
     }
 
-    private func loadAllConversations() {
-        guard let files = try? FileManager.default.contentsOfDirectory(
-            at: storageDirectory,
+    private func loadAllConversations() async {
+        let dir = storageDirectory
+        let files = (try? FileManager.default.contentsOfDirectory(
+            at: dir,
             includingPropertiesForKeys: nil
-        ) else { return }
+        )) ?? []
 
         var loaded: [Conversation] = []
         for file in files where file.pathExtension == "json" {
@@ -219,7 +220,6 @@ final class ConversationStore {
                   let conv = try? Self.makeDecoder().decode(Conversation.self, from: data) else {
                 continue
             }
-            // Store metadata only — clear messages to save memory
             var meta = conv
             meta.messages = []
             loaded.append(meta)

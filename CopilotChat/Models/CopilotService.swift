@@ -22,8 +22,14 @@ final class CopilotService {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 180
         config.timeoutIntervalForResource = 600
-        return URLSession(configuration: config, delegate: nil, delegateQueue: OperationQueue())
+        config.urlCache = URLCache(memoryCapacity: 4 * 1024 * 1024, diskCapacity: 20 * 1024 * 1024)
+        config.requestCachePolicy = .returnCacheDataElseLoad
+        config.httpMaximumConnectionsPerHost = 6
+        return URLSession(configuration: config)
     }()
+
+    private static var modelsCache: (data: [ModelsResponse.ModelInfo], fetchedAt: Date)?
+    private static let modelsCacheTTL: TimeInterval = 300
 
     var messages: [ChatMessage] = []
     var isStreaming = false
@@ -76,6 +82,11 @@ final class CopilotService {
     private let settingsStore: SettingsStore
     private(set) var providerRegistry: ProviderRegistry?
     private var streamTask: Task<Void, any Error>?
+
+    private var _contentBuffer: [Substring] = []
+    private var _reasoningBuffer: [Substring] = []
+    private var _flushTask: Task<Void, Never>?
+    private static let flushInterval: Duration = .milliseconds(66)
 
     init(authManager: AuthManager, settingsStore: SettingsStore) {
         self.authManager = authManager
@@ -567,6 +578,36 @@ final class CopilotService {
         return map
     }
 
+    private func scheduleBufferFlush(index: Int) {
+        guard _flushTask == nil else { return }
+        _flushTask = Task {
+            try? await Task.sleep(for: Self.flushInterval)
+            guard !Task.isCancelled else { return }
+            flushBuffersNow(index: index)
+            _flushTask = nil
+        }
+    }
+
+    private func flushBuffersNow(index: Int) {
+        guard index < messages.count else { return }
+        let hasContent = !_contentBuffer.isEmpty
+        let hasReasoning = !_reasoningBuffer.isEmpty
+        guard hasContent || hasReasoning else { return }
+
+        if hasContent {
+            let joined = _contentBuffer.joined()
+            _contentBuffer.removeAll(keepingCapacity: true)
+            messages[index].content += joined
+        }
+        if hasReasoning {
+            let joined = _reasoningBuffer.joined()
+            _reasoningBuffer.removeAll(keepingCapacity: true)
+            if messages[index].reasoning == nil { messages[index].reasoning = "" }
+            messages[index].reasoning! += joined
+        }
+        contentRevision &+= 1
+    }
+
     // MARK: - Streaming Implementation
 
     /// Parsed SSE event from the Copilot API.
@@ -669,7 +710,6 @@ final class CopilotService {
             stream = try await Self.openSSEStream(urlRequest: urlRequest)
         }
 
-        // Event consumption — identical for both APIs
         var pendingToolCalls: [String: (id: String, name: String, arguments: String)] = [:]
 
         for try await event in stream {
@@ -677,13 +717,12 @@ final class CopilotService {
 
             switch event {
             case .contentDelta(let text):
-                messages[index].content += text
-                contentRevision &+= 1
+                _contentBuffer.append(text[...])
+                scheduleBufferFlush(index: index)
 
             case .thinkingDelta(let text):
-                if messages[index].reasoning == nil { messages[index].reasoning = "" }
-                messages[index].reasoning! += text
-                contentRevision &+= 1
+                _reasoningBuffer.append(text[...])
+                scheduleBufferFlush(index: index)
 
             case .toolCallDelta(let idx, let id, let name, let arguments):
                 let key = "\(idx)"
@@ -701,6 +740,7 @@ final class CopilotService {
                 tokenUsage = usage
 
             case .finish(let reason):
+                flushBuffersNow(index: index)
                 messages[index].finishReason = ChatMessage.FinishReason(rawValue: reason)
                 if reason == "tool_calls" {
                     let calls = pendingToolCalls.sorted(by: { $0.key < $1.key }).map { (_, value) in
@@ -785,13 +825,12 @@ final class CopilotService {
 
             switch event {
             case .contentDelta(let text):
-                messages[index].content += text
-                contentRevision &+= 1
+                _contentBuffer.append(text[...])
+                scheduleBufferFlush(index: index)
 
             case .thinkingDelta(let text):
-                if messages[index].reasoning == nil { messages[index].reasoning = "" }
-                messages[index].reasoning! += text
-                contentRevision &+= 1
+                _reasoningBuffer.append(text[...])
+                scheduleBufferFlush(index: index)
 
             case .toolCallStart(let idx, let id, let name):
                 let key = "\(idx)"
@@ -810,6 +849,7 @@ final class CopilotService {
                 tokenUsage = usage
 
             case .finish(let reason):
+                flushBuffersNow(index: index)
                 messages[index].finishReason = reason
                 if reason == .toolCalls {
                     let calls = pendingToolCalls.sorted(by: { $0.key < $1.key }).map { (_, value) in
@@ -887,9 +927,12 @@ final class CopilotService {
             throw CopilotError.invalidResponse
         }
         guard http.statusCode == 200 else {
-            var body = ""
-            for try await line in bytes.lines { body += line; if body.count > 2000 { break } }
-            throw CopilotError.httpError(http.statusCode, body)
+            var lines: [String] = []
+            for try await line in bytes.lines {
+                lines.append(line)
+                if lines.joined().count > 2000 { break }
+            }
+            throw CopilotError.httpError(http.statusCode, lines.joined())
         }
         return bytes
     }
@@ -1351,27 +1394,30 @@ final class CopilotService {
     // MARK: - Fetch Models
 
     func fetchModels() async {
+        if let cache = Self.modelsCache, Date().timeIntervalSince(cache.fetchedAt) < Self.modelsCacheTTL {
+            availableModels = cache.data
+            return
+        }
+
         guard let token = authManager.token else { return }
 
         var request = URLRequest(url: URL(string: Self.modelsEndpoint)!)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
 
         do {
             let (data, response) = try await Self.urlSession.data(for: request)
             guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { return }
 
             let modelsResponse = try JSONDecoder().decode(ModelsResponse.self, from: data)
-            // Deduplicate by model ID (API may return duplicates like gpt-4)
             var seen = Set<String>()
             let unique = modelsResponse.data.filter { seen.insert($0.id).inserted }
-            availableModels = unique.sorted { $0.id < $1.id }
-            // Overlay Copilot API's actual limits onto models.dev data
+            let sorted = unique.sorted { $0.id < $1.id }
+            Self.modelsCache = (data: sorted, fetchedAt: Date())
+            availableModels = sorted
             providerRegistry?.overlayCopilotLimits(from: unique)
         } catch {
-            // Non-critical
         }
     }
 

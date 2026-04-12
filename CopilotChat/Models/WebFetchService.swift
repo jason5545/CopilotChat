@@ -13,6 +13,18 @@ enum WebFetchService {
     private static let mobileUserAgent =
         "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1"
 
+    private static var sharedWebView: WKWebView?
+
+    private static func getSharedWebView() -> WKWebView {
+        if let existing = sharedWebView { return existing }
+        let config = WKWebViewConfiguration()
+        config.websiteDataStore = .nonPersistent()
+        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 390, height: 844), configuration: config)
+        webView.customUserAgent = mobileUserAgent
+        sharedWebView = webView
+        return webView
+    }
+
     // MARK: - Public API
 
     /// Fetch the text content of a web page at the given URL.
@@ -87,11 +99,7 @@ enum WebFetchService {
 
     /// Create a WKWebView, load the URL, wait for JS to render, and return the ready webView.
     private static func loadWebView(url: URL, viewportSize: CGSize = CGSize(width: 390, height: 844)) async throws -> WKWebView {
-        let config = WKWebViewConfiguration()
-        config.websiteDataStore = .nonPersistent()
-
-        let webView = WKWebView(frame: CGRect(origin: .zero, size: viewportSize), configuration: config)
-        webView.customUserAgent = mobileUserAgent
+        let webView = getSharedWebView()
 
         let request = URLRequest(url: url, timeoutInterval: 30)
 
@@ -108,7 +116,7 @@ enum WebFetchService {
         }
 
         // Give JS extra time to render (CSR frameworks like React/Next.js need this)
-        try await Task.sleep(for: .seconds(2))
+        try await Task.sleep(for: .milliseconds(1500))
 
         return webView
     }
