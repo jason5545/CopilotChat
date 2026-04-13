@@ -628,15 +628,32 @@ final class GitHubPlugin: Plugin {
             switch Self.validatedOriginRemote(in: repo) {
             case .failure(let error): return ToolResult(text: error.message)
             case .success(let remote):
-                // Fetch current branch and explicitly update remote tracking ref
-                let refspec = "+refs/heads/main:refs/remotes/origin/main"
+                let branchName: String
+                switch repo.HEAD() {
+                case .success(let head):
+                    branchName = head.shortName ?? "main"
+                case .failure:
+                    branchName = "main"
+                }
+                let refspec = "+refs/heads/\(branchName):refs/remotes/origin/\(branchName)"
                 let fetchResult = repo.fetch(remote, refspecs: [refspec], credentials: creds)
                 switch fetchResult {
                 case .failure(let e): return ToolResult(text: "Fetch failed: \(e.localizedDescription)")
                 case .success:
-                    switch repo.checkout(strategy: .Force) {
-                    case .failure(let e): return ToolResult(text: "Checkout failed: \(e.localizedDescription)")
-                    case .success: return ToolResult(text: "Pulled latest changes.")
+                    let remoteRefName = "refs/remotes/origin/\(branchName)"
+                    switch repo.reference(named: remoteRefName) {
+                    case .failure(let e): return ToolResult(text: "Remote ref not found: \(e.localizedDescription)")
+                    case .success(let remoteRef):
+                        switch repo.setHEAD(remoteRef.oid) {
+                        case .failure(let e): return ToolResult(text: "Set HEAD failed: \(e.localizedDescription)")
+                        case .success:
+                            switch repo.checkout(strategy: .Force) {
+                            case .failure(let e): return ToolResult(text: "Checkout failed: \(e.localizedDescription)")
+                            case .success:
+                                let short = String(remoteRef.oid.description.prefix(7))
+                                return ToolResult(text: "Pulled \(short) into \(branchName)")
+                            }
+                        }
                     }
                 }
             }
