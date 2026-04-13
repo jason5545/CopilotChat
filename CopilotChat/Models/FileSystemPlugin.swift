@@ -14,13 +14,17 @@ final class FileSystemPlugin: Plugin {
         let tools = [
             MCPTool(
                 name: "list_files",
-                description: "List files and folders in a directory. Returns the contents with file names, sizes, and modification dates.",
+                description: "List files and folders in a directory. Returns names, sizes, modification dates, and file type indicators. Supports recursive listing.",
                 inputSchema: [
                     "type": AnyCodable("object"),
                     "properties": AnyCodable([
                         "path": [
                             "type": "string",
                             "description": "The directory path to list. Use \".\" for the root workspace directory.",
+                        ] as [String: Any],
+                        "recursive": [
+                            "type": "boolean",
+                            "description": "List files recursively into subdirectories. Default: false.",
                         ] as [String: Any],
                     ] as [String: Any]),
                     "required": AnyCodable(["path"]),
@@ -29,13 +33,21 @@ final class FileSystemPlugin: Plugin {
             ),
             MCPTool(
                 name: "read_file",
-                description: "Read the contents of a text file. Returns the file contents as a string.",
+                description: "Read the contents of a text file. Returns the file contents with line numbers. Supports reading a range of lines via offset and limit.",
                 inputSchema: [
                     "type": AnyCodable("object"),
                     "properties": AnyCodable([
                         "path": [
                             "type": "string",
-                            "description": "The full path to the file to read.",
+                            "description": "The path to the file to read.",
+                        ] as [String: Any],
+                        "offset": [
+                            "type": "integer",
+                            "description": "Line number to start reading from (1-indexed). Default: 1.",
+                        ] as [String: Any],
+                        "limit": [
+                            "type": "integer",
+                            "description": "Maximum number of lines to return. Default: 2000.",
                         ] as [String: Any],
                     ] as [String: Any]),
                     "required": AnyCodable(["path"]),
@@ -90,13 +102,17 @@ final class FileSystemPlugin: Plugin {
             ),
             MCPTool(
                 name: "create_file",
-                description: "Create a new empty file at the specified path.",
+                description: "Create a new file at the specified path. Optionally provide initial content. Creates intermediate directories if needed.",
                 inputSchema: [
                     "type": AnyCodable("object"),
                     "properties": AnyCodable([
                         "path": [
                             "type": "string",
-                            "description": "The full path for the new file.",
+                            "description": "The path for the new file.",
+                        ] as [String: Any],
+                        "content": [
+                            "type": "string",
+                            "description": "Optional initial content to write to the file.",
                         ] as [String: Any],
                     ] as [String: Any]),
                     "required": AnyCodable(["path"]),
@@ -105,13 +121,13 @@ final class FileSystemPlugin: Plugin {
             ),
             MCPTool(
                 name: "delete_file",
-                description: "Delete a file at the specified path.",
+                description: "Delete a file or empty directory at the specified path.",
                 inputSchema: [
                     "type": AnyCodable("object"),
                     "properties": AnyCodable([
                         "path": [
                             "type": "string",
-                            "description": "The full path to the file to delete.",
+                            "description": "The path to the file or empty directory to delete.",
                         ] as [String: Any],
                     ] as [String: Any]),
                     "required": AnyCodable(["path"]),
@@ -120,17 +136,17 @@ final class FileSystemPlugin: Plugin {
             ),
             MCPTool(
                 name: "move_file",
-                description: "Move or rename a file from source to destination.",
+                description: "Move or rename a file or directory. Creates destination parent directories if needed. If destination is an existing directory, moves source into it.",
                 inputSchema: [
                     "type": AnyCodable("object"),
                     "properties": AnyCodable([
                         "source": [
                             "type": "string",
-                            "description": "The current path of the file.",
+                            "description": "The current path of the file or directory.",
                         ] as [String: Any],
                         "destination": [
                             "type": "string",
-                            "description": "The new path for the file.",
+                            "description": "The destination path. If it names an existing directory, the source is moved inside it.",
                         ] as [String: Any],
                     ] as [String: Any]),
                     "required": AnyCodable(["source", "destination"]),
@@ -139,13 +155,13 @@ final class FileSystemPlugin: Plugin {
             ),
             MCPTool(
                 name: "grep_files",
-                description: "Search file contents for a pattern across the workspace. Returns matching file paths, line numbers, and matching lines.",
+                description: "Fast content search across the workspace using regex. Returns file paths, line numbers, and matching lines with optional context. Supports file filtering and directory exclusion.",
                 inputSchema: [
                     "type": AnyCodable("object"),
                     "properties": AnyCodable([
                         "pattern": [
                             "type": "string",
-                            "description": "The text or regex pattern to search for.",
+                            "description": "The regex pattern to search for in file contents.",
                         ] as [String: Any],
                         "path": [
                             "type": "string",
@@ -153,11 +169,15 @@ final class FileSystemPlugin: Plugin {
                         ] as [String: Any],
                         "include": [
                             "type": "string",
-                            "description": "Glob pattern to filter files (e.g. \"*.swift\", \"*.{ts,tsx}\"). Default: all files.",
+                            "description": "File pattern to include (e.g. \"*.swift\", \"*.tsx\", \"*.{ts,tsx}\", \"Makefile\"). Supports simple globs.",
                         ] as [String: Any],
                         "case_insensitive": [
                             "type": "boolean",
                             "description": "Perform case-insensitive search. Default: false.",
+                        ] as [String: Any],
+                        "context_lines": [
+                            "type": "integer",
+                            "description": "Number of context lines to show before and after each match. Default: 0.",
                         ] as [String: Any],
                     ] as [String: Any]),
                     "required": AnyCodable(["pattern"]),
@@ -318,27 +338,6 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
         return rootURL.appendingPathComponent(path)
     }
 
-    private func validateFileTarget(_ url: URL, path: String, allowExisting: Bool) -> String? {
-        let fm = FileManager.default
-        var isDirectory: ObjCBool = false
-
-        if fm.fileExists(atPath: url.path, isDirectory: &isDirectory) {
-            if isDirectory.boolValue {
-                return "Path is a directory, not a file: \(path)"
-            }
-            if !allowExisting {
-                return "File already exists: \(path)"
-            }
-        } else {
-            let parentURL = url.deletingLastPathComponent()
-            guard fm.fileExists(atPath: parentURL.path, isDirectory: &isDirectory), isDirectory.boolValue else {
-                return "Parent directory does not exist: \(parentURL.lastPathComponent.isEmpty ? parentURL.path : parentURL.lastPathComponent)"
-            }
-        }
-
-        return nil
-    }
-
     private func coordinatedRead<T>(at url: URL, accessor: (URL) throws -> T) throws -> T {
         if !_isICloudWorkspace {
             return try accessor(url)
@@ -397,8 +396,10 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
         }
 
         let path: String
+        let recursive: Bool
         do {
             path = try parseArgument(argumentsJSON, key: "path", defaultValue: ".")
+            recursive = parseBoolArgument(argumentsJSON, key: "recursive", defaultValue: false)
         } catch {
             return ToolResult(text: "Error parsing arguments: \(error.localizedDescription)")
         }
@@ -407,27 +408,87 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
             return ToolResult(text: "Invalid path: \(path)")
         }
 
+        let dateFormatter = ISO8601DateFormatter()
+        dateFormatter.formatOptions = [.withFullDate]
+        let maxEntries = 500
+        let skipDirs: Set<String> = [
+            ".git", ".svn", ".hg", "node_modules", "build", "DerivedData",
+            ".build", "Pods", ".gradle", ".cache", ".cargo", "target",
+            "__pycache__", ".venv", "dist", "out",
+        ]
+
+        var lines: [String] = []
+        var dirCount = 0
+        var fileCount = 0
+
         do {
-            let contents = try coordinatedRead(at: targetURL) { coordinatedURL in
-                try FileManager.default.contentsOfDirectory(
-                    at: coordinatedURL,
+            if recursive {
+                guard let enumerator = FileManager.default.enumerator(
+                    at: targetURL,
                     includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey],
                     options: [.skipsHiddenFiles]
-                )
-            }
+                ) else {
+                    return ToolResult(text: "Cannot enumerate directory: \(path)")
+                }
 
-            var lines: [String] = []
-            for fileURL in contents.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
-                let resourceValues = try fileURL.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey])
-                let isDir = resourceValues.isDirectory ?? false
-                let size = resourceValues.fileSize ?? 0
-                let date = resourceValues.contentModificationDate ?? Date.distantPast
-                let dateStr = ISO8601DateFormatter().string(from: date)
+                for case let fileURL as URL in enumerator {
+                    guard lines.count < maxEntries else { break }
 
-                if isDir {
-                    lines.append("\(dateStr)  DIR  \(fileURL.lastPathComponent)/")
-                } else {
-                    lines.append("\(dateStr)  \(size > 0 ? ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file) : "0 B")  \(fileURL.lastPathComponent)")
+                    var isDir: ObjCBool = false
+                    guard FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDir) else { continue }
+
+                    if isDir.boolValue {
+                        if skipDirs.contains(fileURL.lastPathComponent) {
+                            enumerator.skipDescendants()
+                            continue
+                        }
+                        dirCount += 1
+                    } else {
+                        fileCount += 1
+                    }
+
+                    let resourceValues = try? fileURL.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey])
+                    let isDirectory = isDir.boolValue
+                    let size = resourceValues?.fileSize ?? 0
+
+                    let relativePath: String
+                    if let root = _currentURL {
+                        relativePath = String(fileURL.path.dropFirst(root.path.count + 1))
+                    } else {
+                        relativePath = fileURL.lastPathComponent
+                    }
+
+                    if isDirectory {
+                        lines.append("  DIR  \(relativePath)/")
+                    } else {
+                        let sizeStr = size > 0 ? ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file) : "0 B"
+                        lines.append("  \(sizeStr)  \(relativePath)")
+                    }
+                }
+            } else {
+                let contents = try coordinatedRead(at: targetURL) { coordinatedURL in
+                    try FileManager.default.contentsOfDirectory(
+                        at: coordinatedURL,
+                        includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey],
+                        options: [.skipsHiddenFiles]
+                    )
+                }
+
+                for fileURL in contents.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
+                    let resourceValues = try fileURL.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey])
+                    let isDir = resourceValues.isDirectory ?? false
+                    let size = resourceValues.fileSize ?? 0
+                    let date = resourceValues.contentModificationDate ?? Date.distantPast
+                    let dateStr = dateFormatter.string(from: date)
+
+                    if isDir {
+                        dirCount += 1
+                        lines.append("\(dateStr)  DIR  \(fileURL.lastPathComponent)/")
+                    } else {
+                        fileCount += 1
+                        let sizeStr = size > 0 ? ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file) : "0 B"
+                        lines.append("\(dateStr)  \(sizeStr)  \(fileURL.lastPathComponent)")
+                    }
                 }
             }
 
@@ -435,7 +496,13 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
                 return ToolResult(text: "(empty directory)")
             }
 
-            return ToolResult(text: "Contents of \(path):\n" + lines.joined(separator: "\n"))
+            var footer = ""
+            footer += "\n\(dirCount) directories, \(fileCount) files"
+            if lines.count >= maxEntries {
+                footer += " (output truncated at \(maxEntries) entries)"
+            }
+
+            return ToolResult(text: "Contents of \(path):\n" + lines.joined(separator: "\n") + footer)
         } catch {
             return ToolResult(text: "Error listing directory: \(error.localizedDescription)")
         }
@@ -447,8 +514,12 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
         }
 
         let path: String
+        let offset: Int
+        let limit: Int
         do {
             path = try parseArgument(argumentsJSON, key: "path")
+            offset = parseIntArgument(argumentsJSON, key: "offset", defaultValue: 1)
+            limit = parseIntArgument(argumentsJSON, key: "limit", defaultValue: 2000)
         } catch {
             return ToolResult(text: "Error parsing arguments: \(error.localizedDescription)")
         }
@@ -458,10 +529,38 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
         }
 
         do {
-            let content = try coordinatedRead(at: targetURL) { coordinatedURL in
-                try String(contentsOf: coordinatedURL, encoding: .utf8)
+            let content = try coordinatedRead(at: targetURL) { coordinatedURL -> String in
+                let attrs = try FileManager.default.attributesOfItem(atPath: coordinatedURL.path)
+                let fileSize = attrs[.size] as? Int ?? 0
+                if fileSize > 10_000_000 {
+                    throw FileSystemPluginError.operationFailed("File too large to read (\(fileSize) bytes). Use grep_files to search within it.")
+                }
+                guard let s = try? String(contentsOf: coordinatedURL, encoding: .utf8) else {
+                    throw FileSystemPluginError.operationFailed("File is not valid UTF-8 text")
+                }
+                return s
             }
-            return ToolResult(text: content)
+
+            let allLines = content.components(separatedBy: .newlines)
+            let totalLines = allLines.count
+            let startLine = max(1, offset)
+            let endLine = min(totalLines, startLine + limit - 1)
+
+            guard startLine <= totalLines else {
+                return ToolResult(text: "File has \(totalLines) lines, requested offset \(startLine) is out of range.")
+            }
+
+            var numberedLines: [String] = []
+            for i in startLine...endLine {
+                numberedLines.append("\(i): \(allLines[i - 1])")
+            }
+
+            var header = ""
+            if startLine > 1 || endLine < totalLines {
+                header = "(lines \(startLine)-\(endLine) of \(totalLines))\n"
+            }
+
+            return ToolResult(text: header + numberedLines.joined(separator: "\n"))
         } catch {
             return ToolResult(text: "Error reading file: \(error.localizedDescription)")
         }
@@ -485,18 +584,23 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
             return ToolResult(text: "Invalid path: \(path)")
         }
 
-        if let validationError = validateFileTarget(targetURL, path: path, allowExisting: true) {
-            return ToolResult(text: validationError)
-        }
-
         do {
             try coordinatedWrite {
+                let parentDir = targetURL.deletingLastPathComponent()
+                try FileManager.default.createDirectory(at: parentDir, withIntermediateDirectories: true)
+
+                var isDir: ObjCBool = false
+                if FileManager.default.fileExists(atPath: targetURL.path, isDirectory: &isDir), isDir.boolValue {
+                    throw FileSystemPluginError.invalidArguments("Path is a directory, not a file: \(path)")
+                }
+
                 guard let data = content.data(using: .utf8) else {
                     throw FileSystemPluginError.operationFailed("Content is not valid UTF-8")
                 }
                 try data.write(to: targetURL, options: .atomic)
             }
-            return ToolResult(text: "Successfully wrote to \(path)")
+            let lineCount = content.components(separatedBy: .newlines).count
+            return ToolResult(text: "Wrote \(lineCount) lines to \(path)")
         } catch {
             return ToolResult(text: "Error writing file: \(error.localizedDescription)")
         }
@@ -537,7 +641,12 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
             return ToolResult(text: "Error reading file for edit: \(path)")
         }
 
-        let matchCount = original.components(separatedBy: oldText).count - 1
+        let matchCount: Int
+        if oldText.isEmpty {
+            matchCount = 0
+        } else {
+            matchCount = original.components(separatedBy: oldText).count - 1
+        }
         guard matchCount > 0 else {
             return ToolResult(text: "Edit failed: old_text not found in \(path)")
         }
@@ -548,7 +657,7 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
 
         let updated = replaceAll
             ? original.replacingOccurrences(of: oldText, with: newText)
-            : original.replacingOccurrences(of: oldText, with: newText, options: [], range: original.range(of: oldText))
+            : original.replacingOccurrences(of: oldText, with: newText, options: [], range: original.range(of: oldText)!)
 
         guard let updatedData = updated.data(using: .utf8) else {
             return ToolResult(text: "Error editing file: updated content is not valid UTF-8")
@@ -558,7 +667,12 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
             try coordinatedWrite {
                 try updatedData.write(to: targetURL, options: .atomic)
             }
-            return ToolResult(text: "Successfully edited \(path)")
+            let originalLines = original.components(separatedBy: .newlines).count
+            let updatedLines = updated.components(separatedBy: .newlines).count
+            let lineDelta = updatedLines - originalLines
+            let deltaStr = lineDelta == 0 ? "no line count change" : lineDelta > 0 ? "+\(lineDelta) lines" : "\(lineDelta) lines"
+            let action = replaceAll ? "Replaced \(matchCount) occurrences" : "Replaced 1 occurrence"
+            return ToolResult(text: "\(action) in \(path) (\(originalLines) → \(updatedLines) lines, \(deltaStr))")
         } catch {
             return ToolResult(text: "Error editing file: \(error.localizedDescription)")
         }
@@ -570,8 +684,10 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
         }
 
         let path: String
+        let content: String?
         do {
             path = try parseArgument(argumentsJSON, key: "path")
+            content = try? parseArgument(argumentsJSON, key: "content", defaultValue: nil)
         } catch {
             return ToolResult(text: "Error parsing arguments: \(error.localizedDescription)")
         }
@@ -580,18 +696,23 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
             return ToolResult(text: "Invalid path: \(path)")
         }
 
-        if let validationError = validateFileTarget(targetURL, path: path, allowExisting: false) {
-            return ToolResult(text: validationError)
-        }
-
         do {
             try coordinatedWrite {
-                let created = FileManager.default.createFile(atPath: targetURL.path, contents: Data())
-                guard created else {
-                    throw FileSystemPluginError.operationFailed("FileManager could not create the file")
+                let parentDir = targetURL.deletingLastPathComponent()
+                try FileManager.default.createDirectory(at: parentDir, withIntermediateDirectories: true)
+
+                var isDir: ObjCBool = false
+                if FileManager.default.fileExists(atPath: targetURL.path, isDirectory: &isDir) {
+                    if isDir.boolValue {
+                        throw FileSystemPluginError.invalidArguments("Path already exists as a directory: \(path)")
+                    }
+                    throw FileSystemPluginError.invalidArguments("File already exists: \(path)")
                 }
+
+                let data = content?.data(using: .utf8) ?? Data()
+                FileManager.default.createFile(atPath: targetURL.path, contents: data)
             }
-            return ToolResult(text: "Successfully created \(path)")
+            return ToolResult(text: "Created \(path)")
         } catch {
             return ToolResult(text: "Error creating file: \(error.localizedDescription)")
         }
@@ -613,13 +734,22 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
             return ToolResult(text: "Invalid path: \(path)")
         }
 
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: targetURL.path, isDirectory: &isDir) else {
+            return ToolResult(text: "Path does not exist: \(path)")
+        }
+
         do {
             try coordinatedWrite {
                 try FileManager.default.removeItem(at: targetURL)
             }
-            return ToolResult(text: "Successfully deleted \(path)")
+            if isDir.boolValue {
+                return ToolResult(text: "Deleted directory \(path)")
+            } else {
+                return ToolResult(text: "Deleted file \(path)")
+            }
         } catch {
-            return ToolResult(text: "Error deleting file: \(error.localizedDescription)")
+            return ToolResult(text: "Error deleting: \(error.localizedDescription)")
         }
     }
 
@@ -641,21 +771,35 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
             return ToolResult(text: "Invalid source path: \(source)")
         }
 
-        guard let destURL = resolvePath(destination) else {
+        guard var destURL = resolvePath(destination) else {
             return ToolResult(text: "Invalid destination path: \(destination)")
         }
 
-        if let validationError = validateFileTarget(destURL, path: destination, allowExisting: false) {
-            return ToolResult(text: validationError)
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: sourceURL.path, isDirectory: &isDir) else {
+            return ToolResult(text: "Source does not exist: \(source)")
         }
 
         do {
             try coordinatedWrite {
+                var destIsDir: ObjCBool = false
+                if FileManager.default.fileExists(atPath: destURL.path, isDirectory: &destIsDir), destIsDir.boolValue {
+                    destURL = destURL.appendingPathComponent(sourceURL.lastPathComponent)
+                }
+
+                let parentDir = destURL.deletingLastPathComponent()
+                try FileManager.default.createDirectory(at: parentDir, withIntermediateDirectories: true)
+
+                if FileManager.default.fileExists(atPath: destURL.path) {
+                    throw FileSystemPluginError.invalidArguments("Destination already exists: \(destURL.lastPathComponent)")
+                }
+
                 try FileManager.default.moveItem(at: sourceURL, to: destURL)
             }
-            return ToolResult(text: "Successfully moved \(source) to \(destination)")
+            let typeStr = isDir.boolValue ? "directory" : "file"
+            return ToolResult(text: "Moved \(typeStr) \(source) → \(destination)")
         } catch {
-            return ToolResult(text: "Error moving file: \(error.localizedDescription)")
+            return ToolResult(text: "Error moving: \(error.localizedDescription)")
         }
     }
 
@@ -668,11 +812,13 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
         let path: String
         let include: String?
         let caseInsensitive: Bool
+        let contextLines: Int
         do {
             pattern = try parseArgument(argumentsJSON, key: "pattern")
             path = try parseArgument(argumentsJSON, key: "path", defaultValue: ".")
             include = try? parseArgument(argumentsJSON, key: "include", defaultValue: nil)
             caseInsensitive = parseBoolArgument(argumentsJSON, key: "case_insensitive", defaultValue: false)
+            contextLines = parseIntArgument(argumentsJSON, key: "context_lines", defaultValue: 0)
         } catch {
             return ToolResult(text: "Error parsing arguments: \(error.localizedDescription)")
         }
@@ -689,9 +835,23 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
             return ToolResult(text: "Invalid regex pattern: \(error.localizedDescription)")
         }
 
-        let extensions = parseIncludeGlob(include)
-        var results: [String] = []
-        let maxResults = 50
+        let fileFilter = parseIncludePattern(include)
+        let skipDirs: Set<String> = [
+            ".git", ".svn", ".hg",
+            "node_modules", ".npm", ".yarn", ".pnpm-store",
+            "build", "DerivedData", ".build", ".gradle",
+            "Pods", ".spm-build",
+            ".cache", ".cargo", "target",
+            "__pycache__", ".venv", "venv",
+            ".next", ".nuxt", "dist", "out",
+        ]
+        let maxOutputLines = 200
+        let maxMatchesPerFile = 20
+
+        var outputLines: [String] = []
+        var totalMatches = 0
+        var matchedFiles = 0
+        var truncatedFiles = 0
 
         func searchDirectory(_ dirURL: URL) {
             guard let enumerator = FileManager.default.enumerator(
@@ -701,26 +861,32 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
             ) else { return }
 
             for case let fileURL as URL in enumerator {
-                guard results.count < maxResults else { break }
-
                 var isDir: ObjCBool = false
-                guard FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDir),
-                      !isDir.boolValue else { continue }
+                guard FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDir) else { continue }
 
-                if !extensions.isEmpty {
-                    let ext = fileURL.pathExtension.lowercased()
-                    if !extensions.contains(ext) {
-                        continue
+                if isDir.boolValue {
+                    if skipDirs.contains(fileURL.lastPathComponent) {
+                        enumerator.skipDescendants()
                     }
+                    continue
                 }
 
-                guard let content = try? String(contentsOf: fileURL, encoding: .utf8) else { continue }
+                if !matchesFileFilter(fileURL.lastPathComponent, filter: fileFilter) {
+                    continue
+                }
+
+                guard let data = try? Data(contentsOf: fileURL),
+                      !isLikelyBinary(data),
+                      let content = String(data: data, encoding: .utf8) else { continue }
 
                 let nsContent = content as NSString
                 let fullRange = NSRange(location: 0, length: nsContent.length)
                 let matches = regex.matches(in: content as String, options: [], range: fullRange)
-
                 guard !matches.isEmpty else { continue }
+
+                matchedFiles += 1
+                let totalFileMatches = matches.count
+                totalMatches += totalFileMatches
 
                 let relativePath: String
                 if let root = _currentURL {
@@ -729,13 +895,34 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
                     relativePath = fileURL.lastPathComponent
                 }
 
-                for match in matches.prefix(10) {
+                let limitedMatches = Array(matches.prefix(maxMatchesPerFile))
+                if totalFileMatches > maxMatchesPerFile {
+                    truncatedFiles += 1
+                }
+
+                let allLines = content.components(separatedBy: .newlines)
+
+                for match in limitedMatches {
+                    guard outputLines.count < maxOutputLines else { break }
+
                     let lineRange = nsContent.lineRange(for: match.range)
                     let lineNumber = nsContent.substring(with: NSRange(location: 0, length: lineRange.lowerBound))
                         .components(separatedBy: .newlines).count
                     let lineText = nsContent.substring(with: lineRange).trimmingCharacters(in: .newlines)
-                    results.append("\(relativePath):\(lineNumber): \(lineText)")
+                    outputLines.append("\(relativePath):\(lineNumber): \(lineText)")
+
+                    if contextLines > 0 {
+                        let contextStart = max(1, lineNumber - contextLines)
+                        let contextEnd = min(allLines.count, lineNumber + contextLines)
+                        for ctxLineNum in contextStart...contextEnd where ctxLineNum != lineNumber {
+                            guard outputLines.count < maxOutputLines else { break }
+                            let ctxText = allLines[ctxLineNum - 1]
+                            outputLines.append("\(relativePath):\(ctxLineNum)- \(ctxText)")
+                        }
+                    }
                 }
+
+                if outputLines.count >= maxOutputLines { break }
             }
         }
 
@@ -743,25 +930,89 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
             searchDirectory(coordinatedURL)
         }
 
-        if results.isEmpty {
+        if outputLines.isEmpty {
             return ToolResult(text: "No matches found for pattern: \(pattern)")
         }
 
-        let truncated = results.count >= maxResults ? "\n\n(Results truncated at \(maxResults) matches)" : ""
-        return ToolResult(text: results.joined(separator: "\n") + truncated)
+        var footer = ""
+        if totalMatches > outputLines.filter({ $0.contains(":") && !$0.contains("- ") }).count || matchedFiles > 1 {
+            footer += "\n\n\(totalMatches) matches across \(matchedFiles) files"
+        }
+        if outputLines.count >= maxOutputLines {
+            footer += " (output truncated at \(maxOutputLines) lines)"
+        }
+        if truncatedFiles > 0 {
+            footer += " (\(truncatedFiles) files had additional matches not shown)"
+        }
+
+        return ToolResult(text: outputLines.joined(separator: "\n") + footer)
     }
 
-    private func parseIncludeGlob(_ glob: String?) -> [String] {
-        guard let glob, !glob.isEmpty else { return [] }
-        if glob.hasPrefix("*.") {
-            let ext = String(glob.dropFirst(2)).lowercased()
-            if ext.hasPrefix("{") && ext.hasSuffix("}") {
-                let inner = String(ext.dropFirst().dropLast())
-                return inner.split(separator: ",").map(String.init)
+    private func isLikelyBinary(_ data: Data) -> Bool {
+        let checkSize = min(data.count, 8192)
+        guard checkSize > 0 else { return false }
+        let slice = data.prefix(checkSize)
+        var nonTextCount = 0
+        for byte in slice {
+            if byte == 0 { return true }
+            if byte < 0x20 && byte != 0x09 && byte != 0x0A && byte != 0x0D {
+                nonTextCount += 1
             }
-            return [ext]
         }
-        return []
+        return Double(nonTextCount) / Double(checkSize) > 0.3
+    }
+
+    private enum FileFilter {
+        case any
+        case extensions([String])
+        case nameExact(String)
+        case namePrefix(String)
+        case nameSuffix(String)
+    }
+
+    private func parseIncludePattern(_ pattern: String?) -> FileFilter {
+        guard let pattern, !pattern.isEmpty else { return .any }
+
+        if pattern.hasPrefix("*.{") && pattern.hasSuffix("}") {
+            let inner = String(pattern.dropFirst(3).dropLast())
+            let exts = inner.split(separator: ",").flatMap { raw -> [String] in
+                let part = raw.trimmingCharacters(in: .whitespaces)
+                if part.hasPrefix("*.") {
+                    return [String(part.dropFirst(2)).lowercased()]
+                }
+                return [part.lowercased()]
+            }
+            return .extensions(exts)
+        }
+        if pattern.hasPrefix("*.") {
+            return .extensions([String(pattern.dropFirst(2)).lowercased()])
+        }
+        if pattern.hasPrefix("*") {
+            return .nameSuffix(String(pattern.dropFirst()).lowercased())
+        }
+        if pattern.hasSuffix("*") {
+            return .namePrefix(String(pattern.dropLast()).lowercased())
+        }
+        if !pattern.contains("*") && !pattern.contains("?") && !pattern.contains("[") {
+            return .nameExact(pattern)
+        }
+        return .any
+    }
+
+    private func matchesFileFilter(_ filename: String, filter: FileFilter) -> Bool {
+        switch filter {
+        case .any:
+            return true
+        case .extensions(let exts):
+            let ext = (filename as NSString).pathExtension.lowercased()
+            return !ext.isEmpty && exts.contains(ext)
+        case .nameExact(let name):
+            return filename == name
+        case .namePrefix(let prefix):
+            return filename.lowercased().hasPrefix(prefix)
+        case .nameSuffix(let suffix):
+            return filename.lowercased().hasSuffix(suffix)
+        }
     }
 
     private func parseArgument(_ json: String, key: String, defaultValue: String? = nil) throws -> String {
@@ -780,6 +1031,15 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
         guard let data = json.data(using: .utf8),
               let args = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let value = args[key] as? Bool else {
+            return defaultValue
+        }
+        return value
+    }
+
+    private func parseIntArgument(_ json: String, key: String, defaultValue: Int) -> Int {
+        guard let data = json.data(using: .utf8),
+              let args = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let value = args[key] as? Int else {
             return defaultValue
         }
         return value
