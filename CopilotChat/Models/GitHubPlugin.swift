@@ -97,6 +97,16 @@ final class GitHubPlugin: Plugin {
                 "properties": AnyCodable(["path": Self.repoPathParam] as [String: Any]),
                 "required": AnyCodable([]),
             ], serverName: name),
+            MCPTool(name: "github_reset", description: "Reset current HEAD to a specified commit, branch, or tag. Supports --soft (move HEAD only), --mixed (default, reset staging area), --hard (discard all changes), and pathspec-based reset (unstage specific files).", inputSchema: [
+                "type": AnyCodable("object"),
+                "properties": AnyCodable([
+                    "target": ["type": "string", "description": "Commit hash, branch name, tag, or revision (e.g. 'HEAD~1', 'abc1234'). Defaults to HEAD. For pathspec reset, omit this or set to 'HEAD'."] as [String: Any],
+                    "mode": ["type": "string", "description": "Reset mode: 'soft' (move HEAD only), 'mixed' (reset index, default), 'hard' (discard working tree changes). Ignored when paths are specified."] as [String: Any],
+                    "paths": ["type": "array", "items": ["type": "string"], "description": "Optional list of file paths to unstage (pathspec reset). When provided, performs a mixed reset only for these files, like 'git reset -- <paths>'."] as [String: Any],
+                    "path": Self.repoPathParam,
+                ]),
+                "required": AnyCodable([]),
+            ], serverName: name),
             MCPTool(name: "github_list_repos", description: "List your GitHub repositories (via GitHub API).", inputSchema: [
                 "type": AnyCodable("object"),
                 "properties": AnyCodable([
@@ -115,6 +125,160 @@ final class GitHubPlugin: Plugin {
                     "path": Self.repoPathParam,
                 ]),
                 "required": AnyCodable(["name"]),
+            ], serverName: name),
+            MCPTool(name: "github_add", description: "Stage file(s) to the index (like 'git add'). Does not commit.", inputSchema: [
+                "type": AnyCodable("object"),
+                "properties": AnyCodable([
+                    "paths": ["type": "array", "items": ["type": "string"], "description": "File paths to stage (e.g. ['file.swift', 'dir/'])"] as [String: Any],
+                    "path": Self.repoPathParam,
+                ]),
+                "required": AnyCodable(["paths"]),
+            ], serverName: name),
+            MCPTool(name: "github_commit", description: "Commit staged changes without pushing (like 'git commit').", inputSchema: [
+                "type": AnyCodable("object"),
+                "properties": AnyCodable([
+                    "message": ["type": "string", "description": "Commit message"] as [String: Any],
+                    "path": Self.repoPathParam,
+                ]),
+                "required": AnyCodable(["message"]),
+            ], serverName: name),
+            MCPTool(name: "github_show", description: "Show commit details: author, date, message, and file changes.", inputSchema: [
+                "type": AnyCodable("object"),
+                "properties": AnyCodable([
+                    "revision": ["type": "string", "description": "Commit hash, branch, tag, or revision (e.g. 'HEAD', 'abc1234'). Defaults to HEAD."] as [String: Any],
+                    "path": Self.repoPathParam,
+                ]),
+                "required": AnyCodable([]),
+            ], serverName: name),
+            MCPTool(name: "github_stash", description: "Stash, list, apply, pop, or drop stashed changes.", inputSchema: [
+                "type": AnyCodable("object"),
+                "properties": AnyCodable([
+                    "action": ["type": "string", "description": "Action: 'save' (default), 'list', 'apply', 'pop', 'drop'"] as [String: Any],
+                    "message": ["type": "string", "description": "Stash message (for 'save')"] as [String: Any],
+                    "index": ["type": "integer", "description": "Stash index for apply/pop/drop (default: 0)"] as [String: Any],
+                    "include_untracked": ["type": "boolean", "description": "Include untracked files (default: true)"] as [String: Any],
+                    "path": Self.repoPathParam,
+                ]),
+                "required": AnyCodable([]),
+            ], serverName: name),
+            MCPTool(name: "github_merge", description: "Merge a branch into the current branch.", inputSchema: [
+                "type": AnyCodable("object"),
+                "properties": AnyCodable([
+                    "branch": ["type": "string", "description": "Branch or revision to merge"] as [String: Any],
+                    "message": ["type": "string", "description": "Merge commit message (auto-generated if omitted)"] as [String: Any],
+                    "path": Self.repoPathParam,
+                ]),
+                "required": AnyCodable(["branch"]),
+            ], serverName: name),
+            MCPTool(name: "github_cherry_pick", description: "Cherry-pick a commit onto the current branch.", inputSchema: [
+                "type": AnyCodable("object"),
+                "properties": AnyCodable([
+                    "commit": ["type": "string", "description": "Commit hash to cherry-pick"] as [String: Any],
+                    "path": Self.repoPathParam,
+                ]),
+                "required": AnyCodable(["commit"]),
+            ], serverName: name),
+            MCPTool(name: "github_revert", description: "Revert a commit by creating a new commit that undoes its changes.", inputSchema: [
+                "type": AnyCodable("object"),
+                "properties": AnyCodable([
+                    "commit": ["type": "string", "description": "Commit hash to revert"] as [String: Any],
+                    "path": Self.repoPathParam,
+                ]),
+                "required": AnyCodable(["commit"]),
+            ], serverName: name),
+            MCPTool(name: "github_branch_delete", description: "Delete a local branch.", inputSchema: [
+                "type": AnyCodable("object"),
+                "properties": AnyCodable([
+                    "branch": ["type": "string", "description": "Branch name to delete"] as [String: Any],
+                    "path": Self.repoPathParam,
+                ]),
+                "required": AnyCodable(["branch"]),
+            ], serverName: name),
+            MCPTool(name: "github_tag_create", description: "Create a tag (annotated or lightweight) at a specific commit.", inputSchema: [
+                "type": AnyCodable("object"),
+                "properties": AnyCodable([
+                    "name": ["type": "string", "description": "Tag name"] as [String: Any],
+                    "target": ["type": "string", "description": "Commit hash, branch, or revision to tag (default: HEAD)"] as [String: Any],
+                    "message": ["type": "string", "description": "Tag message (creates annotated tag if provided, lightweight if omitted)"] as [String: Any],
+                    "path": Self.repoPathParam,
+                ]),
+                "required": AnyCodable(["name"]),
+            ], serverName: name),
+            MCPTool(name: "github_tag_delete", description: "Delete a tag.", inputSchema: [
+                "type": AnyCodable("object"),
+                "properties": AnyCodable([
+                    "name": ["type": "string", "description": "Tag name to delete"] as [String: Any],
+                    "path": Self.repoPathParam,
+                ]),
+                "required": AnyCodable(["name"]),
+            ], serverName: name),
+            MCPTool(name: "github_remote_add", description: "Add a remote repository.", inputSchema: [
+                "type": AnyCodable("object"),
+                "properties": AnyCodable([
+                    "name": ["type": "string", "description": "Remote name (e.g. 'origin')"] as [String: Any],
+                    "url": ["type": "string", "description": "Remote URL"] as [String: Any],
+                    "path": Self.repoPathParam,
+                ]),
+                "required": AnyCodable(["name", "url"]),
+            ], serverName: name),
+            MCPTool(name: "github_remote_remove", description: "Remove a remote repository.", inputSchema: [
+                "type": AnyCodable("object"),
+                "properties": AnyCodable([
+                    "name": ["type": "string", "description": "Remote name to remove"] as [String: Any],
+                    "path": Self.repoPathParam,
+                ]),
+                "required": AnyCodable(["name"]),
+            ], serverName: name),
+            MCPTool(name: "github_rm", description: "Remove files from the index and working tree (like 'git rm').", inputSchema: [
+                "type": AnyCodable("object"),
+                "properties": AnyCodable([
+                    "paths": ["type": "array", "items": ["type": "string"], "description": "File paths to remove"] as [String: Any],
+                    "path": Self.repoPathParam,
+                ]),
+                "required": AnyCodable(["paths"]),
+            ], serverName: name),
+            MCPTool(name: "github_blame", description: "Show line-level authorship for a file (like 'git blame').", inputSchema: [
+                "type": AnyCodable("object"),
+                "properties": AnyCodable([
+                    "file": ["type": "string", "description": "File path to blame"] as [String: Any],
+                    "revision": ["type": "string", "description": "Commit to blame at (default: HEAD)"] as [String: Any],
+                    "path": Self.repoPathParam,
+                ]),
+                "required": AnyCodable(["file"]),
+            ], serverName: name),
+            MCPTool(name: "github_reflog", description: "Show the reference log for HEAD or a specific ref.", inputSchema: [
+                "type": AnyCodable("object"),
+                "properties": AnyCodable([
+                    "ref": ["type": "string", "description": "Reference name (default: HEAD)"] as [String: Any],
+                    "count": ["type": "integer", "description": "Max entries to show (default: 20)"] as [String: Any],
+                    "path": Self.repoPathParam,
+                ]),
+                "required": AnyCodable([]),
+            ], serverName: name),
+            MCPTool(name: "github_clean", description: "Remove untracked files from the working tree (like 'git clean').", inputSchema: [
+                "type": AnyCodable("object"),
+                "properties": AnyCodable([
+                    "directories": ["type": "boolean", "description": "Also remove untracked directories (default: false)"] as [String: Any],
+                    "path": Self.repoPathParam,
+                ]),
+                "required": AnyCodable([]),
+            ], serverName: name),
+            MCPTool(name: "github_describe", description: "Give a human-readable name to the current commit based on tags (like 'git describe').", inputSchema: [
+                "type": AnyCodable("object"),
+                "properties": AnyCodable([
+                    "revision": ["type": "string", "description": "Commit to describe (default: HEAD)"] as [String: Any],
+                    "path": Self.repoPathParam,
+                ]),
+                "required": AnyCodable([]),
+            ], serverName: name),
+            MCPTool(name: "github_config", description: "Get or set git configuration values.", inputSchema: [
+                "type": AnyCodable("object"),
+                "properties": AnyCodable([
+                    "key": ["type": "string", "description": "Config key (e.g. 'user.name', 'core.autocrlf')"] as [String: Any],
+                    "value": ["type": "string", "description": "Value to set (omit to get current value)"] as [String: Any],
+                    "path": Self.repoPathParam,
+                ]),
+                "required": AnyCodable(["key"]),
             ], serverName: name),
         ]
 
@@ -145,6 +309,25 @@ final class GitHubPlugin: Plugin {
         case "github_branch_create": return try await branchCreate(argumentsJSON: argumentsJSON, subpath: subpath)
         case "github_remote_list": return try await remoteList(subpath: subpath)
         case "github_tag_list": return try await tagList(subpath: subpath)
+        case "github_reset": return try await reset(argumentsJSON: argumentsJSON, subpath: subpath)
+        case "github_add": return try await addFiles(argumentsJSON: argumentsJSON, subpath: subpath)
+        case "github_commit": return try await commitOnly(argumentsJSON: argumentsJSON, subpath: subpath)
+        case "github_show": return try await show(argumentsJSON: argumentsJSON, subpath: subpath)
+        case "github_stash": return try await stash(argumentsJSON: argumentsJSON, subpath: subpath)
+        case "github_merge": return try await merge(argumentsJSON: argumentsJSON, subpath: subpath)
+        case "github_cherry_pick": return try await cherryPick(argumentsJSON: argumentsJSON, subpath: subpath)
+        case "github_revert": return try await revert(argumentsJSON: argumentsJSON, subpath: subpath)
+        case "github_branch_delete": return try await branchDelete(argumentsJSON: argumentsJSON, subpath: subpath)
+        case "github_tag_create": return try await tagCreate(argumentsJSON: argumentsJSON, subpath: subpath)
+        case "github_tag_delete": return try await tagDelete(argumentsJSON: argumentsJSON, subpath: subpath)
+        case "github_remote_add": return try await remoteAdd(argumentsJSON: argumentsJSON, subpath: subpath)
+        case "github_remote_remove": return try await remoteRemove(argumentsJSON: argumentsJSON, subpath: subpath)
+        case "github_rm": return try await removeFiles(argumentsJSON: argumentsJSON, subpath: subpath)
+        case "github_blame": return try await blame(argumentsJSON: argumentsJSON, subpath: subpath)
+        case "github_reflog": return try await reflog(argumentsJSON: argumentsJSON, subpath: subpath)
+        case "github_clean": return try await clean(argumentsJSON: argumentsJSON, subpath: subpath)
+        case "github_describe": return try await describe(argumentsJSON: argumentsJSON, subpath: subpath)
+        case "github_config": return try await config(argumentsJSON: argumentsJSON, subpath: subpath)
         case "github_list_repos": return try await listRepos(argumentsJSON: argumentsJSON, token: token)
         case "github_create_repo": return try await createRepo(argumentsJSON: argumentsJSON, token: token, subpath: subpath)
         default: throw PluginRegistry.PluginError.unknownTool(name)
@@ -618,48 +801,56 @@ final class GitHubPlugin: Plugin {
 
     // MARK: - Branch Create
 
-    private func branchCreate(argumentsJSON: String, subpath: String? = nil) async throws -> ToolResult {
-        let branchName = try parseArg(argumentsJSON, key: "branch")
-        return await withRepo(subpath: subpath) { repo in
-            switch repo.localBranch(named: branchName) {
-            case .success(let b):
-                switch repo.checkout(b, strategy: .Force) {
-                case .failure(let e): return ToolResult(text: "Checkout failed: \(e.localizedDescription)")
-                case .success: return ToolResult(text: "Switched to existing branch '\(branchName)'.")
-                }
-            case .failure:
-                switch repo.HEAD() {
-                case .failure(let e): return ToolResult(text: "Cannot create branch: \(e.localizedDescription)")
-                case .success(let headRef):
-                    guard let headBranch = headRef as? Branch else {
-                        return ToolResult(text: "Cannot create branch: HEAD is not on a branch.")
-                    }
-                    let branchResult: Int32 = {
-                        var commitPtr: OpaquePointer?
-                        var oid = headBranch.oid.oid
-                        let lookup = git_commit_lookup(&commitPtr, repo.pointer, &oid)
-                        guard lookup == GIT_OK.rawValue, let commitPtr else { return Int32(-1) }
-                        defer { git_commit_free(commitPtr) }
-                        return branchName.withCString { namePtr in
-                            git_branch_create(nil, repo.pointer, namePtr, commitPtr, 0)
-                        }
-                    }()
-                    guard branchResult == GIT_OK.rawValue else {
-                        return ToolResult(text: "Branch create failed.")
-                    }
-                    switch repo.localBranch(named: branchName) {
-                    case .success(let b):
-                        switch repo.checkout(b, strategy: .Force) {
-                        case .failure(let e): return ToolResult(text: "Checkout failed: \(e.localizedDescription)")
-                        case .success: return ToolResult(text: "Created and switched to branch '\(branchName)'.")
-                        }
-                    case .failure(let e):
-                        return ToolResult(text: "Branch created but checkout failed: \(e.localizedDescription)")
-                    }
-                }
-            }
-        }
-    }
+     private func branchCreate(argumentsJSON: String, subpath: String? = nil) async throws -> ToolResult {
+         let branchName = try parseArg(argumentsJSON, key: "branch")
+         return await withRepo(subpath: subpath) { repo in
+             switch repo.localBranch(named: branchName) {
+             case .success(let b):
+                 switch repo.checkout(b, strategy: .Force) {
+                 case .failure(let e): return ToolResult(text: "Checkout failed: \(e.localizedDescription)")
+                 case .success: return ToolResult(text: "Switched to existing branch '\(branchName)'.")
+                 }
+             case .failure:
+                 var headObj: OpaquePointer?
+                 let headResult = git_revparse_single(&headObj, repo.pointer, "HEAD")
+                 guard headResult == GIT_OK.rawValue, headObj != nil else {
+                     return ToolResult(text: "Cannot resolve HEAD (error \(headResult)).")
+                 }
+
+                 var commitObj: OpaquePointer?
+                 if git_object_type(headObj) == GIT_OBJECT_COMMIT {
+                     commitObj = headObj
+                 } else {
+                     let peelResult = git_object_peel(&commitObj, headObj, GIT_OBJECT_COMMIT)
+                     git_object_free(headObj)
+                     guard peelResult == GIT_OK.rawValue, commitObj != nil else {
+                         return ToolResult(text: "HEAD does not point to a commit (error \(peelResult)).")
+                     }
+                 }
+                 defer { git_object_free(commitObj) }
+
+                 var refOut: OpaquePointer?
+                 let branchResult = branchName.withCString { namePtr in
+                     git_branch_create(&refOut, repo.pointer, namePtr, commitObj, 0)
+                 }
+                 guard branchResult == GIT_OK.rawValue, refOut != nil else {
+                     let errPtr = git_error_last()
+                     let errMsg = errPtr != nil ? String(validatingUTF8: errPtr!.pointee.message) ?? "unknown" : "unknown"
+                     return ToolResult(text: "Branch create failed (error \(branchResult)): \(errMsg)")
+                 }
+                 git_reference_free(refOut)
+                 switch repo.localBranch(named: branchName) {
+                 case .success(let b):
+                     switch repo.checkout(b, strategy: .Force) {
+                     case .failure(let e): return ToolResult(text: "Checkout failed: \(e.localizedDescription)")
+                     case .success: return ToolResult(text: "Created and switched to branch '\(branchName)'.")
+                     }
+                 case .failure(let e):
+                     return ToolResult(text: "Branch created but checkout failed: \(e.localizedDescription)")
+                 }
+             }
+         }
+     }
 
     // MARK: - Remote List
 
@@ -683,6 +874,79 @@ final class GitHubPlugin: Plugin {
             case .success(let tags):
                 if tags.isEmpty { return ToolResult(text: "No tags.") }
                 return ToolResult(text: tags.map { $0.name }.joined(separator: "\n"))
+            }
+        }
+    }
+
+    // MARK: - Reset
+
+    private func reset(argumentsJSON: String, subpath: String? = nil) async throws -> ToolResult {
+        let target = (try? parseArg(argumentsJSON, key: "target", default: "HEAD")) ?? "HEAD"
+        let modeStr = (try? parseArg(argumentsJSON, key: "mode", default: "mixed")) ?? "mixed"
+        let paths: [String]? = {
+            guard let data = argumentsJSON.data(using: .utf8),
+                  let args = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let arr = args["paths"] as? [String], !arr.isEmpty else { return nil }
+            return arr
+        }()
+
+        let resetType: Repository.ResetType
+        switch modeStr.lowercased() {
+        case "soft": resetType = .soft
+        case "mixed": resetType = .mixed
+        case "hard": resetType = .hard
+        default: return ToolResult(text: "Invalid mode '\(modeStr)'. Use 'soft', 'mixed', or 'hard'.")
+        }
+
+        return await withRepo(subpath: subpath) { repo in
+            if let paths {
+                let targetOID: OID?
+                if target == "HEAD" || target.isEmpty {
+                    switch repo.HEAD() {
+                    case .failure(let e): return ToolResult(text: "HEAD failed: \(e.localizedDescription)")
+                    case .success(let ref): targetOID = ref.oid
+                    }
+                } else {
+                    switch repo.resolveRevision(target) {
+                    case .failure(let e): return ToolResult(text: "Cannot resolve '\(target)': \(e.localizedDescription)")
+                    case .success(let oid): targetOID = oid
+                    }
+                }
+                switch repo.resetDefault(targetOID, paths: paths) {
+                case .failure(let e): return ToolResult(text: "Reset failed: \(e.localizedDescription)")
+                case .success:
+                    let fileList = paths.count <= 5 ? paths.joined(separator: ", ") : "\(paths.prefix(5).joined(separator: ", ")) and \(paths.count - 5) more"
+                    return ToolResult(text: "Unstaged \(fileList).")
+                }
+            }
+
+            let targetOID: OID
+            if target == "HEAD" || target.isEmpty {
+                switch repo.HEAD() {
+                case .failure(let e): return ToolResult(text: "HEAD failed: \(e.localizedDescription)")
+                case .success(let ref): targetOID = ref.oid
+                }
+            } else {
+                switch repo.resolveRevision(target) {
+                case .failure(let e):
+                    switch repo.localBranch(named: target) {
+                    case .success(let branch): targetOID = branch.oid
+                    case .failure:
+                        switch repo.tag(named: target) {
+                        case .success(let tagRef): targetOID = tagRef.oid
+                        case .failure: return ToolResult(text: "Cannot resolve '\(target)': \(e.localizedDescription)")
+                        }
+                    }
+                case .success(let oid): targetOID = oid
+                }
+            }
+
+            let targetShort = String(targetOID.description.prefix(7))
+            switch repo.reset(targetOID, resetType: resetType) {
+            case .failure(let e): return ToolResult(text: "Reset failed: \(e.localizedDescription)")
+            case .success:
+                let modeLabel = resetType == .soft ? "soft" : resetType == .mixed ? "mixed" : "hard"
+                return ToolResult(text: "HEAD is now at \(targetShort) (\(modeLabel) reset).")
             }
         }
     }
@@ -790,6 +1054,422 @@ final class GitHubPlugin: Plugin {
         let pushJSON = try JSONSerialization.data(withJSONObject: ["message": "Initial commit"])
         let pushResult = try await push(argumentsJSON: String(data: pushJSON, encoding: .utf8)!, token: token, subpath: subpath)
         return ToolResult(text: "Created and pushed: \(htmlURL)\n\(pushResult.text)")
+    }
+
+    // MARK: - Add
+
+    private func addFiles(argumentsJSON: String, subpath: String? = nil) async throws -> ToolResult {
+        let paths: [String] = {
+            guard let data = argumentsJSON.data(using: .utf8),
+                  let args = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let arr = args["paths"] as? [String], !arr.isEmpty else { return [] }
+            return arr
+        }()
+        guard !paths.isEmpty else { return ToolResult(text: "No paths specified.") }
+        return await withRepo(subpath: subpath) { repo in
+            for p in paths {
+                switch repo.add(path: p) {
+                case .failure(let e): return ToolResult(text: "Add failed for '\(p)': \(e.localizedDescription)")
+                case .success: continue
+                }
+            }
+            return ToolResult(text: "Staged \(paths.count) file(s).")
+        }
+    }
+
+    // MARK: - Commit Only
+
+    private func commitOnly(argumentsJSON: String, subpath: String? = nil) async throws -> ToolResult {
+        let message = try parseArg(argumentsJSON, key: "message")
+        return await withRepo(subpath: subpath) { repo in
+            let sig = Signature(name: "CopilotChat", email: "copilotchat@users.noreply.github.com")
+            switch repo.commit(message: message, signature: sig) {
+            case .failure(let e): return ToolResult(text: "Commit failed: \(e.localizedDescription)")
+            case .success(let c):
+                let short = String(c.oid.description.prefix(7))
+                return ToolResult(text: "Committed \(short): \(message)")
+            }
+        }
+    }
+
+    // MARK: - Show
+
+    private func show(argumentsJSON: String, subpath: String? = nil) async throws -> ToolResult {
+        let revision = (try? parseArg(argumentsJSON, key: "revision", default: "HEAD")) ?? "HEAD"
+        return await withRepo(subpath: subpath) { repo in
+            let oid: OID
+            if revision == "HEAD" || revision.isEmpty {
+                switch repo.HEAD() {
+                case .failure(let e): return ToolResult(text: "HEAD failed: \(e.localizedDescription)")
+                case .success(let ref): oid = ref.oid
+                }
+            } else {
+                switch repo.resolveRevision(revision) {
+                case .failure(let e):
+                    switch repo.localBranch(named: revision) {
+                    case .success(let b): oid = b.oid
+                    case .failure: return ToolResult(text: "Cannot resolve '\(revision)': \(e.localizedDescription)")
+                    }
+                case .success(let o): oid = o
+                }
+            }
+            switch repo.show(oid: oid) {
+            case .failure(let e): return ToolResult(text: "Show failed: \(e.localizedDescription)")
+            case .success(let detail):
+                var lines: [String] = []
+                let short = String(detail.oid.description.prefix(7))
+                lines.append("commit \(short)")
+                lines.append("Author: \(detail.author.name) <\(detail.author.email)>")
+                lines.append("Date:   \(ISO8601DateFormatter().string(from: detail.author.time))")
+                if !detail.parentOIDs.isEmpty {
+                    lines.append("Parents: \(detail.parentOIDs.joined(separator: " "))")
+                }
+                lines.append("")
+                for line in detail.message.split(separator: "\n") {
+                    lines.append("    \(line)")
+                }
+                if !detail.diff.isEmpty {
+                    lines.append("")
+                    lines.append("Changes:")
+                    lines.append(detail.diff)
+                }
+                return ToolResult(text: lines.joined(separator: "\n"))
+            }
+        }
+    }
+
+    // MARK: - Stash
+
+    private func stash(argumentsJSON: String, subpath: String? = nil) async throws -> ToolResult {
+        let action = (try? parseArg(argumentsJSON, key: "action", default: "save")) ?? "save"
+        let message = try? parseArg(argumentsJSON, key: "message", default: nil)
+        let index = intArg(argumentsJSON, key: "index", default: 0)
+        let includeUntracked = boolArg(argumentsJSON, key: "include_untracked", default: true)
+
+        return await withRepo(subpath: subpath) { repo in
+            switch action.lowercased() {
+            case "list":
+                switch repo.stashList() {
+                case .failure(let e): return ToolResult(text: "Stash list failed: \(e.localizedDescription)")
+                case .success(let entries):
+                    if entries.isEmpty { return ToolResult(text: "No stash entries.") }
+                    let lines = entries.map { e in
+                        let short = String(e.oid.description.prefix(7))
+                        return "stash@{\(e.index)}: \(short) \(e.message)"
+                    }
+                    return ToolResult(text: lines.joined(separator: "\n"))
+                }
+            case "save":
+                let sig = Signature(name: "CopilotChat", email: "copilotchat@users.noreply.github.com")
+                switch repo.stashSave(message: message, signature: sig, includeUntracked: includeUntracked) {
+                case .failure(let e): return ToolResult(text: "Stash failed: \(e.localizedDescription)")
+                case .success(let oid):
+                    let short = String(oid.description.prefix(7))
+                    return ToolResult(text: "Saved stash \(short).")
+                }
+            case "apply":
+                switch repo.stashApply(index: index, reinstateIndex: false) {
+                case .failure(let e): return ToolResult(text: "Stash apply failed: \(e.localizedDescription)")
+                case .success: return ToolResult(text: "Applied stash@{\(index)}.")
+                }
+            case "pop":
+                switch repo.stashPop(index: index, reinstateIndex: false) {
+                case .failure(let e): return ToolResult(text: "Stash pop failed: \(e.localizedDescription)")
+                case .success: return ToolResult(text: "Popped stash@{\(index)}.")
+                }
+            case "drop":
+                switch repo.stashDrop(index: index) {
+                case .failure(let e): return ToolResult(text: "Stash drop failed: \(e.localizedDescription)")
+                case .success: return ToolResult(text: "Dropped stash@{\(index)}.")
+                }
+            default:
+                return ToolResult(text: "Unknown stash action '\(action)'. Use: save, list, apply, pop, drop.")
+            }
+        }
+    }
+
+    // MARK: - Merge
+
+    private func merge(argumentsJSON: String, subpath: String? = nil) async throws -> ToolResult {
+        let branch = try parseArg(argumentsJSON, key: "branch")
+        let message = try? parseArg(argumentsJSON, key: "message", default: nil)
+        return await withRepo(subpath: subpath) { repo in
+            switch repo.merge(branch: branch) {
+            case .failure(let e): return ToolResult(text: "Merge failed: \(e.localizedDescription)")
+            case .success(let result):
+                if result.hasConflicts {
+                    return ToolResult(text: "Merged with conflicts. Resolve conflicts, then commit.")
+                }
+                let sig = Signature(name: "CopilotChat", email: "copilotchat@users.noreply.github.com")
+                let msg = message ?? "Merge branch '\(branch)'"
+                switch repo.commit(message: msg, signature: sig) {
+                case .failure(let e): return ToolResult(text: "Merge commit failed: \(e.localizedDescription)")
+                case .success(let c):
+                    let short = String(c.oid.description.prefix(7))
+                    _ = repo.stateCleanup()
+                    return ToolResult(text: "Merged '\(branch)' as \(short).")
+                }
+            }
+        }
+    }
+
+    // MARK: - Cherry-pick
+
+    private func cherryPick(argumentsJSON: String, subpath: String? = nil) async throws -> ToolResult {
+        let commitStr = try parseArg(argumentsJSON, key: "commit")
+        return await withRepo(subpath: subpath) { repo in
+            let oid: OID
+            switch repo.resolveRevision(commitStr) {
+            case .success(let o): oid = o
+            case .failure(let e): return ToolResult(text: "Cannot resolve '\(commitStr)': \(e.localizedDescription)")
+            }
+            switch repo.cherryPick(commitOID: oid) {
+            case .failure(let e): return ToolResult(text: "Cherry-pick failed: \(e.localizedDescription)")
+            case .success(let hasConflicts):
+                if hasConflicts {
+                    return ToolResult(text: "Cherry-pick applied with conflicts. Resolve and commit.")
+                }
+                let sig = Signature(name: "CopilotChat", email: "copilotchat@users.noreply.github.com")
+                let short = String(oid.description.prefix(7))
+                switch repo.commit(message: "Cherry-pick \(short)", signature: sig) {
+                case .failure(let e): return ToolResult(text: "Cherry-pick commit failed: \(e.localizedDescription)")
+                case .success(let c):
+                    let newShort = String(c.oid.description.prefix(7))
+                    _ = repo.stateCleanup()
+                    return ToolResult(text: "Cherry-picked \(short) as \(newShort).")
+                }
+            }
+        }
+    }
+
+    // MARK: - Revert
+
+    private func revert(argumentsJSON: String, subpath: String? = nil) async throws -> ToolResult {
+        let commitStr = try parseArg(argumentsJSON, key: "commit")
+        return await withRepo(subpath: subpath) { repo in
+            let oid: OID
+            switch repo.resolveRevision(commitStr) {
+            case .success(let o): oid = o
+            case .failure(let e): return ToolResult(text: "Cannot resolve '\(commitStr)': \(e.localizedDescription)")
+            }
+            switch repo.revert(commitOID: oid) {
+            case .failure(let e): return ToolResult(text: "Revert failed: \(e.localizedDescription)")
+            case .success(let hasConflicts):
+                if hasConflicts {
+                    return ToolResult(text: "Revert applied with conflicts. Resolve and commit.")
+                }
+                let sig = Signature(name: "CopilotChat", email: "copilotchat@users.noreply.github.com")
+                let short = String(oid.description.prefix(7))
+                switch repo.commit(message: "Revert \(short)", signature: sig) {
+                case .failure(let e): return ToolResult(text: "Revert commit failed: \(e.localizedDescription)")
+                case .success(let c):
+                    let newShort = String(c.oid.description.prefix(7))
+                    _ = repo.stateCleanup()
+                    return ToolResult(text: "Reverted \(short) as \(newShort).")
+                }
+            }
+        }
+    }
+
+    // MARK: - Branch Delete
+
+    private func branchDelete(argumentsJSON: String, subpath: String? = nil) async throws -> ToolResult {
+        let branch = try parseArg(argumentsJSON, key: "branch")
+        return await withRepo(subpath: subpath) { repo in
+            switch repo.deleteBranch(named: branch) {
+            case .failure(let e): return ToolResult(text: "Delete failed: \(e.localizedDescription)")
+            case .success: return ToolResult(text: "Deleted branch '\(branch)'.")
+            }
+        }
+    }
+
+    // MARK: - Tag Create
+
+    private func tagCreate(argumentsJSON: String, subpath: String? = nil) async throws -> ToolResult {
+        let tagName = try parseArg(argumentsJSON, key: "name")
+        let target = (try? parseArg(argumentsJSON, key: "target", default: "HEAD")) ?? "HEAD"
+        let message = try? parseArg(argumentsJSON, key: "message", default: nil)
+        return await withRepo(subpath: subpath) { repo in
+            let oid: OID
+            if target == "HEAD" || target.isEmpty {
+                switch repo.HEAD() {
+                case .failure(let e): return ToolResult(text: "HEAD failed: \(e.localizedDescription)")
+                case .success(let ref): oid = ref.oid
+                }
+            } else {
+                switch repo.resolveRevision(target) {
+                case .failure(let e): return ToolResult(text: "Cannot resolve '\(target)': \(e.localizedDescription)")
+                case .success(let o): oid = o
+                }
+            }
+            let sig = Signature(name: "CopilotChat", email: "copilotchat@users.noreply.github.com")
+            switch repo.createTag(name: tagName, targetOID: oid, message: message, tagger: sig) {
+            case .failure(let e): return ToolResult(text: "Tag create failed: \(e.localizedDescription)")
+            case .success:
+                let tagType = message != nil ? "Annotated tag" : "Lightweight tag"
+                return ToolResult(text: "\(tagType) '\(tagName)' created at \(String(oid.description.prefix(7))).")
+            }
+        }
+    }
+
+    // MARK: - Tag Delete
+
+    private func tagDelete(argumentsJSON: String, subpath: String? = nil) async throws -> ToolResult {
+        let tagName = try parseArg(argumentsJSON, key: "name")
+        return await withRepo(subpath: subpath) { repo in
+            switch repo.deleteTag(named: tagName) {
+            case .failure(let e): return ToolResult(text: "Tag delete failed: \(e.localizedDescription)")
+            case .success: return ToolResult(text: "Deleted tag '\(tagName)'.")
+            }
+        }
+    }
+
+    // MARK: - Remote Add
+
+    private func remoteAdd(argumentsJSON: String, subpath: String? = nil) async throws -> ToolResult {
+        let name = try parseArg(argumentsJSON, key: "name")
+        let url = try parseArg(argumentsJSON, key: "url")
+        return await withRepo(subpath: subpath) { repo in
+            switch repo.addRemote(name: name, url: url) {
+            case .failure(let e): return ToolResult(text: "Remote add failed: \(e.localizedDescription)")
+            case .success: return ToolResult(text: "Added remote '\(name)' -> \(url).")
+            }
+        }
+    }
+
+    // MARK: - Remote Remove
+
+    private func remoteRemove(argumentsJSON: String, subpath: String? = nil) async throws -> ToolResult {
+        let name = try parseArg(argumentsJSON, key: "name")
+        return await withRepo(subpath: subpath) { repo in
+            switch repo.removeRemote(name: name) {
+            case .failure(let e): return ToolResult(text: "Remote remove failed: \(e.localizedDescription)")
+            case .success: return ToolResult(text: "Removed remote '\(name)'.")
+            }
+        }
+    }
+
+    // MARK: - Remove Files
+
+    private func removeFiles(argumentsJSON: String, subpath: String? = nil) async throws -> ToolResult {
+        let paths: [String] = {
+            guard let data = argumentsJSON.data(using: .utf8),
+                  let args = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let arr = args["paths"] as? [String], !arr.isEmpty else { return [] }
+            return arr
+        }()
+        guard !paths.isEmpty else { return ToolResult(text: "No paths specified.") }
+        return await withRepo(subpath: subpath) { repo in
+            switch repo.remove(paths: paths) {
+            case .failure(let e): return ToolResult(text: "Remove failed: \(e.localizedDescription)")
+            case .success:
+                let fileList = paths.count <= 5 ? paths.joined(separator: ", ") : "\(paths.prefix(5).joined(separator: ", ")) and \(paths.count - 5) more"
+                return ToolResult(text: "Removed \(paths.count) file(s): \(fileList)")
+            }
+        }
+    }
+
+    // MARK: - Blame
+
+    private func blame(argumentsJSON: String, subpath: String? = nil) async throws -> ToolResult {
+        let file = try parseArg(argumentsJSON, key: "file")
+        let revision = try? parseArg(argumentsJSON, key: "revision", default: nil)
+        return await withRepo(subpath: subpath) { repo in
+            let commitOID: OID? = revision.flatMap { rev in
+                switch repo.resolveRevision(rev) {
+                case .success(let o): return o
+                case .failure: return nil
+                }
+            }
+            switch repo.blame(path: file, commitOID: commitOID) {
+            case .failure(let e): return ToolResult(text: "Blame failed: \(e.localizedDescription)")
+            case .success(let hunks):
+                if hunks.isEmpty { return ToolResult(text: "No blame data for '\(file)'.") }
+                var lines: [String] = []
+                for h in hunks {
+                    let short = h.finalCommitOID.map { String($0.description.prefix(7)) } ?? "-------"
+                    let name = h.author.name
+                    lines.append("\(short) \(name) (\(h.finalStartLineNumber)) [\(h.linesInHunk) lines]")
+                }
+                return ToolResult(text: lines.joined(separator: "\n"))
+            }
+        }
+    }
+
+    // MARK: - Reflog
+
+    private func reflog(argumentsJSON: String, subpath: String? = nil) async throws -> ToolResult {
+        let ref = (try? parseArg(argumentsJSON, key: "ref", default: "HEAD")) ?? "HEAD"
+        let count = intArg(argumentsJSON, key: "count", default: 20)
+        return await withRepo(subpath: subpath) { repo in
+            switch repo.reflog(reference: ref) {
+            case .failure(let e): return ToolResult(text: "Reflog failed: \(e.localizedDescription)")
+            case .success(let entries):
+                if entries.isEmpty { return ToolResult(text: "No reflog entries.") }
+                let limited = Array(entries.prefix(count))
+                let lines = limited.enumerated().map { i, e in
+                    let old = String(e.oldOID.description.prefix(7))
+                    let new = String(e.newOID.description.prefix(7))
+                    let msg = e.message.isEmpty ? "" : " \(e.message)"
+                    return "\(i) \(old) -> \(new)\(msg) (\(e.committer.name))"
+                }
+                return ToolResult(text: lines.joined(separator: "\n"))
+            }
+        }
+    }
+
+    // MARK: - Clean
+
+    private func clean(argumentsJSON: String, subpath: String? = nil) async throws -> ToolResult {
+        let directories = boolArg(argumentsJSON, key: "directories", default: false)
+        return await withRepo(subpath: subpath) { repo in
+            switch repo.clean(directories: directories) {
+            case .failure(let e): return ToolResult(text: "Clean failed: \(e.localizedDescription)")
+            case .success(let count):
+                if count == 0 { return ToolResult(text: "Nothing to clean.") }
+                let suffix = directories ? " files and directories" : " files"
+                return ToolResult(text: "Removed \(count) untracked\(suffix).")
+            }
+        }
+    }
+
+    // MARK: - Describe
+
+    private func describe(argumentsJSON: String, subpath: String? = nil) async throws -> ToolResult {
+        let revision = try? parseArg(argumentsJSON, key: "revision", default: nil)
+        return await withRepo(subpath: subpath) { repo in
+            let oid: OID? = revision.flatMap { rev in
+                switch repo.resolveRevision(rev) {
+                case .success(let o): return o
+                case .failure: return nil
+                }
+            }
+            switch repo.describe(commitOID: oid) {
+            case .failure(let e): return ToolResult(text: "Describe failed: \(e.localizedDescription)")
+            case .success(let description):
+                return ToolResult(text: description)
+            }
+        }
+    }
+
+    // MARK: - Config
+
+    private func config(argumentsJSON: String, subpath: String? = nil) async throws -> ToolResult {
+        let key = try parseArg(argumentsJSON, key: "key")
+        let value = try? parseArg(argumentsJSON, key: "value", default: nil)
+        return await withRepo(subpath: subpath) { repo in
+            if let value {
+                switch repo.setConfig(key, value: value) {
+                case .failure(let e): return ToolResult(text: "Config set failed: \(e.localizedDescription)")
+                case .success: return ToolResult(text: "\(key) = \(value)")
+                }
+            } else {
+                switch repo.getConfig(key) {
+                case .failure(let e): return ToolResult(text: "Config get failed: \(e.localizedDescription)")
+                case .success(let val): return ToolResult(text: "\(key) = \(val)")
+                }
+            }
+        }
     }
 }
 

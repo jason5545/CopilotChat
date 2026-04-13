@@ -30,7 +30,7 @@ public extension ObjectType {
 	}
 }
 
-public struct Signature {
+public struct Signature: Sendable {
 	/// The name of the person.
 	public let name: String
 

@@ -85,3 +85,44 @@ public struct Diff: Sendable {
         }
     }
 }
+
+public struct StashEntry: Sendable {
+    public let index: Int
+    public let oid: OID
+    public let message: String
+}
+
+public struct MergeAnalysisResult: Sendable {
+    public let upToDate: Bool
+    public let fastForward: Bool
+    public let normal: Bool
+    public let unborn: Bool
+}
+
+public struct MergeResult: Sendable {
+    public let hasConflicts: Bool
+}
+
+public struct CommitDetail: Sendable {
+    public let oid: OID
+    public let message: String
+    public let author: Signature
+    public let committer: Signature
+    public let parentOIDs: [String]
+    public let diff: String
+}
+
+public struct BlameHunk: Sendable {
+    public let linesInHunk: Int
+    public let finalCommitOID: OID?
+    public let author: Signature
+    public let path: String
+    public let finalStartLineNumber: Int
+}
+
+public struct ReflogEntry: Sendable {
+    public let oldOID: OID
+    public let newOID: OID
+    public let committer: Signature
+    public let message: String
+}
