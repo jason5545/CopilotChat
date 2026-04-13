@@ -40,7 +40,16 @@ iOS 原生的多 Provider LLM 聊天客戶端。純 SwiftUI，零第三方依賴
 - `brave_web_search` — Brave 搜尋（API key 存 Keychain）
 - `tool_search` — MCP 工具搜尋（deferred loading 模式下自動注入）
 - `switch_mode` — chat / coding 協調者模式切換
-- `list_files` / `read_file` / `write_file` / `edit_file` / `create_file` / `delete_file` / `move_file` — iOS sandbox 內的 workspace 檔案操作
+- **檔案操作**（workspace，iOS sandbox 內）：
+  - `list_files` — 目錄列表，支援遞迴模式，自動跳過 `.git`/`build`/`node_modules`
+  - `read_file` — 讀取檔案內容，附行號、offset/limit 分頁、10MB 大小上限
+  - `write_file` — 寫入/覆寫檔案，自動建立上層目錄
+  - `edit_file` — 精準搜尋替換（單次或全部匹配），回應顯示行數變化
+  - `create_file` — 建立檔案，可附初始內容，自動建立上層目錄
+  - `delete_file` — 刪除檔案或空目錄
+  - `copy_file` — 複製檔案或目錄，自動建立上層目錄
+  - `move_file` — 搬移/重新命名檔案或目錄，支援搬入目錄語義
+  - `grep_files` — 正則表達式內容搜尋，支援上下文行、檔案過濾、二進位偵測、匹配摘要
 
 ### Coding Mode
 

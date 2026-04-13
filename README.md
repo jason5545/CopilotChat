@@ -40,7 +40,16 @@ Each provider has its own auth flow, streaming protocol (SSE / NDJSON), and thin
 - `brave_web_search` — Brave Search (API key in Keychain)
 - `tool_search` — MCP tool discovery (auto-injected in deferred loading mode)
 - `switch_mode` — chat / coding mode coordinator
-- `list_files` / `read_file` / `write_file` / `edit_file` / `create_file` / `delete_file` / `move_file` — workspace file operations within iOS sandbox
+- **File Operations** (workspace, iOS sandbox):
+  - `list_files` — directory listing with recursive mode, skips `.git`/`build`/`node_modules`
+  - `read_file` — file contents with line numbers, offset/limit pagination, 10MB size guard
+  - `write_file` — write/overwrite file, auto-creates parent directories
+  - `edit_file` — precise search-and-replace (single or all matches), shows line delta
+  - `create_file` — create file with optional initial content, auto-creates parent directories
+  - `delete_file` — delete file or empty directory
+  - `copy_file` — copy file or directory, auto-creates parent directories
+  - `move_file` — move/rename file or directory, supports move-into-directory semantics
+  - `grep_files` — regex content search with context lines, file filtering, binary detection, match summary
 
 ### Coding Mode
 
