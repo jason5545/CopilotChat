@@ -461,11 +461,25 @@ public final class Repository: @unchecked Sendable {
     }
 
     /// Download new data and update tips
-    public func fetch(_ remote: Remote, credentials: Credentials = .default) -> Result<(), NSError> {
+    /// - Parameters:
+    ///   - remote: The remote to fetch from
+    ///   - refspecs: Optional array of refspecs to fetch. If nil, uses remote's default.
+    ///   - credentials: Authentication credentials
+    public func fetch(_ remote: Remote, refspecs: [String]? = nil, credentials: Credentials = .default) -> Result<(), NSError> {
         return remoteLookup(named: remote.name) { remote in
             remote.flatMap { pointer in
                 return withFetchOptions(credentials: credentials) { opts in
-                    let result = git_remote_fetch(pointer, nil, &opts, nil)
+                    let result: Int32
+                    if let specs = refspecs, !specs.isEmpty {
+                        result = specs.withUnsafeBufferPointer { buffer in
+                            var strarray = git_strarray()
+                            strarray.strings = buffer.baseAddress
+                            strarray.count = Int32(buffer.count)
+                            return git_remote_fetch(pointer, &strarray, &opts, nil)
+                        }
+                    } else {
+                        result = git_remote_fetch(pointer, nil, &opts, nil)
+                    }
                     guard result == GIT_OK.rawValue else {
                         return .failure(NSError(gitError: result, pointOfFailure: "git_remote_fetch"))
                     }

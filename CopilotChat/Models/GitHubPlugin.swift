@@ -638,7 +638,9 @@ final class GitHubPlugin: Plugin {
             switch Self.validatedOriginRemote(in: repo) {
             case .failure(let error): return ToolResult(text: error.message)
             case .success(let remote):
-                let fetchResult = repo.fetch(remote, credentials: creds)
+                // Fetch current branch and explicitly update remote tracking ref
+                let refspec = "+refs/heads/main:refs/remotes/origin/main"
+                let fetchResult = repo.fetch(remote, refspecs: [refspec], credentials: creds)
                 switch fetchResult {
                 case .failure(let e): return ToolResult(text: "Fetch failed: \(e.localizedDescription)")
                 case .success:
