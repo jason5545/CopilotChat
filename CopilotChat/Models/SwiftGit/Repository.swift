@@ -469,19 +469,22 @@ public final class Repository: @unchecked Sendable {
         return remoteLookup(named: remote.name) { remote in
             remote.flatMap { pointer in
                 return withFetchOptions(credentials: credentials) { opts in
-                    let result: Int32
+                    var fetchResult: Int32 = 0
                     if let specs = refspecs, !specs.isEmpty {
-                        result = specs.withUnsafeBufferPointer { buffer in
+                        let cStrings = specs.map { strdup($0) }
+                        defer { cStrings.forEach { free($0) } }
+                        var mutableStrings = cStrings + [nil]
+                        mutableStrings.withUnsafeMutableBufferPointer { buffer in
                             var strarray = git_strarray()
                             strarray.strings = buffer.baseAddress
-                            strarray.count = Int32(buffer.count)
-                            return git_remote_fetch(pointer, &strarray, &opts, nil)
+                            strarray.count = cStrings.count
+                            fetchResult = git_remote_fetch(pointer, &strarray, &opts, nil)
                         }
                     } else {
-                        result = git_remote_fetch(pointer, nil, &opts, nil)
+                        fetchResult = git_remote_fetch(pointer, nil, &opts, nil)
                     }
-                    guard result == GIT_OK.rawValue else {
-                        return .failure(NSError(gitError: result, pointOfFailure: "git_remote_fetch"))
+                    guard fetchResult == GIT_OK.rawValue else {
+                        return .failure(NSError(gitError: fetchResult, pointOfFailure: "git_remote_fetch"))
                     }
                     return .success(())
                 }

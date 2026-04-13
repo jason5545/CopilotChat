@@ -38,14 +38,13 @@ final class GitHubPlugin: Plugin {
                 ]),
                 "required": AnyCodable(["repo_url"]),
             ], serverName: name),
-            MCPTool(name: "github_push", description: "Stage all changes, commit, and push to the remote repository.", inputSchema: [
+            MCPTool(name: "github_push", description: "Push local commits to the remote repository. Use github_add + github_commit first to stage and commit changes.", inputSchema: [
                 "type": AnyCodable("object"),
                 "properties": AnyCodable([
-                    "message": ["type": "string", "description": "Commit message"] as [String: Any],
                     "branch": ["type": "string", "description": "Branch to push to (defaults to current)"] as [String: Any],
                     "path": Self.repoPathParam,
                 ]),
-                "required": AnyCodable(["message"]),
+                "required": AnyCodable([]),
             ], serverName: name),
             MCPTool(name: "github_pull", description: "Pull latest changes from the remote repository.", inputSchema: [
                 "type": AnyCodable("object"),
@@ -586,7 +585,6 @@ final class GitHubPlugin: Plugin {
     // MARK: - Push
 
     private func push(argumentsJSON: String, token: String, subpath: String? = nil) async throws -> ToolResult {
-        let message = try parseArg(argumentsJSON, key: "message")
         let branch: String? = try? parseArg(argumentsJSON, key: "branch")
         guard let repoURL = findGitRepoURL(subpath: subpath) else {
             return ToolResult(text: "Not a git repository. Clone or create one first.")
@@ -610,20 +608,12 @@ final class GitHubPlugin: Plugin {
                     case .success:
                         break
                     }
-                    let _ = repo.add(path: ".")
-                    let sig = Signature(name: "CopilotChat", email: "copilotchat@users.noreply.github.com")
-                    switch repo.commit(message: message, signature: sig) {
+                    switch repo.push(credentials: creds, branch: branch) {
                     case .failure(let e):
-                        continuation.resume(returning: ToolResult(text: "Commit failed: \(e.localizedDescription)"))
-                    case .success(let commit):
-                        let pushResult = repo.push(credentials: creds, branch: branch)
-                        switch pushResult {
-                        case .failure(let e):
-                            continuation.resume(returning: ToolResult(text: "Push failed: \(e.localizedDescription)"))
-                        case .success:
-                            let short = String(commit.oid.description.prefix(7))
-                            continuation.resume(returning: ToolResult(text: "Pushed \(short): \(message)"))
-                        }
+                        continuation.resume(returning: ToolResult(text: "Push failed: \(e.localizedDescription)"))
+                    case .success:
+                        let branchName = branch ?? "current branch"
+                        continuation.resume(returning: ToolResult(text: "Pushed to origin/\(branchName)"))
                     }
                 }
             }
