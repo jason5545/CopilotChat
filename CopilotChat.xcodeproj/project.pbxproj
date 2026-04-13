@@ -93,6 +93,7 @@
 		0E4C54DF2D9B605822055885 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
 		0E94D5F865D2408864A2AF3C /* CopilotChat.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CopilotChat.entitlements; sourceTree = "<group>"; };
 		10F4C84C35E01FB46BEE9B08 /* AgentConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentConfig.swift; sourceTree = "<group>"; };
+		11A67119724674171141F0AD /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		16DB1EC5909ACF0B5B392F63 /* ChatModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatModels.swift; sourceTree = "<group>"; };
 		1779C9901FB3A2DA63DE4C80 /* CExtPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CExtPlugin.swift; sourceTree = "<group>"; };
 		1A087A7775242FEFB3318278 /* WorkspaceSelectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceSelectorView.swift; sourceTree = "<group>"; };
@@ -277,6 +278,7 @@
 				0E94D5F865D2408864A2AF3C /* CopilotChat.entitlements */,
 				A877976EB8149831636E8E06 /* CopilotChatApp.swift */,
 				0E4C54DF2D9B605822055885 /* DesignSystem.swift */,
+				11A67119724674171141F0AD /* Info.plist */,
 				B58A576E495CB3AA8A9BC9C9 /* PrivacyInfo.xcprivacy */,
 				ECCDEEBAA676A10076B4015C /* Agents */,
 				12F4A27B9A5B53598863A0FA /* Models */,
@@ -324,7 +326,7 @@
 			);
 			sourceTree = "<group>";
 		};
-		"TEMP_B3D2D484-E863-4251-943C-F4681F572909" /* Theme */ = {
+		"TEMP_D5AEBC2D-1397-4508-9A78-D5C7B816F469" /* Theme */ = {
 			isa = PBXGroup;
 			children = (
 			);
@@ -560,7 +562,7 @@
 					"$(inherited)",
 					"\"CopilotChat\"",
 				);
-				INFOPLIST_FILE = CopilotChat/Clibgit2.xcframework/Info.plist;
+				INFOPLIST_FILE = CopilotChat/Info.plist;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -723,7 +725,7 @@
 					"$(inherited)",
 					"\"CopilotChat\"",
 				);
-				INFOPLIST_FILE = CopilotChat/Clibgit2.xcframework/Info.plist;
+				INFOPLIST_FILE = CopilotChat/Info.plist;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
