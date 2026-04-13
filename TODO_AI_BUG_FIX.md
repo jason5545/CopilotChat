@@ -16,6 +16,14 @@
 | 第2次 | 無 | ❌ Invalid response |
 | 第3次 | `message:"push with force flag"` | ✅ 成功 |
 
+### 🚨 發現的 Workaround
+**在 `github_push` 加上 `message` 參數就能成功！**
+```swift
+github_push(message: "任意 commit message") // ✅ 成功
+github_push()                               // ❌ 失敗
+```
+這可能是 MCP server 在處理某些請求時進入了無效狀態，加上額外參數後會走不同的 code path。
+
 ### 根本原因（推測）
 - `Invalid response from MCP server` 意味著 server 回了一個 client 無法解析的 response
 - 可能原因：
