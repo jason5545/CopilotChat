@@ -1,2 +1,0 @@
-Target dependency graph (1 target)
-Target 'CopilotChat' in project 'CopilotChat' (no dependencies)
