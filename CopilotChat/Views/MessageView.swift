@@ -35,6 +35,7 @@ struct MessageView: View {
     }
 
     @State private var isReasoningExpanded: Bool
+    @State private var expandedToolResult: Bool = false
 
     var body: some View {
         switch message.role {
@@ -535,7 +536,8 @@ struct MessageView: View {
             Text(message.content)
                 .font(.carbonMono(.caption2))
                 .foregroundStyle(Color.carbonTextSecondary)
-                .lineLimit(10)
+                .lineLimit(expandedToolResult ? nil : 10)
+                .textSelection(.enabled)
                 .padding(Carbon.spacingRelaxed)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color.carbonCodeBg)
@@ -544,6 +546,17 @@ struct MessageView: View {
                     RoundedRectangle(cornerRadius: Carbon.radiusSmall)
                         .stroke(Color.carbonBorder.opacity(0.3), lineWidth: 0.5)
                 )
+            if message.content.filter({ $0 == "\n" }).count >= 10 {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        expandedToolResult.toggle()
+                    }
+                } label: {
+                    Text(expandedToolResult ? "Show less" : "Show more")
+                        .font(.carbonMono(.caption2))
+                        .foregroundStyle(Color.carbonAccent)
+                }
+            }
         }
         .padding(.horizontal, Carbon.messagePaddingH)
         .padding(.vertical, Carbon.spacingTight)

@@ -714,7 +714,7 @@ final class GitHubPlugin: Plugin {
                     let oid = String(c.oid.description.prefix(7))
                     let date = ISO8601DateFormatter().string(from: c.author.time)
                     let msg = c.message.split(separator: "\n").first ?? ""
-                    lines.append("\(oid) \(c.author.name) \(date)\n  \(msg)")
+                    lines.append("\(oid) \(c.author.name) \(date)\n    \(msg)")
                     n += 1
                 }
                 return ToolResult(text: lines.isEmpty ? "No commits." : lines.joined(separator: "\n\n"))
@@ -860,7 +860,7 @@ final class GitHubPlugin: Plugin {
             case .failure(let e): return ToolResult(text: "Failed: \(e.localizedDescription)")
             case .success(let remotes):
                 if remotes.isEmpty { return ToolResult(text: "No remotes configured.") }
-                return ToolResult(text: remotes.map { "\($0.name)\t\(Self.sanitizedRemoteURL($0.URL))" }.joined(separator: "\n"))
+                return ToolResult(text: remotes.map { "\($0.name)  \(Self.sanitizedRemoteURL($0.URL))" }.joined(separator: "\n"))
             }
         }
     }
