@@ -27,6 +27,10 @@ struct CopilotChatApp: App {
             }
             .task {
                 if copilotService == nil {
+                    #if REVIEW
+                    ReviewMode.configureDefaults(settingsStore)
+                    #endif
+
                     let registry = ProviderRegistry(authManager: authManager)
                     providerRegistry = registry
 
@@ -34,18 +38,41 @@ struct CopilotChatApp: App {
                     service.setProviderRegistry(registry)
                     copilotService = service
 
-                    // Load models.dev providers in background
                     await registry.loadProviders()
 
-                    // Initialize plugin system
                     await PluginRegistry.shared.loadPlugins(
                         authManager: authManager,
                         settingsStore: settingsStore,
                         providerRegistry: registry
                     )
+
+                    #if REVIEW
+                    if ReviewMode.isEnabled {
+                        ReviewMode.configureDefaults(registry, settingsStore: settingsStore)
+                        await injectReviewConversations(service: service)
+                    }
+                    #endif
                 }
             }
             .preferredColorScheme(.dark)
         }
     }
+
+    #if REVIEW
+    private func injectReviewConversations(service: CopilotService) async {
+        await conversationStore.ensureSeededConversations(ReviewMode.makeSampleConversations())
+        if let current = conversationStore.currentConversationState() {
+            service.loadMessages(current.messages, summaryMessageId: current.summaryMessageId)
+            if let effort = current.reasoningEffort {
+                settingsStore.reasoningEffort = effort
+            }
+            if let registry = providerRegistry {
+                registry.activeProviderId = current.providerId ?? ReviewMode.defaultProviderId
+                let modelId = current.modelId ?? ReviewMode.defaultModelId
+                registry.activeModelId = modelId
+                settingsStore.selectedModel = modelId
+            }
+        }
+    }
+    #endif
 }

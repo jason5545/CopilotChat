@@ -43,7 +43,6 @@
 		7E8EF459F2E1EC13FDC76506 /* CommitIterator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E2CF0071C7693B6CD6264B4 /* CommitIterator.swift */; };
 		7F60716EF05D8ECC845214A9 /* Credentials.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67240B30469D6484EEF2634F /* Credentials.swift */; };
 		82EA680B0A0A23D8DCE40446 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F9FAE980CC6C7D80EA66144 /* KeychainHelper.swift */; };
-		8363C5ADC4F82B296A51511B /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B58A576E495CB3AA8A9BC9C9 /* PrivacyInfo.xcprivacy */; };
 		950435E7A28E106814422C1A /* ChatModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FD38A96474027CB84715BBB /* ChatModelsTests.swift */; };
 		9594396D7C49C3E8523AA1DC /* MarkdownParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E727D66DA592BDBB40BFE139 /* MarkdownParserTests.swift */; };
 		9E7C959C42469CB554361ECD /* SSEParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = B227DEC32A2814C3394FAE76 /* SSEParser.swift */; };
@@ -62,6 +61,7 @@
 		DEB7B83E6DC8A93E721EC21A /* MCPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0360B8A2EA009CB9636C0D4D /* MCPClient.swift */; };
 		DFBCDAD65923770B0830E4F0 /* Libgit2.swift in Sources */ = {isa = PBXBuildFile; fileRef = E183CCC2F4AE46B701DD0536 /* Libgit2.swift */; };
 		E2D491C5FBE72EB9683252E8 /* OpenAICompatibleProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 440A37F7E09FA9A23C5758FB /* OpenAICompatibleProvider.swift */; };
+		E3CEAAA1D21E395FC02A2BCD /* ReviewMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEEA87281A47EA22159BFB8A /* ReviewMode.swift */; };
 		E5022B4252945F09429065CF /* JavaScriptCorePluginLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B21F14A4DE004C4BC6248B2 /* JavaScriptCorePluginLoader.swift */; };
 		E9C20318D8E51809387FC5A7 /* OpenAICodexProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37F4264FC897CA031C3160B9 /* OpenAICodexProvider.swift */; };
 		EA3C282ACEB8A7A6BFB95642 /* ProviderTransform.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78FE0F4446B914463ED0FC30 /* ProviderTransform.swift */; };
@@ -93,7 +93,6 @@
 		0E4C54DF2D9B605822055885 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
 		0E94D5F865D2408864A2AF3C /* CopilotChat.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CopilotChat.entitlements; sourceTree = "<group>"; };
 		10F4C84C35E01FB46BEE9B08 /* AgentConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentConfig.swift; sourceTree = "<group>"; };
-		11A67119724674171141F0AD /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		16DB1EC5909ACF0B5B392F63 /* ChatModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatModels.swift; sourceTree = "<group>"; };
 		1779C9901FB3A2DA63DE4C80 /* CExtPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CExtPlugin.swift; sourceTree = "<group>"; };
 		1A087A7775242FEFB3318278 /* WorkspaceSelectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceSelectorView.swift; sourceTree = "<group>"; };
@@ -136,7 +135,6 @@
 		B0940E2105768196D8EDEAA4 /* Repository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Repository.swift; sourceTree = "<group>"; };
 		B227DEC32A2814C3394FAE76 /* SSEParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSEParser.swift; sourceTree = "<group>"; };
 		B2ABD5318D1C1FEAD11AFD93 /* CopilotChat.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = CopilotChat.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		B58A576E495CB3AA8A9BC9C9 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		B60890F12915084AD112F001 /* TaskPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskPlugin.swift; sourceTree = "<group>"; };
 		B7156A2F3FCF640CE82D1D4D /* ConversationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationStore.swift; sourceTree = "<group>"; };
 		B96E5A9BE12959957495FCCA /* MessageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageView.swift; sourceTree = "<group>"; };
@@ -146,6 +144,7 @@
 		BF1BB49A887E060D095005E8 /* References.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = References.swift; sourceTree = "<group>"; };
 		C2B7AC6BD497F71C56B82001 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		C62A4EE563BA063727BD3358 /* Pointers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Pointers.swift; sourceTree = "<group>"; };
+		CEEA87281A47EA22159BFB8A /* ReviewMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewMode.swift; sourceTree = "<group>"; };
 		D3D53A8C8EF2A56D9D60B5EE /* GitHubPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubPlugin.swift; sourceTree = "<group>"; };
 		D4D6D250CD46F217D156DA5E /* CopilotService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CopilotService.swift; sourceTree = "<group>"; };
 		DAEE40518E4F65DA4E50E674 /* MCPSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPSettingsView.swift; sourceTree = "<group>"; };
@@ -187,6 +186,7 @@
 				4DC0848F789894EADCC4F3EC /* MarkdownParser.swift */,
 				0360B8A2EA009CB9636C0D4D /* MCPClient.swift */,
 				96FBE408B7A6CF04BC50D1A0 /* PluginSystem.swift */,
+				CEEA87281A47EA22159BFB8A /* ReviewMode.swift */,
 				3F8C8F50D0B29A8A7443C454 /* SettingsStore.swift */,
 				B60890F12915084AD112F001 /* TaskPlugin.swift */,
 				E56B5E40897A32B6ECAA3C45 /* TaskSessionTracker.swift */,
@@ -278,8 +278,6 @@
 				0E94D5F865D2408864A2AF3C /* CopilotChat.entitlements */,
 				A877976EB8149831636E8E06 /* CopilotChatApp.swift */,
 				0E4C54DF2D9B605822055885 /* DesignSystem.swift */,
-				11A67119724674171141F0AD /* Info.plist */,
-				B58A576E495CB3AA8A9BC9C9 /* PrivacyInfo.xcprivacy */,
 				ECCDEEBAA676A10076B4015C /* Agents */,
 				12F4A27B9A5B53598863A0FA /* Models */,
 				4C7EBE1F4AB1856589D3B840 /* Providers */,
@@ -326,7 +324,7 @@
 			);
 			sourceTree = "<group>";
 		};
-		"TEMP_D5AEBC2D-1397-4508-9A78-D5C7B816F469" /* Theme */ = {
+		"TEMP_C389A6F3-46DF-4200-B68C-07D43B541C50" /* Theme */ = {
 			isa = PBXGroup;
 			children = (
 			);
@@ -382,10 +380,6 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 2600;
 				TargetAttributes = {
-					725090D1D39FE54630979995 = {
-						DevelopmentTeam = MW4GWYGX56;
-						ProvisioningStyle = Automatic;
-					};
 					9947F2143804FAF57DCC67D2 = {
 						DevelopmentTeam = MW4GWYGX56;
 						ProvisioningStyle = Automatic;
@@ -418,7 +412,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				7ABC55784E0EBBF9AFFB150B /* Assets.xcassets in Resources */,
-				8363C5ADC4F82B296A51511B /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -491,6 +484,7 @@
 				EF83E62B8ED6D8B7D4E656BB /* References.swift in Sources */,
 				F962D6714DBDCCF5C4D75661 /* Remotes.swift in Sources */,
 				6C543946749F610AEFF911FB /* Repository.swift in Sources */,
+				E3CEAAA1D21E395FC02A2BCD /* ReviewMode.swift in Sources */,
 				9E7C959C42469CB554361ECD /* SSEParser.swift in Sources */,
 				1642E88F49621293AC8EC307 /* SettingsStore.swift in Sources */,
 				D1E9BB44D1210C75CD6D0AF9 /* SettingsView.swift in Sources */,
@@ -549,34 +543,41 @@
 			};
 			name = Debug;
 		};
+		65DED921AA5612624D7BAE70 /* Review */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = MW4GWYGX56;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.copilotchat.CopilotChatTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CopilotChat.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CopilotChat";
+			};
+			name = Review;
+		};
 		67B5BB3019C60C56EC1078A5 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = CopilotChat/CopilotChat.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = MW4GWYGX56;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"\"CopilotChat\"",
 				);
-				INFOPLIST_FILE = CopilotChat/Info.plist;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_FILE = CopilotChat/Clibgit2.xcframework/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				OTHER_LDFLAGS = (
-					"-lz",
-					"-liconv",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.copilotchat.app;
+				PRODUCT_BUNDLE_IDENTIFIER = com.copilotchat.CopilotChat;
 				SDKROOT = iphoneos;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
@@ -716,33 +717,106 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = CopilotChat/CopilotChat.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = MW4GWYGX56;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"\"CopilotChat\"",
 				);
-				INFOPLIST_FILE = CopilotChat/Info.plist;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_FILE = CopilotChat/Clibgit2.xcframework/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				OTHER_LDFLAGS = (
-					"-lz",
-					"-liconv",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.copilotchat.app;
+				PRODUCT_BUNDLE_IDENTIFIER = com.copilotchat.CopilotChat;
 				SDKROOT = iphoneos;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
+		};
+		CEBF54B20203E3C18E8EF36F /* Review */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = CopilotChat/CopilotChat.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"CopilotChat\"",
+				);
+				INFOPLIST_FILE = CopilotChat/Clibgit2.xcframework/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.copilotchat.CopilotChat;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) REVIEW";
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Review;
+		};
+		F008E4F5B35D99C4A3EA3DD2 /* Review */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Copilot Chat";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Review;
 		};
 /* End XCBuildConfiguration section */
 
@@ -752,6 +826,7 @@
 			buildConfigurations = (
 				2B744C767050A5B576882B48 /* Debug */,
 				16FFCC00AB02CB322203F13A /* Release */,
+				65DED921AA5612624D7BAE70 /* Review */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -761,6 +836,7 @@
 			buildConfigurations = (
 				6AA0F91AC925B84271E673C2 /* Debug */,
 				A1969B09835E495252833933 /* Release */,
+				F008E4F5B35D99C4A3EA3DD2 /* Review */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -770,6 +846,7 @@
 			buildConfigurations = (
 				AD0CFC9ABD5F11F8AD0FFB26 /* Debug */,
 				67B5BB3019C60C56EC1078A5 /* Release */,
+				CEBF54B20203E3C18E8EF36F /* Review */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

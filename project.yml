@@ -5,6 +5,10 @@ options:
     iOS: "26.0"
   xcodeVersion: "26"
   defaultConfig: Release
+configs:
+  Debug: debug
+  Release: release
+  Review: release
 settings:
   SWIFT_VERSION: "6.0"
   SWIFT_STRICT_CONCURRENCY: complete
@@ -33,6 +37,8 @@ targets:
       - path: CopilotChat
         excludes:
           - "Clibgit2.xcframework/**"
+          - "Info.plist"
+          - "PrivacyInfo.xcprivacy"
     resources:
       - path: CopilotChat/PrivacyInfo.xcprivacy
     entitlements:
@@ -41,6 +47,9 @@ targets:
       - framework: CopilotChat/Clibgit2.xcframework
         embed: false
     settings:
+      configs:
+        Review:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) REVIEW"
       ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
       ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
       INFOPLIST_FILE: CopilotChat/Info.plist

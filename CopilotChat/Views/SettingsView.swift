@@ -4,6 +4,7 @@ struct SettingsView: View {
     @Environment(AuthManager.self) private var authManager
     @Environment(CopilotService.self) private var copilotService
     @Environment(SettingsStore.self) private var settingsStore
+    @Environment(ConversationStore.self) private var conversationStore
     @Environment(\.dismiss) private var dismiss
 
     @State private var showAddMCPServer = false
@@ -16,6 +17,11 @@ struct SettingsView: View {
     @State private var isMCPCollapsed = false
     @State private var isToolAccessCollapsed = false
     @State private var isMCPPermissionsCollapsed = false
+    #if REVIEW
+    @State private var reviewPasswordInput = ReviewMode.enteredPassword
+    @State private var reviewPasswordError: String?
+    @State private var showReviewPasswordPrompt = false
+    #endif
 
     var body: some View {
         NavigationStack {
@@ -32,6 +38,8 @@ struct SettingsView: View {
             }
             .scrollContentBackground(.hidden)
             .background(Color.carbonBlack)
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(Color.carbonSurface, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
@@ -64,6 +72,21 @@ struct SettingsView: View {
                     Task { await settingsStore.connectServer(server) }
                 }
             }
+            #if REVIEW
+            .alert("App Review Access", isPresented: $showReviewPasswordPrompt) {
+                SecureField("Review mode password", text: $reviewPasswordInput)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                Button("Cancel", role: .cancel) {
+                    reviewPasswordInput = ReviewMode.enteredPassword
+                }
+                Button("Unlock") {
+                    unlockReviewMode()
+                }
+            } message: {
+                Text("Enter the review password to enable the built-in demo session.")
+            }
+            #endif
         }
     }
 
@@ -121,12 +144,52 @@ struct SettingsView: View {
                 }
                 .listRowBackground(Color.carbonSurface)
 
+                #if REVIEW
+                if ReviewMode.isEnabled {
+                    HStack {
+                        Text("Demo session for App Review")
+                            .font(.carbonSans(.subheadline))
+                            .foregroundStyle(Color.carbonTextSecondary)
+                        Spacer()
+                    }
+                    .listRowBackground(Color.carbonSurface)
+
+                    Button("Disable Review Mode", role: .destructive) {
+                        disableReviewModeSession()
+                    }
+                    .font(.carbonSans(.subheadline))
+                    .foregroundStyle(Color.carbonError)
+                    .listRowBackground(Color.carbonSurface)
+                } else {
+                    Button {
+                        reviewPasswordInput = ReviewMode.enteredPassword
+                        showReviewPasswordPrompt = true
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "lock.open")
+                                .foregroundStyle(Color.carbonAccent)
+                            Text("App Review Access")
+                                .font(.carbonSans(.subheadline, weight: .medium))
+                                .foregroundStyle(Color.carbonText)
+                        }
+                    }
+                    .listRowBackground(Color.carbonSurface)
+
+                    if let reviewPasswordError {
+                        Text(reviewPasswordError)
+                            .font(.carbonMono(.caption2))
+                            .foregroundStyle(Color.carbonError)
+                            .listRowBackground(Color.carbonSurface)
+                    }
+                }
+                #else
                 Button("Sign Out", role: .destructive) {
                     authManager.signOut()
                 }
                 .font(.carbonSans(.subheadline))
                 .foregroundStyle(Color.carbonError)
                 .listRowBackground(Color.carbonSurface)
+                #endif
             } else if authManager.isAuthenticating {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack(spacing: 8) {
@@ -195,6 +258,60 @@ struct SettingsView: View {
             CarbonSectionHeader(title: "Account")
         }
     }
+
+    #if REVIEW
+    private func unlockReviewMode() {
+        if ReviewMode.unlock(using: reviewPasswordInput) {
+            reviewPasswordError = nil
+            enableReviewModeSession()
+        } else {
+            reviewPasswordError = "Password does not match the review unlock code."
+        }
+    }
+
+    private func enableReviewModeSession() {
+        authManager.signOut()
+
+        Task {
+            ReviewMode.configureDefaults(settingsStore)
+
+            if let registry = copilotService.providerRegistry {
+                ReviewMode.configureDefaults(registry, settingsStore: settingsStore)
+                await registry.loadProviders()
+            }
+
+            await conversationStore.ensureSeededConversations(ReviewMode.makeSampleConversations())
+            copilotService.newConversation()
+
+            if let current = conversationStore.currentConversationState() {
+                copilotService.loadMessages(current.messages, summaryMessageId: current.summaryMessageId)
+                if let effort = current.reasoningEffort {
+                    settingsStore.reasoningEffort = effort
+                }
+                if let registry = copilotService.providerRegistry {
+                    registry.activeProviderId = current.providerId ?? ReviewMode.defaultProviderId
+                    let modelId = current.modelId ?? ReviewMode.defaultModelId
+                    registry.activeModelId = modelId
+                    settingsStore.selectedModel = modelId
+                }
+            }
+
+            await copilotService.fetchModels()
+        }
+    }
+
+    private func disableReviewModeSession() {
+        ReviewMode.lock()
+        reviewPasswordError = nil
+        conversationStore.startNewConversation(currentMessages: [])
+        copilotService.newConversation()
+        authManager.signOut()
+
+        Task {
+            await copilotService.providerRegistry?.loadProviders()
+        }
+    }
+    #endif
 
     // MARK: - Provider Section
 

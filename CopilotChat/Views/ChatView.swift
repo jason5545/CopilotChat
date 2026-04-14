@@ -12,6 +12,11 @@ struct ChatView: View {
     @State private var showSettings = false
     @State private var showHistory = false
     @State private var showWorkspaceSelector = false
+    #if REVIEW
+    @State private var showReviewPasswordPrompt = false
+    @State private var reviewPasswordInput = ReviewMode.enteredPassword
+    @State private var reviewPasswordError: String?
+    #endif
     @State private var editingMessageId: UUID?
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var attachedImageData: Data?
@@ -23,11 +28,18 @@ struct ChatView: View {
             ZStack {
                 Color.carbonBlack.ignoresSafeArea()
 
-                VStack(spacing: 0) {
-                    messagesList
-                    inputBar
+                if authManager.isAuthenticated {
+                    VStack(spacing: 0) {
+                        messagesList
+                        inputBar
+                    }
+                } else {
+                    emptyStateDefault
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(Color.carbonSurface, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
@@ -39,42 +51,48 @@ struct ChatView: View {
                         .foregroundStyle(Color.carbonText)
                 }
                 ToolbarItem(placement: .topBarLeading) {
-                    HStack(spacing: 14) {
-                        Button {
-                            showHistory = true
-                        } label: {
-                            Image(systemName: "clock.arrow.circlepath")
-                                .font(.subheadline)
-                                .foregroundStyle(Color.carbonTextSecondary)
-                        }
-                        Button {
-                            startNewConversation()
-                        } label: {
-                            Image(systemName: "square.and.pencil")
-                                .font(.subheadline)
-                                .foregroundStyle(Color.carbonTextSecondary)
+                    if authManager.isAuthenticated {
+                        HStack(spacing: 14) {
+                            Button {
+                                showHistory = true
+                            } label: {
+                                Image(systemName: "clock.arrow.circlepath")
+                                    .font(.subheadline)
+                                    .foregroundStyle(Color.carbonTextSecondary)
+                            }
+                            Button {
+                                startNewConversation()
+                            } label: {
+                                Image(systemName: "square.and.pencil")
+                                    .font(.subheadline)
+                                    .foregroundStyle(Color.carbonTextSecondary)
+                            }
                         }
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: 12) {
-                        if let usage = copilotService.tokenUsage, copilotService.contextWindow > 0 {
+                        if authManager.isAuthenticated,
+                           let usage = copilotService.tokenUsage,
+                           copilotService.contextWindow > 0 {
                             ContextRing(
                                 promptTokens: usage.promptTokens,
                                 contextWindow: copilotService.contextWindow
                             )
                         }
 
-                        Button {
-                            settingsStore.appMode = settingsStore.appMode == .chat ? .coding : .chat
-                        } label: {
-                            Image(systemName: settingsStore.appMode.icon)
-                                .font(.subheadline)
-                            .foregroundStyle(settingsStore.appMode == .coding ? Color.carbonAccent : Color.carbonTextSecondary)
-                            .frame(width: 28, height: 28)
-                            .padding(.vertical, 4)
-                            .background(settingsStore.appMode == .coding ? Color.carbonAccentMuted : Color.carbonElevated)
-                            .clipShape(Capsule())
+                        if authManager.isAuthenticated {
+                            Button {
+                                settingsStore.appMode = settingsStore.appMode == .chat ? .coding : .chat
+                            } label: {
+                                Image(systemName: settingsStore.appMode.icon)
+                                    .font(.subheadline)
+                                .foregroundStyle(settingsStore.appMode == .coding ? Color.carbonAccent : Color.carbonTextSecondary)
+                                .frame(width: 28, height: 28)
+                                .padding(.vertical, 4)
+                                .background(settingsStore.appMode == .coding ? Color.carbonAccentMuted : Color.carbonElevated)
+                                .clipShape(Capsule())
+                            }
                         }
 
                         Button {
@@ -103,6 +121,21 @@ struct ChatView: View {
             .sheet(isPresented: $showWorkspaceSelector) {
                 WorkspaceSelectorView()
             }
+            #if REVIEW
+            .alert("App Review Access", isPresented: $showReviewPasswordPrompt) {
+                SecureField("Review mode password", text: $reviewPasswordInput)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                Button("Cancel", role: .cancel) {
+                    reviewPasswordInput = ReviewMode.enteredPassword
+                }
+                Button("Unlock") {
+                    unlockReviewMode()
+                }
+            } message: {
+                Text("Enter the review password to launch the built-in demo session.")
+            }
+            #endif
             .onReceive(NotificationCenter.default.publisher(for: .requestWorkspaceSelection)) { _ in
                 showWorkspaceSelector = true
             }
@@ -292,6 +325,26 @@ struct ChatView: View {
                         .clipShape(Capsule())
                     }
                     .padding(.top, 4)
+
+                    #if REVIEW
+                    Button {
+                        reviewPasswordInput = ReviewMode.enteredPassword
+                        showReviewPasswordPrompt = true
+                    } label: {
+                        Text("App Review Access")
+                            .font(.carbonMono(.caption, weight: .medium))
+                            .foregroundStyle(Color.carbonAccent)
+                    }
+                    .padding(.top, 2)
+
+                    if let reviewPasswordError {
+                        Text(reviewPasswordError)
+                            .font(.carbonMono(.caption2))
+                            .foregroundStyle(Color.carbonError)
+                            .multilineTextAlignment(.center)
+                            .padding(.top, 2)
+                    }
+                    #endif
                 }
 
                 if let providerModelLabel {
@@ -789,6 +842,60 @@ struct ChatView: View {
             modelId: copilotService.providerRegistry?.activeModelId
         )
     }
+
+    #if REVIEW
+    private func unlockReviewMode() {
+        if ReviewMode.unlock(using: reviewPasswordInput) {
+            reviewPasswordError = nil
+            enableReviewModeSession()
+        } else {
+            reviewPasswordError = "Password does not match the review unlock code."
+        }
+    }
+
+    private func enableReviewModeSession() {
+        authManager.signOut()
+
+        Task {
+            ReviewMode.configureDefaults(settingsStore)
+
+            if let registry = copilotService.providerRegistry {
+                ReviewMode.configureDefaults(registry, settingsStore: settingsStore)
+                await registry.loadProviders()
+            }
+
+            await conversationStore.ensureSeededConversations(ReviewMode.makeSampleConversations())
+            copilotService.newConversation()
+
+            if let current = conversationStore.currentConversationState() {
+                copilotService.loadMessages(current.messages, summaryMessageId: current.summaryMessageId)
+                if let effort = current.reasoningEffort {
+                    settingsStore.reasoningEffort = effort
+                }
+                if let registry = copilotService.providerRegistry {
+                    registry.activeProviderId = current.providerId ?? ReviewMode.defaultProviderId
+                    let modelId = current.modelId ?? ReviewMode.defaultModelId
+                    registry.activeModelId = modelId
+                    settingsStore.selectedModel = modelId
+                }
+            }
+
+            await copilotService.fetchModels()
+        }
+    }
+
+    private func disableReviewModeSession() {
+        ReviewMode.lock()
+        reviewPasswordError = nil
+        conversationStore.startNewConversation(currentMessages: [])
+        copilotService.newConversation()
+        authManager.signOut()
+
+        Task {
+            await copilotService.providerRegistry?.loadProviders()
+        }
+    }
+    #endif
 }
 
 // MARK: - MCP Tool Picker

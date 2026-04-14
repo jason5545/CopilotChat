@@ -9,6 +9,7 @@ final class ConversationStore {
 
     private let storageDirectory: URL
     private var saveTask: Task<Void, Never>?
+    private var initialLoadTask: Task<Void, Never>?
 
     private nonisolated static func makeEncoder() -> JSONEncoder {
         let e = JSONEncoder()
@@ -26,7 +27,7 @@ final class ConversationStore {
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         storageDirectory = documentsPath.appendingPathComponent("Conversations", isDirectory: true)
         try? FileManager.default.createDirectory(at: storageDirectory, withIntermediateDirectories: true)
-        Task { await loadAllConversations() }
+        initialLoadTask = Task { await loadAllConversations() }
     }
 
     // MARK: - Current Conversation
@@ -34,6 +35,29 @@ final class ConversationStore {
     var currentConversation: Conversation? {
         guard let id = currentConversationId else { return nil }
         return conversations.first { $0.id == id }
+    }
+
+    func currentConversationState() -> (messages: [ChatMessage], summaryMessageId: UUID?, reasoningEffort: ReasoningEffort?, providerId: String?, modelId: String?)? {
+        guard let id = currentConversationId else { return nil }
+        let messages = loadMessages(for: id)
+        let conversation = conversations.first { $0.id == id }
+        return (messages, conversation?.summaryMessageId, conversation?.reasoningEffort, conversation?.providerId, conversation?.modelId)
+    }
+
+    func ensureSeededConversations(_ seedConversations: [Conversation]) async {
+        await initialLoadTask?.value
+
+        if conversations.isEmpty {
+            let seeded = seedConversations.sorted { $0.updatedAt > $1.updatedAt }
+            conversations = seeded
+            for conversation in seeded {
+                await saveToDisk(conversation)
+            }
+        }
+
+        if currentConversationId == nil {
+            currentConversationId = conversations.first?.id
+        }
     }
 
     // MARK: - Create / Switch

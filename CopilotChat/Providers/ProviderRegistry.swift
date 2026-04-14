@@ -69,6 +69,11 @@ final class ProviderRegistry {
         isLoadingProviders = true
         modelsDevProviders = await ModelsDev.shared.providers()
         modelsDevProviders.merge(Self.hardcodedProviders) { $1 }
+        #if REVIEW
+        if ReviewMode.isEnabled {
+            modelsDevProviders[ReviewMode.defaultProviderId] = ReviewMode.copilotProvider
+        }
+        #endif
         loadConfiguredProviders()
         isLoadingProviders = false
     }
@@ -77,6 +82,11 @@ final class ProviderRegistry {
         isLoadingProviders = true
         var fresh = await ModelsDev.shared.refresh()
         fresh.merge(Self.hardcodedProviders) { $1 }
+        #if REVIEW
+        if ReviewMode.isEnabled {
+            fresh[ReviewMode.defaultProviderId] = ReviewMode.copilotProvider
+        }
+        #endif
         modelsDevProviders = fresh
         isLoadingProviders = false
     }
@@ -254,9 +264,18 @@ final class ProviderRegistry {
         // Special case: GitHub Copilot
         if providerId == "github-copilot" {
             guard authManager.isAuthenticated else { return nil }
+            #if REVIEW
+            if ReviewMode.isEnabled {
+                return ReviewCopilotProvider()
+            }
             return CopilotProvider(tokenProvider: { [weak authManager] in
                 await MainActor.run { authManager?.token }
             })
+            #else
+            return CopilotProvider(tokenProvider: { [weak authManager] in
+                await MainActor.run { authManager?.token }
+            })
+            #endif
         }
 
         // Special case: OpenAI Codex (OAuth or API key)

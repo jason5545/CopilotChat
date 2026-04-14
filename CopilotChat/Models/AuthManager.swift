@@ -32,10 +32,26 @@ final class AuthManager {
     }()
 
     init() {
-        // The old token was minted under a different OAuth app identity, so force re-auth.
         KeychainHelper.delete(key: Self.legacyKeychainKey)
+        #if REVIEW
+        if ReviewMode.isEnabled {
+            activateReviewMode()
+        } else {
+            loadSavedToken()
+        }
+        #else
         loadSavedToken()
+        #endif
     }
+
+    #if REVIEW
+    private func activateReviewMode() {
+        githubToken = ReviewMode.demoToken
+        isAuthenticated = true
+        username = ReviewMode.demoUsername
+        avatarUrl = ReviewMode.demoAvatarUrl
+    }
+    #endif
 
     // MARK: - Token Management
 
@@ -54,6 +70,12 @@ final class AuthManager {
     }
 
     func signOut() {
+        #if REVIEW
+        if ReviewMode.isEnabled {
+            activateReviewMode()
+            return
+        }
+        #endif
         githubToken = nil
         username = nil
         avatarUrl = nil

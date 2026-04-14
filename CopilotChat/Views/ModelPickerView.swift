@@ -90,6 +90,8 @@ struct ModelPickerView: View {
                 modelList
             }
             .background(Color.carbonBlack)
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(Color.carbonSurface, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
