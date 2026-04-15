@@ -1293,8 +1293,21 @@ final class CopilotService {
         if summaryMessageId == id { summaryMessageId = nil }
     }
 
+    private static let noopTool = APITool(
+        type: "function",
+        function: .init(
+            name: "_noop",
+            description: "Do not call this tool. It exists only for API compatibility and must never be invoked.",
+            parameters: ["type": AnyCodable("object"), "properties": AnyCodable([String: AnyCodable]())]
+        )
+    )
+
     private static var summarizerInstructions: String { AgentConfig.summarizer.systemPrompt }
     private static var summarizerPrompt: String { AgentConfig.summarizerPrompt }
+
+    private static func messagesContainToolCalls(_ messages: [APIMessage]) -> Bool {
+        messages.contains { $0.toolCalls != nil && !($0.toolCalls?.isEmpty ?? true) }
+    }
 
     func compactConversation() async throws {
         // Try provider-based compaction first
@@ -1329,10 +1342,11 @@ final class CopilotService {
                 apiMessages[0] = APIMessage(role: "system", content: Self.summarizerInstructions)
             }
             apiMessages.append(APIMessage(role: "user", content: Self.summarizerPrompt))
+            let noopTools: [APITool]? = Self.messagesContainToolCalls(apiMessages) ? [Self.noopTool] : nil
             let request = ChatCompletionRequest(
                 model: model, messages: apiMessages, stream: false,
                 maxTokens: 4096, temperature: 0.5,
-                tools: nil, toolChoice: nil, streamOptions: nil,
+                tools: noopTools, toolChoice: nil, streamOptions: nil,
                 reasoningEffort: nil
             )
             requestData = try JSONEncoder().encode(request)
@@ -1384,8 +1398,10 @@ final class CopilotService {
             agentInitiated: true
         )
 
+        let noopTools: [APITool]? = Self.messagesContainToolCalls(apiMessages) ? [Self.noopTool] : nil
+
         let response = try await provider.sendCompletion(
-            messages: apiMessages, model: model, tools: nil, options: options)
+            messages: apiMessages, model: model, tools: noopTools, options: options)
 
         guard let text = response.content, !text.isEmpty else { return }
         let summaryMessage = ChatMessage(role: .assistant, content: text)
