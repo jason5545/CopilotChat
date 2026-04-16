@@ -1,5 +1,9 @@
 import Foundation
+#if canImport(UIKit)
 import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 import UserNotifications
 import JavaScriptCore
 
@@ -276,11 +280,11 @@ final class _Bridge: NSObject {
     }
 
     @objc func clipboardRead() -> String {
-        hasClipboard ? (UIPasteboard.general.string ?? "") : ""
+        hasClipboard ? (PlatformHelpers.clipboardString() ?? "") : ""
     }
 
     @objc func clipboardWrite(_ text: String) {
-        if hasClipboard { UIPasteboard.general.string = text }
+        if hasClipboard { PlatformHelpers.copyToClipboard(text) }
     }
 
     @objc func notify(_ title: String, _ body: String) {
@@ -292,11 +296,11 @@ final class _Bridge: NSObject {
 
     @objc func openURL(_ s: String) {
         guard hasOpenURL, let u = URL(string: s) else { return }
-        Task { @MainActor in await UIApplication.shared.open(u) }
+        Task { @MainActor in await PlatformHelpers.openURL(u) }
     }
 
     @objc func deviceInfo() -> [String: String] {
-        ["platform": "ios", "version": UIDevice.current.systemVersion,
-         "model": UIDevice.current.model, "name": UIDevice.current.name, "pluginId": pluginId]
+        ["platform": PlatformHelpers.platformId, "version": PlatformHelpers.systemVersion,
+         "model": PlatformHelpers.deviceModel, "name": PlatformHelpers.deviceName, "pluginId": pluginId]
     }
 }

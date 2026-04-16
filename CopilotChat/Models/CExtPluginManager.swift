@@ -1,5 +1,9 @@
 import Foundation
+#if canImport(UIKit)
 import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 @MainActor
 final class CExtPluginManager: ObservableObject {
@@ -84,7 +88,7 @@ final class CExtPluginManager: ObservableObject {
     private func registerInPluginRegistry(pluginId: String) async {
         guard let plugin = pluginInstances[pluginId] else { return }
 
-        let input = PluginInput(deviceId: UIDevice.current.identifierForVendor?.uuidString ?? "unknown")
+        let input = PluginInput(deviceId: PlatformHelpers.deviceId)
 
         do {
             let hooks = try await plugin.configure(with: input)

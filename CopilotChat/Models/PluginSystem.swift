@@ -1,5 +1,9 @@
 import Foundation
+#if canImport(UIKit)
 import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 // ===== Tool Result =====
 
@@ -244,12 +248,14 @@ final class PluginRegistry {
     }
 
     private func registerBuiltInPlugins() async {
-        let plugins: [any Plugin] = [
+        var plugins: [any Plugin] = [
             BrowserPlugin(),
             BraveSearchPlugin(),
             FileSystemPlugin(),
-            GitHubPlugin(),
         ]
+        #if canImport(Clibgit2)
+        plugins.append(GitHubPlugin())
+        #endif
         for plugin in plugins {
             await registerAndConfigure(plugin)
         }
@@ -257,7 +263,7 @@ final class PluginRegistry {
 
     /// Configures a plugin, registers its tool/streaming handlers, and enables it.
     private func registerAndConfigure(_ plugin: any Plugin) async {
-        let input = PluginInput(deviceId: UIDevice.current.identifierForVendor?.uuidString ?? "unknown")
+        let input = PluginInput(deviceId: PlatformHelpers.deviceId)
         if let hooks = try? await plugin.configure(with: input) {
             hooksMap[plugin.id] = hooks
             registerToolHandlers(pluginId: plugin.id, hooks: hooks)

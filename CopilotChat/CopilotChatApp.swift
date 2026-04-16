@@ -43,6 +43,10 @@ struct CopilotChatApp: App {
                         settingsStore: settingsStore,
                         providerRegistry: registry
                     )
+
+                    // iCloud sync
+                    settingsStore.startObservingKVStoreChanges()
+                    await conversationStore.syncWithCloud()
                 }
             }
             .preferredColorScheme(.dark)

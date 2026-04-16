@@ -242,6 +242,28 @@ final class ProviderRegistry {
         ]
     }()
 
+    /// Coding-plan variants share credentials with their base provider, but only
+    /// within explicit families so CN and international endpoints stay isolated.
+    private static let sharedCredentialFamilies: [[String]] = [
+        ["minimax", "minimax-coding-plan"],
+        ["minimax-cn", "minimax-cn-coding-plan"],
+        ["zai", "zai-coding-plan"],
+        ["zhipuai", "zhipuai-coding-plan"],
+    ]
+
+    private static func credentialFamily(for providerId: String) -> [String] {
+        sharedCredentialFamilies.first(where: { $0.contains(providerId) }) ?? [providerId]
+    }
+
+    private static func canonicalCredentialProviderId(for providerId: String) -> String {
+        credentialFamily(for: providerId).first ?? providerId
+    }
+
+    private static func credentialLookupOrder(for providerId: String) -> [String] {
+        let canonicalId = canonicalCredentialProviderId(for: providerId)
+        return [canonicalId] + credentialFamily(for: providerId).filter { $0 != canonicalId }
+    }
+
     // MARK: - Provider Resolution
 
     /// Get the active LLM provider instance.
@@ -354,6 +376,7 @@ final class ProviderRegistry {
     /// Providers the user has configured (has API key).
     var configuredProviders: [ModelsDevProvider] {
         var result: [ModelsDevProvider] = []
+        let specialIds: Set<String> = ["github-copilot", "openai-codex", "augment"]
         // Always show Copilot first if authenticated
         if authManager.isAuthenticated, let copilot = modelsDevProviders["github-copilot"] {
             result.append(copilot)
@@ -368,10 +391,11 @@ final class ProviderRegistry {
            let augment = modelsDevProviders["augment"] {
             result.append(augment)
         }
-        // Then configured providers
-        for id in configuredProviderIds.sorted() {
-            if id == "github-copilot" || id == "openai-codex" || id == "augment" { continue }
-            if let p = modelsDevProviders[id] { result.append(p) }
+        // Then every provider that currently resolves to a usable credential.
+        for provider in allProvidersSorted where !specialIds.contains(provider.id) {
+            if hasAPIKey(for: provider.id) {
+                result.append(provider)
+            }
         }
         return result
     }
@@ -409,21 +433,35 @@ final class ProviderRegistry {
     }
 
     func saveAPIKey(_ key: String, for providerId: String) {
-        KeychainHelper.save(key, for: Self.keychainKey(for: providerId))
+        let canonicalId = Self.canonicalCredentialProviderId(for: providerId)
+        KeychainHelper.save(key, for: Self.keychainKey(for: canonicalId))
+        for legacyId in Self.credentialFamily(for: providerId) where legacyId != canonicalId {
+            KeychainHelper.delete(key: Self.keychainKey(for: legacyId))
+        }
         configuredProviderIds.insert(providerId)
         saveConfiguredProviders()
     }
 
     func loadAPIKey(for providerId: String) -> String? {
-        KeychainHelper.loadString(key: Self.keychainKey(for: providerId))
+        for candidateId in Self.credentialLookupOrder(for: providerId) {
+            if let key = KeychainHelper.loadString(key: Self.keychainKey(for: candidateId)) {
+                return key
+            }
+        }
+        return nil
     }
 
     func removeAPIKey(for providerId: String) {
-        KeychainHelper.delete(key: Self.keychainKey(for: providerId))
+        let canonicalId = Self.canonicalCredentialProviderId(for: providerId)
+        KeychainHelper.delete(key: Self.keychainKey(for: canonicalId))
+        for legacyId in Self.credentialFamily(for: providerId) where legacyId != canonicalId {
+            KeychainHelper.delete(key: Self.keychainKey(for: legacyId))
+        }
         if providerId == "augment" {
             KeychainHelper.delete(key: Self.augmentTenantURLKey)
         }
         configuredProviderIds.remove(providerId)
+        configuredProviderIds = Set(configuredProviderIds.filter { hasAPIKey(for: $0) })
         saveConfiguredProviders()
     }
 
@@ -492,5 +530,6 @@ final class ProviderRegistry {
         if authManager.isAuthenticated {
             configuredProviderIds.insert("github-copilot")
         }
+        configuredProviderIds = Set(configuredProviderIds.filter { hasAPIKey(for: $0) })
     }
 }

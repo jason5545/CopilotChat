@@ -1,5 +1,10 @@
 import SwiftUI
 import UniformTypeIdentifiers
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 struct CExtPluginsView: View {
     @State private var cExtManager = CExtPluginManager.shared
@@ -66,7 +71,7 @@ struct CExtPluginsView: View {
         .scrollContentBackground(.hidden)
         .background(Color.carbonBlack)
         .navigationTitle("Community Plugins")
-        .toolbarColorScheme(.dark, for: .navigationBar)
+        .carbonNavigationBarStyle()
         .overlay {
             if isLoading {
                 ProgressView()
@@ -133,6 +138,7 @@ struct CExtPluginsView: View {
     }
 }
 
+#if canImport(UIKit)
 struct DocumentPickerView: UIViewControllerRepresentable {
     let onPick: (URL) -> Void
 
@@ -178,3 +184,22 @@ struct DocumentPickerView: UIViewControllerRepresentable {
         }
     }
 }
+#elseif canImport(AppKit)
+struct DocumentPickerView: NSViewRepresentable {
+    let onPick: (URL) -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            onPick(url)
+        }
+        return NSView()
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
+}
+#endif

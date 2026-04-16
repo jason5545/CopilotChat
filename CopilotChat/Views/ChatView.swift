@@ -1,4 +1,9 @@
+#if canImport(PhotosUI)
 import PhotosUI
+#endif
+#if canImport(AppKit)
+import AppKit
+#endif
 import SwiftUI
 
 struct ChatView: View {
@@ -7,16 +12,22 @@ struct ChatView: View {
     @Environment(SettingsStore.self) private var settingsStore
     @Environment(ConversationStore.self) private var conversationStore
 
-    @State private var inputText = ""
+    var showToolbar: Bool = true
+
+@State private var inputText = ""
     @State private var showToolPicker = false
     @State private var showSettings = false
     @State private var showHistory = false
+    @State private var showModePicker = false
     @State private var showWorkspaceSelector = false
     @State private var editingMessageId: UUID?
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var attachedImageData: Data?
     @State private var clipboardHasImage = false
     @FocusState private var isInputFocused: Bool
+    @State private var mentionQuery: String?
+    @State private var mentionManager = FileMentionManager()
+    @State private var mentionedFiles: [FileMention] = []
 
     var body: some View {
         NavigationStack {
@@ -28,9 +39,10 @@ struct ChatView: View {
                     inputBar
                 }
             }
-            .toolbarBackground(Color.carbonSurface, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .carbonNavigationBar()
+            #if canImport(UIKit)
+            .toolbar(showToolbar ? .visible : .hidden, for: .navigationBar)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     Text("COPILOT")
@@ -38,7 +50,7 @@ struct ChatView: View {
                         .kerning(2.5)
                         .foregroundStyle(Color.carbonText)
                 }
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .carbonLeading) {
                     HStack(spacing: 14) {
                         Button {
                             showHistory = true
@@ -56,7 +68,7 @@ struct ChatView: View {
                         }
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .carbonTrailing) {
                     HStack(spacing: 12) {
                         if let usage = copilotService.tokenUsage, copilotService.contextWindow > 0 {
                             ContextRing(
@@ -75,6 +87,32 @@ struct ChatView: View {
                             .padding(.vertical, 4)
                             .background(settingsStore.appMode == .coding ? Color.carbonAccentMuted : Color.carbonElevated)
                             .clipShape(Capsule())
+                        }
+
+                        Menu {
+                            Button {
+                                settingsStore.toolAccessMode = .alwaysLoaded
+                            } label: {
+                                Label("Supervised", systemImage: "lock")
+                            }
+                            Button {
+                                settingsStore.toolAccessMode = .autoApprove
+                            } label: {
+                                Label("Auto-accept edits", systemImage: "pencil.line")
+                            }
+                            Button {
+                                settingsStore.toolAccessMode = .fullAccess
+                            } label: {
+                                Label("Full access", systemImage: "lock.open")
+                            }
+                        } label: {
+                            Image(systemName: settingsStore.toolAccessMode.icon)
+                                .font(.subheadline)
+                                .foregroundStyle(Color.carbonTextSecondary)
+                                .frame(width: 28, height: 28)
+                                .padding(.vertical, 4)
+                                .background(Color.carbonElevated)
+                                .clipShape(Capsule())
                         }
 
                         Button {
@@ -421,6 +459,7 @@ struct ChatView: View {
 
     // MARK: - Image Preview
 
+    #if canImport(UIKit)
     private func imagePreview(_ image: UIImage) -> some View {
         HStack {
             ZStack(alignment: .topTrailing) {
@@ -447,6 +486,34 @@ struct ChatView: View {
         .padding(.vertical, 6)
         .background(Color.carbonSurface)
     }
+    #elseif canImport(AppKit)
+    private func imagePreviewNS(_ image: NSImage) -> some View {
+        HStack {
+            ZStack(alignment: .topTrailing) {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 60, height: 60)
+                    .clipShape(RoundedRectangle(cornerRadius: Carbon.radiusSmall))
+
+                Button {
+                    attachedImageData = nil
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(Color.carbonText)
+                        .background(Color.carbonBlack.clipShape(Circle()))
+                }
+                .buttonStyle(.plain)
+                .offset(x: 4, y: -4)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, Carbon.messagePaddingH)
+        .padding(.vertical, 6)
+        .background(Color.carbonSurface)
+    }
+    #endif
 
     // MARK: - Edit & Regenerate
 
@@ -540,11 +607,36 @@ struct ChatView: View {
                 editingIndicator
             }
 
-            if let imageData = attachedImageData, let uiImage = UIImage(data: imageData) {
-                imagePreview(uiImage)
+            if let imageData = attachedImageData {
+                #if canImport(UIKit)
+                if let uiImage = UIImage(data: imageData) {
+                    imagePreview(uiImage)
+                }
+                #elseif canImport(AppKit)
+                if let nsImage = NSImage(data: imageData) {
+                    imagePreviewNS(nsImage)
+                }
+                #endif
+            }
+
+            if !mentionedFiles.isEmpty {
+                fileChipsBar
+            }
+
+            if mentionQuery != nil {
+                FileMentionPicker(
+                    files: mentionManager.filteredFiles,
+                    onSelect: { file in insertMention(file) },
+                    query: mentionQuery ?? ""
+                )
+                .padding(.horizontal, Carbon.messagePaddingH)
+                .padding(.top, Carbon.spacingTight)
+                .background(Color.carbonSurface)
             }
 
             HStack(alignment: .bottom, spacing: 10) {
+                ProviderModelPicker()
+
                 if !settingsStore.mcpTools.isEmpty {
                     Button {
                         showToolPicker = true
@@ -556,6 +648,7 @@ struct ChatView: View {
                     }
                 }
 
+                #if canImport(UIKit)
                 PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
                     Image(systemName: "photo")
                         .font(.subheadline)
@@ -572,11 +665,12 @@ struct ChatView: View {
                         selectedPhotoItem = nil
                     }
                 }
+                #endif
 
                 if clipboardHasImage && attachedImageData == nil {
                     Button {
-                        if let image = UIPasteboard.general.image {
-                            attachedImageData = image.jpegData(compressionQuality: 0.7)
+                        if let data = PlatformHelpers.clipboardImage() {
+                            attachedImageData = data
                             clipboardHasImage = false
                             Haptics.impact(.light)
                         }
@@ -588,7 +682,7 @@ struct ChatView: View {
                     }
                 }
 
-                TextField("Message", text: $inputText, axis: .vertical)
+                TextField("Message (@ to mention file)", text: $inputText, axis: .vertical)
                     .textFieldStyle(.plain)
                     .font(.carbonSans(.body))
                     .foregroundStyle(Color.carbonText)
@@ -596,6 +690,9 @@ struct ChatView: View {
                     .focused($isInputFocused)
                     .onSubmit { sendCurrentMessage() }
                     .tint(Color.carbonAccent)
+                    .onChange(of: inputText) { _, newText in
+                        detectMentionTrigger(newText)
+                    }
 
                 if copilotService.isStreaming {
                     Button {
@@ -628,10 +725,17 @@ struct ChatView: View {
             .padding(.horizontal, Carbon.messagePaddingH)
             .padding(.vertical, Carbon.spacingRelaxed)
             .background(Color.carbonSurface)
-            .onAppear { checkClipboard() }
+            .onAppear {
+                checkClipboard()
+                if WorkspaceManager.shared.hasWorkspace, mentionManager.allFiles.isEmpty {
+                    mentionManager.indexWorkspace()
+                }
+            }
+            #if canImport(UIKit)
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
                 checkClipboard()
             }
+            #endif
         }
     }
 
@@ -737,25 +841,150 @@ struct ChatView: View {
         .buttonStyle(.plain)
     }
 
+    // MARK: - File Chips
+
+    private var fileChipsBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: Carbon.spacingTight) {
+                ForEach(mentionedFiles) { file in
+                    fileChip(file)
+                }
+            }
+            .padding(.horizontal, Carbon.messagePaddingH)
+            .padding(.vertical, Carbon.spacingTight)
+        }
+        .background(Color.carbonElevated.opacity(0.5))
+    }
+
+    private func fileChip(_ file: FileMention) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: file.systemImage)
+                .font(.system(size: 10))
+                .foregroundStyle(file.tintColor)
+
+            Text(file.fileName)
+                .font(.carbonMono(.caption2, weight: .medium))
+                .foregroundStyle(Color.carbonText)
+                .lineLimit(1)
+
+            Button {
+                removeMention(file)
+                Haptics.impact(.light)
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(Color.carbonTextTertiary)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color.carbonElevated)
+        .clipShape(Capsule())
+        .overlay(Capsule().stroke(Color.carbonBorder.opacity(0.5), lineWidth: 0.5))
+    }
+
     private var canSend: Bool {
         let hasText = !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         let hasImage = attachedImageData != nil
-        return (hasText || hasImage)
+        let hasMentions = !mentionedFiles.isEmpty
+        return (hasText || hasImage || hasMentions)
             && !copilotService.isStreaming
             && authManager.isAuthenticated
     }
 
+    // MARK: - @ Mention Detection
+
+    private func onInputChange(_ newText: String) {
+        inputText = newText
+        detectMentionTrigger(newText)
+    }
+
+    private func detectMentionTrigger(_ text: String) {
+        guard text.contains("@") else {
+            mentionQuery = nil
+            return
+        }
+
+        let cursorPos = text.count
+        let prefix = String(text.prefix(cursorPos))
+
+        if let atRange = prefix.range(of: "@", options: .backwards) {
+            let afterAt = String(prefix[atRange.upperBound...])
+            if !afterAt.contains(" ") && !afterAt.contains("\n") {
+                mentionQuery = afterAt.isEmpty ? "" : afterAt
+                if mentionQuery != nil {
+                    if mentionManager.allFiles.isEmpty && WorkspaceManager.shared.hasWorkspace {
+                        mentionManager.indexWorkspace()
+                    }
+                    mentionManager.search(query: mentionQuery ?? "")
+                }
+                return
+            }
+        }
+        mentionQuery = nil
+    }
+
+    private func insertMention(_ file: FileMention) {
+        guard let query = mentionQuery else { return }
+
+        if let atRange = inputText.range(of: "@\(query)", options: .backwards) {
+            inputText.replaceSubrange(atRange, with: "")
+        }
+
+        if !mentionedFiles.contains(file) {
+            mentionedFiles.append(file)
+        }
+
+        mentionQuery = nil
+        isInputFocused = true
+    }
+
+    private func removeMention(_ file: FileMention) {
+        mentionedFiles.removeAll { $0.id == file.id }
+    }
+
+    private func buildFileContext() -> String {
+        guard !mentionedFiles.isEmpty else { return "" }
+
+        var parts: [String] = []
+        for file in mentionedFiles {
+            if let content = mentionManager.readFileContent(file) {
+                let truncated: String
+                if content.count > 8000 {
+                    truncated = String(content.prefix(8000)) + "\n... (truncated)"
+                } else {
+                    truncated = content
+                }
+                parts.append("=== \(file.relativePath) ===\n\(truncated)")
+            } else {
+                parts.append("=== \(file.relativePath) ===\n(file could not be read)")
+            }
+        }
+        return parts.joined(separator: "\n\n")
+    }
+
     private func checkClipboard() {
-        clipboardHasImage = UIPasteboard.general.hasImages
+        clipboardHasImage = PlatformHelpers.clipboardHasImages()
     }
 
     private func sendCurrentMessage() {
-        let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        var text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         let imageData = attachedImageData
+        let fileContext = buildFileContext()
+        if !fileContext.isEmpty {
+            if text.isEmpty {
+                text = "Refer to the following files:\n\n\(fileContext)"
+            } else {
+                text = "\(text)\n\n\(fileContext)"
+            }
+        }
         guard (!text.isEmpty || imageData != nil), !copilotService.isStreaming, authManager.isAuthenticated else { return }
         Haptics.impact(.medium)
         inputText = ""
         attachedImageData = nil
+        mentionedFiles.removeAll()
+        mentionQuery = nil
 
         if conversationStore.currentConversationId == nil {
             conversationStore.createConversation()
@@ -770,6 +999,9 @@ struct ChatView: View {
     }
 
     private func startNewConversation() {
+        inputText = ""
+        mentionedFiles.removeAll()
+        mentionQuery = nil
         conversationStore.startNewConversation(
             currentMessages: copilotService.messages,
             currentSummaryId: copilotService.summaryMessageId,

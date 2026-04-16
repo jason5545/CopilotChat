@@ -1,5 +1,9 @@
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 // MARK: - Carbon Design System
 // A dark, refined aesthetic for developer-focused AI chat.
@@ -198,32 +202,50 @@ func formatTokenCount(_ tokens: Int) -> String {
 // MARK: - Haptic Feedback
 
 enum Haptics {
+    enum ImpactStyle { case light, medium, heavy }
+
+    #if canImport(UIKit)
     @MainActor private static let impactLight = UIImpactFeedbackGenerator(style: .light)
     @MainActor private static let impactMedium = UIImpactFeedbackGenerator(style: .medium)
     @MainActor private static let impactHeavy = UIImpactFeedbackGenerator(style: .heavy)
     @MainActor private static let notificationGen = UINotificationFeedbackGenerator()
     @MainActor private static let selectionGen = UISelectionFeedbackGenerator()
+    #endif
 
-    static func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle = .medium) {
+    static func impact(_ style: ImpactStyle = .medium) {
+        #if canImport(UIKit)
         switch style {
         case .light: Task { @MainActor in impactLight.impactOccurred() }
         case .medium: Task { @MainActor in impactMedium.impactOccurred() }
         case .heavy: Task { @MainActor in impactHeavy.impactOccurred() }
-        default: Task { @MainActor in impactMedium.impactOccurred() }
         }
+        #endif
     }
 
-    static func notification(_ type: UINotificationFeedbackGenerator.FeedbackType) {
-        Task { @MainActor in notificationGen.notificationOccurred(type) }
+    static func notification(_ type: NotificationType = .success) {
+        #if canImport(UIKit)
+        let uikitType: UINotificationFeedbackGenerator.FeedbackType = switch type {
+        case .success: .success
+        case .warning: .warning
+        case .error: .error
+        }
+        Task { @MainActor in notificationGen.notificationOccurred(uikitType) }
+        #endif
     }
+
+    enum NotificationType { case success, warning, error }
 
     static func selection() {
+        #if canImport(UIKit)
         Task { @MainActor in selectionGen.selectionChanged() }
+        #endif
     }
 
     static func copyToClipboard(_ text: String) {
-        UIPasteboard.general.string = text
+        PlatformHelpers.copyToClipboard(text)
+        #if canImport(UIKit)
         notification(.success)
+        #endif
     }
 }
 
@@ -268,5 +290,20 @@ struct ContextRing: View {
                 .font(.carbonMono(.caption2))
                 .foregroundStyle(percent > 70 ? arcColor : Color.carbonTextSecondary)
         }
+    }
+}
+
+// MARK: - Color Hex Extension
+
+extension Color {
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+        let scanner = Scanner(string: hex)
+        var rgb: UInt64 = 0
+        scanner.scanHexInt64(&rgb)
+        let r = Double((rgb >> 16) & 0xFF) / 255.0
+        let g = Double((rgb >> 8) & 0xFF) / 255.0
+        let b = Double(rgb & 0xFF) / 255.0
+        self.init(red: r, green: g, blue: b)
     }
 }

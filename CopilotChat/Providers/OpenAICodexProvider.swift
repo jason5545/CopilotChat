@@ -1,5 +1,9 @@
 import Foundation
+#if canImport(UIKit)
 import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 // MARK: - OpenAI Codex Provider
 
@@ -219,9 +223,9 @@ final class OpenAICodexAuth {
             deviceVerificationURL = "\(Self.issuer)/codex/device"
 
             // Step 2: Auto-copy code to clipboard and open browser
-            UIPasteboard.general.string = deviceData.userCode
+PlatformHelpers.copyToClipboard(deviceData.userCode)
             if let url = URL(string: "\(Self.issuer)/codex/device") {
-                await UIApplication.shared.open(url)
+                await PlatformHelpers.openURL(url)
             }
 
             // Step 3: Poll for authorization

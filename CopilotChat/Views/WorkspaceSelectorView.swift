@@ -1,4 +1,9 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 struct WorkspaceSelectorView: View {
     @Environment(\.dismiss) private var dismiss
@@ -24,10 +29,7 @@ struct WorkspaceSelectorView: View {
             .scrollContentBackground(.hidden)
             .background(Color.carbonBlack)
             .navigationTitle("Workspace")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color.carbonSurface, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .carbonNavigationBar()
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     Text("WORKSPACE")
@@ -35,7 +37,7 @@ struct WorkspaceSelectorView: View {
                         .kerning(2.5)
                         .foregroundStyle(Color.carbonText)
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: doneToolbarPlacement) {
                     Button("Done") {
                         dismiss()
                     }
@@ -45,6 +47,8 @@ struct WorkspaceSelectorView: View {
             }
         }
     }
+
+    private var doneToolbarPlacement: ToolbarItemPlacement { .carbonTrailing }
 
     private var currentWorkspaceRow: some View {
         VStack(alignment: .leading, spacing: Carbon.spacingRelaxed) {
@@ -130,6 +134,7 @@ struct WorkspaceSelectorView: View {
     }
 
     private func openFolderPicker() {
+        #if canImport(UIKit)
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let rootVC = windowScene.windows.first?.rootViewController else {
             return
@@ -141,6 +146,10 @@ struct WorkspaceSelectorView: View {
         }
 
         workspaceManager.selectWorkspace(from: topVC)
+        #elseif canImport(AppKit)
+        guard let window = NSApp.keyWindow else { return }
+        workspaceManager.selectWorkspace(from: window.contentViewController ?? NSViewController())
+        #endif
     }
 }
 

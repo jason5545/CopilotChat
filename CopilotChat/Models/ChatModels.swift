@@ -480,11 +480,15 @@ struct MCPServerConfig: Identifiable, Codable, Equatable, Sendable {
     var url: String
     var isEnabled: Bool
 
-    /// Headers are stored separately in Keychain — excluded from Codable to avoid UserDefaults leakage.
+    /// Headers stored securely — encrypted via SecureStorage (safe for iCloud sync),
+    /// excluded from Codable to avoid UserDefaults leakage.
     var headers: [String: String]
 
+    /// Encrypted headers blob for iCloud-safe sync. Decoded on load, re-encrypted on save.
+    var encryptedHeaders: Data?
+
     enum CodingKeys: String, CodingKey {
-        case id, name, url, isEnabled
+        case id, name, url, isEnabled, encryptedHeaders
     }
 
     init(id: UUID = UUID(), name: String, url: String, headers: [String: String] = [:], isEnabled: Bool = true) {
@@ -493,6 +497,7 @@ struct MCPServerConfig: Identifiable, Codable, Equatable, Sendable {
         self.url = url
         self.headers = headers
         self.isEnabled = isEnabled
+        self.encryptedHeaders = nil
     }
 
     init(from decoder: Decoder) throws {
@@ -501,7 +506,16 @@ struct MCPServerConfig: Identifiable, Codable, Equatable, Sendable {
         name = try container.decode(String.self, forKey: .name)
         url = try container.decode(String.self, forKey: .url)
         isEnabled = try container.decode(Bool.self, forKey: .isEnabled)
-        headers = [:]  // loaded from Keychain separately
+        encryptedHeaders = try container.decodeIfPresent(Data.self, forKey: .encryptedHeaders)
+
+        // Try SecureStorage decryption first, then fall back to Keychain
+        if let data = encryptedHeaders,
+           let decrypted = SecureStorage.decryptDictionary(data) {
+            headers = decrypted
+        } else {
+            headers = [:]
+            loadHeaders() // Keychain fallback
+        }
     }
 
     func encode(to encoder: Encoder) throws {
@@ -510,35 +524,52 @@ struct MCPServerConfig: Identifiable, Codable, Equatable, Sendable {
         try container.encode(name, forKey: .name)
         try container.encode(url, forKey: .url)
         try container.encode(isEnabled, forKey: .isEnabled)
-        // headers intentionally excluded — stored in Keychain
+        // Encrypt headers into the Codable payload (safe for iCloud sync)
+        if !headers.isEmpty {
+            try container.encodeIfPresent(SecureStorage.encryptDictionary(headers), forKey: .encryptedHeaders)
+        } else {
+            try container.encodeNil(forKey: .encryptedHeaders)
+        }
     }
 
-    // MARK: - Keychain-backed header storage
+    // MARK: - SecureStorage-backed header persistence
 
-    private static func keychainKey(for id: UUID) -> String {
-        "mcp_headers_\(id.uuidString)"
-    }
-
-    func saveHeaders() {
+    mutating func saveHeaders() {
         guard !headers.isEmpty else {
             KeychainHelper.delete(key: Self.keychainKey(for: id))
             return
         }
+        // Primary: encrypted blob (iCloud-safe)
+        encryptedHeaders = SecureStorage.encryptDictionary(headers)
+        // Fallback: Keychain for migrationcompatibility
         if let data = try? JSONEncoder().encode(headers) {
             KeychainHelper.save(data, for: Self.keychainKey(for: id))
         }
     }
 
     mutating func loadHeaders() {
+        // Try SecureStorage decryption from encryptedHeaders first
+        if let data = encryptedHeaders,
+           let decrypted = SecureStorage.decryptDictionary(data) {
+            headers = decrypted
+            return
+        }
+        // Fallback: Keychain for legacy data
         guard let data = KeychainHelper.load(key: Self.keychainKey(for: id)),
               let decoded = try? JSONDecoder().decode([String: String].self, from: data) else {
             return
         }
         headers = decoded
+        // Migrate to SecureStorage
+        encryptedHeaders = SecureStorage.encryptDictionary(headers)
     }
 
     static func deleteHeaders(for id: UUID) {
         KeychainHelper.delete(key: keychainKey(for: id))
+    }
+
+    private static func keychainKey(for id: UUID) -> String {
+        "mcp_headers_\(id.uuidString)"
     }
 }
 

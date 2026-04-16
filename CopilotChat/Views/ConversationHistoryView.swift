@@ -11,15 +11,16 @@ struct ConversationHistoryView: View {
     @State private var renameText = ""
 
     private var filteredConversations: [Conversation] {
-        guard !searchText.isEmpty else { return store.conversations }
+        let scoped = store.conversationsForCurrentWorkspace(settingsStore.appMode)
+        guard !searchText.isEmpty else { return scoped }
         let query = searchText.lowercased()
-        return store.conversations.filter { $0.title.lowercased().contains(query) }
+        return scoped.filter { $0.title.lowercased().contains(query) }
     }
 
     var body: some View {
         NavigationStack {
             Group {
-                if store.conversations.isEmpty {
+                if filteredConversations.isEmpty {
                     ZStack {
                         Color.carbonBlack.ignoresSafeArea()
                         VStack(spacing: 16) {
@@ -40,9 +41,7 @@ struct ConversationHistoryView: View {
                     conversationList
                 }
             }
-            .toolbarBackground(Color.carbonSurface, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .carbonNavigationBar()
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     Text("HISTORY")
@@ -50,7 +49,7 @@ struct ConversationHistoryView: View {
                         .kerning(2.5)
                         .foregroundStyle(Color.carbonText)
                 }
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .carbonLeading) {
                     if !store.conversations.isEmpty {
                         Button {
                             store.deleteAllConversations()
@@ -63,7 +62,7 @@ struct ConversationHistoryView: View {
                         }
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .carbonTrailing) {
                     Button {
                         dismiss()
                     } label: {

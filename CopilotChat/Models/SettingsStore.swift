@@ -42,11 +42,17 @@ enum ReasoningEffort: String, CaseIterable, Codable, Sendable {
 // MARK: - Tool Access Mode
 
 enum ToolAccessMode: String, CaseIterable, Codable, Sendable {
+    case supervised
+    case autoApprove
+    case fullAccess
     case alwaysLoaded
     case loadWhenNeeded
 
     var label: String {
         switch self {
+        case .supervised: "Supervised"
+        case .autoApprove: "Auto-accept edits"
+        case .fullAccess: "Full access"
         case .alwaysLoaded: "Tools always loaded"
         case .loadWhenNeeded: "Load tools when needed"
         }
@@ -54,8 +60,21 @@ enum ToolAccessMode: String, CaseIterable, Codable, Sendable {
 
     var description: String {
         switch self {
+        case .supervised: "Ask before commands and file changes."
+        case .autoApprove: "Auto-approve edits, ask before other actions."
+        case .fullAccess: "Allow commands and edits without prompts."
         case .alwaysLoaded: "All tool schemas sent in every request. Uses more context window."
         case .loadWhenNeeded: "MCP tools loaded on demand via tool search. Saves context window."
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .supervised: "lock"
+        case .autoApprove: "pencil.line"
+        case .fullAccess: "lock.open"
+        case .alwaysLoaded: "wrench.and.screwdriver.fill"
+        case .loadWhenNeeded: "magnifyingglass"
         }
     }
 }
@@ -126,32 +145,35 @@ final class SettingsStore {
     private static let defaultModel = "claude-sonnet-4-6"
     static let defaultSystemPrompt = "You are a helpful AI assistant. Respond in the user's language."
 
+    // iCloud KVS keys (sync across devices)
+    private static let kvStore = NSUbiquitousKeyValueStore.default
+
     var selectedModel: String {
-        didSet { UserDefaults.standard.set(selectedModel, forKey: Self.modelsKey) }
+        didSet { syncToKVStore(key: Self.modelsKey, value: selectedModel) }
     }
 
     var reasoningEffort: ReasoningEffort {
         didSet {
             guard reasoningEffort != oldValue else { return }
-            UserDefaults.standard.set(reasoningEffort.rawValue, forKey: Self.reasoningEffortKey)
+            syncToKVStore(key: Self.reasoningEffortKey, value: reasoningEffort.rawValue)
         }
     }
 
     var systemPrompt: String {
-        didSet { UserDefaults.standard.set(systemPrompt, forKey: Self.systemPromptKey) }
+        didSet { syncToKVStore(key: Self.systemPromptKey, value: systemPrompt) }
     }
 
     var toolAccessMode: ToolAccessMode {
         didSet {
             guard toolAccessMode != oldValue else { return }
-            UserDefaults.standard.set(toolAccessMode.rawValue, forKey: Self.toolAccessModeKey)
+            syncToKVStore(key: Self.toolAccessModeKey, value: toolAccessMode.rawValue)
         }
     }
 
     var appMode: AppMode {
         didSet {
             guard appMode != oldValue else { return }
-            UserDefaults.standard.set(appMode.rawValue, forKey: Self.appModeKey)
+            syncToKVStore(key: Self.appModeKey, value: appMode.rawValue)
         }
     }
 
@@ -199,21 +221,28 @@ final class SettingsStore {
     private static let mcpHeadersMigratedKey = "mcpHeadersMigratedToKeychain"
 
     init() {
-        self.selectedModel = UserDefaults.standard.string(forKey: Self.modelsKey) ?? Self.defaultModel
+        self.selectedModel = Self.kvStore.string(forKey: Self.modelsKey)
+            ?? UserDefaults.standard.string(forKey: Self.modelsKey)
+            ?? Self.defaultModel
         self.reasoningEffort = {
-            guard let raw = UserDefaults.standard.string(forKey: Self.reasoningEffortKey),
-                  let effort = ReasoningEffort(rawValue: raw) else { return .high }
+            let raw = Self.kvStore.string(forKey: Self.reasoningEffortKey)
+                ?? UserDefaults.standard.string(forKey: Self.reasoningEffortKey)
+            guard let raw, let effort = ReasoningEffort(rawValue: raw) else { return .high }
             return effort
         }()
-        self.systemPrompt = UserDefaults.standard.string(forKey: Self.systemPromptKey) ?? Self.defaultSystemPrompt
+        self.systemPrompt = Self.kvStore.string(forKey: Self.systemPromptKey)
+            ?? UserDefaults.standard.string(forKey: Self.systemPromptKey)
+            ?? Self.defaultSystemPrompt
         self.toolAccessMode = {
-            guard let raw = UserDefaults.standard.string(forKey: Self.toolAccessModeKey),
-                  let mode = ToolAccessMode(rawValue: raw) else { return .alwaysLoaded }
+            let raw = Self.kvStore.string(forKey: Self.toolAccessModeKey)
+                ?? UserDefaults.standard.string(forKey: Self.toolAccessModeKey)
+            guard let raw, let mode = ToolAccessMode(rawValue: raw) else { return .alwaysLoaded }
             return mode
         }()
         self.appMode = {
-            guard let raw = UserDefaults.standard.string(forKey: Self.appModeKey),
-                  let mode = AppMode(rawValue: raw) else { return .chat }
+            let raw = Self.kvStore.string(forKey: Self.appModeKey)
+                ?? UserDefaults.standard.string(forKey: Self.appModeKey)
+            guard let raw, let mode = AppMode(rawValue: raw) else { return .chat }
             return mode
         }()
 
@@ -320,6 +349,7 @@ final class SettingsStore {
     // MARK: - MCP Server Management
 
     func addServer(_ server: MCPServerConfig) {
+        var server = server
         server.saveHeaders()
         mcpServers.append(server)
     }
@@ -337,6 +367,7 @@ final class SettingsStore {
 
     func updateServer(_ server: MCPServerConfig) {
         if let index = mcpServers.firstIndex(where: { $0.id == server.id }) {
+            var server = server
             server.saveHeaders()
             mcpServers[index] = server
             // Reconnect if enabled
@@ -441,5 +472,56 @@ final class SettingsStore {
             return [:]
         }
         return overrides
+    }
+
+    // MARK: - iCloud KVS Sync
+    //
+    // Syncable settings (written to both NSUbiquitousKeyValueStore + UserDefaults):
+    //   - selectedModel, reasoningEffort, systemPrompt, toolAccessMode, appMode
+    //
+    // Local-only settings (written to UserDefaults only):
+    //   - mcpServers, alwaysAllowedServers, toolPermissionOverrides
+    //   - MCP server configs contain encrypted headers (SecureStorage) so they
+    //     are safe to sync via iCloud document storage, but the server list itself
+    //     is kept local since connection state is device-specific.
+    //
+    // Secrets (Keychain with kSecAttrSynchronizable):
+    //   - GitHub token, braveSearchAPIKey, MCP headers (legacy Keychain fallback),
+    //     SecureStorage encryption key (device-local, kSecAttrAccessibleWhenUnlockedThisDeviceOnly)
+
+    private func syncToKVStore(key: String, value: String) {
+        Self.kvStore.set(value, forKey: key)
+        UserDefaults.standard.set(value, forKey: key)
+        Self.kvStore.synchronize()
+    }
+
+    func startObservingKVStoreChanges() {
+        NotificationCenter.default.addObserver(
+            forName: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
+            object: Self.kvStore,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self else { return }
+            let changedKeys = notification.userInfo?[NSUbiquitousKeyValueStoreChangedKeysKey] as? [String] ?? []
+            for key in changedKeys {
+                switch key {
+                case Self.modelsKey:
+                    if let val = Self.kvStore.string(forKey: key) { self.selectedModel = val }
+                case Self.reasoningEffortKey:
+                    if let val = Self.kvStore.string(forKey: key),
+                       let effort = ReasoningEffort(rawValue: val) { self.reasoningEffort = effort }
+                case Self.systemPromptKey:
+                    if let val = Self.kvStore.string(forKey: key) { self.systemPrompt = val }
+                case Self.toolAccessModeKey:
+                    if let val = Self.kvStore.string(forKey: key),
+                       let mode = ToolAccessMode(rawValue: val) { self.toolAccessMode = mode }
+                case Self.appModeKey:
+                    if let val = Self.kvStore.string(forKey: key),
+                       let mode = AppMode(rawValue: val) { self.appMode = mode }
+                default:
+                    break
+                }
+            }
+        }
     }
 }

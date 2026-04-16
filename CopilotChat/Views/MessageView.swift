@@ -595,16 +595,25 @@ struct UserBubbleView: View {
     let message: ChatMessage
     var lineLimit: Int? = nil
 
+    #if canImport(UIKit)
     @State private var cachedImage: UIImage?
+    #elseif canImport(AppKit)
+    @State private var cachedImage: NSImage?
+    #endif
 
     private func loadImage(_ data: Data) {
+        #if canImport(UIKit)
         if cachedImage == nil { cachedImage = UIImage(data: data) }
+        #elseif canImport(AppKit)
+        if cachedImage == nil { cachedImage = NSImage(data: data) }
+        #endif
     }
 
     var body: some View {
         VStack(alignment: .trailing, spacing: 8) {
             if let imageData = message.imageData {
                 let _ = loadImage(imageData)
+                #if canImport(UIKit)
                 if let uiImage = cachedImage {
                     Image(uiImage: uiImage)
                         .resizable()
@@ -612,6 +621,15 @@ struct UserBubbleView: View {
                         .frame(maxWidth: 200, maxHeight: 200)
                         .clipShape(RoundedRectangle(cornerRadius: Carbon.radiusSmall))
                 }
+                #elseif canImport(AppKit)
+                if let nsImage = cachedImage {
+                    Image(nsImage: nsImage)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: 200, maxHeight: 200)
+                        .clipShape(RoundedRectangle(cornerRadius: Carbon.radiusSmall))
+                }
+                #endif
             }
             if !message.content.isEmpty {
                 Text(message.content)

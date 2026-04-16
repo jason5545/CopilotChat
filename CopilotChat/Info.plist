@@ -1,5 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<dict/>
+<dict>
+	<key>NSUbiquitousContainers</key>
+	<dict>
+		<key>iCloud.com.copilotchat.app</key>
+		<dict>
+			<key>NSUbiquitousContainerIsDocumentScopePublic</key>
+			<true/>
+			<key>NSUbiquitousContainerSupportedInterfaceOrientations</key>
+			<dict>
+				<key>NSUbiquitousContainerSupportedInterfaceOrientations_iPhone</key>
+				<string>UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight</string>
+				<key>NSUbiquitousContainerSupportedInterfaceOrientations_iPad</key>
+				<string>UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight</string>
+			</dict>
+			<key>NSUbiquitousContainerSupportsUserActivity</key>
+			<true/>
+		</dict>
+	</dict>
+</dict>
 </plist>

@@ -4,6 +4,7 @@ struct SettingsView: View {
     @Environment(AuthManager.self) private var authManager
     @Environment(CopilotService.self) private var copilotService
     @Environment(SettingsStore.self) private var settingsStore
+    @Environment(ConversationStore.self) private var conversationStore
     @Environment(\.dismiss) private var dismiss
 
     @State private var showAddMCPServer = false
@@ -32,9 +33,7 @@ struct SettingsView: View {
             }
             .scrollContentBackground(.hidden)
             .background(Color.carbonBlack)
-            .toolbarBackground(Color.carbonSurface, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .carbonNavigationBarStyle()
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     Text("SETTINGS")
@@ -42,7 +41,7 @@ struct SettingsView: View {
                         .kerning(2.5)
                         .foregroundStyle(Color.carbonText)
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .carbonTrailing) {
                     Button {
                         dismiss()
                     } label: {
@@ -65,6 +64,9 @@ struct SettingsView: View {
                 }
             }
         }
+#if os(macOS)
+        .frame(minWidth: 720, minHeight: 640)
+#endif
     }
 
     // MARK: - Account Section
@@ -734,8 +736,65 @@ struct SettingsView: View {
                     .foregroundStyle(Color.carbonTextTertiary)
             }
             .listRowBackground(Color.carbonSurface)
+
+            HStack {
+                Label("iCloud Sync", systemImage: "cloud")
+                    .font(.carbonSans(.subheadline))
+                    .foregroundStyle(Color.carbonTextSecondary)
+                Spacer()
+                iCloudSyncStatusLabel
+            }
+            .listRowBackground(Color.carbonSurface)
+
+            if iCloudSyncManager.shared.isCloudAvailable {
+                Button {
+                    Task { @MainActor in
+                        await iCloudSyncManager.shared.performInitialSync(store: conversationStore)
+                    }
+                } label: {
+                    HStack {
+                        Spacer()
+                        Text("Sync Now")
+                            .font(.carbonSans(.caption, weight: .medium))
+                        Spacer()
+                    }
+                    .padding(.vertical, 6)
+                    .background(Color.carbonAccent.opacity(0.15))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
+                .listRowBackground(Color.carbonSurface)
+            }
         } header: {
             CarbonSectionHeader(title: "About")
+        }
+    }
+
+    @ViewBuilder
+    private var iCloudSyncStatusLabel: some View {
+        let sync = iCloudSyncManager.shared
+        if sync.isCloudAvailable {
+            switch sync.syncStatus {
+            case .idle:
+                Label("Connected", systemImage: "checkmark.cloud")
+                    .font(.carbonSans(.caption))
+                    .foregroundStyle(Color.green.opacity(0.8))
+            case .syncing:
+                Label("Syncing\u{2026}", systemImage: "arrow.triangle.2.circlepath.icloud")
+                    .font(.carbonSans(.caption))
+                    .foregroundStyle(Color.carbonAccent)
+            case .synced:
+                Label("Synced", systemImage: "checkmark.icloud")
+                    .font(.carbonSans(.caption))
+                    .foregroundStyle(Color.green.opacity(0.8))
+            case .failed:
+                Label("Error", systemImage: "exclamationmark.icloud")
+                    .font(.carbonSans(.caption))
+                    .foregroundStyle(Color.red)
+            }
+        } else {
+            Label("Unavailable", systemImage: "icloud.slash")
+                .font(.carbonSans(.caption))
+                .foregroundStyle(Color.carbonTextTertiary)
         }
     }
 }
@@ -782,7 +841,7 @@ struct PluginPermissionsView: View {
         .scrollContentBackground(.hidden)
         .background(Color.carbonBlack)
         .navigationTitle("Built-in Plugins")
-        .toolbarColorScheme(.dark, for: .navigationBar)
+        .carbonNavigationBarStyle()
         .onAppear {
             if settingsStore.hasBraveSearchAPIKey {
                 braveAPIKeyInput = settingsStore.braveSearchAPIKey
@@ -832,7 +891,9 @@ struct PluginPermissionsView: View {
                     }
                     .font(.carbonMono(.caption))
                     .foregroundStyle(Color.carbonText)
+                    #if canImport(UIKit)
                     .textInputAutocapitalization(.never)
+                    #endif
                     .autocorrectionDisabled()
 
                     Button {
@@ -973,7 +1034,7 @@ struct MCPPermissionDetailView: View {
         .scrollContentBackground(.hidden)
         .background(Color.carbonBlack)
         .navigationTitle(serverName)
-        .toolbarColorScheme(.dark, for: .navigationBar)
+        .carbonNavigationBarStyle()
     }
 
     private func toolPermissionRow(_ tool: MCPTool) -> some View {
@@ -1055,8 +1116,10 @@ struct MCPServerDetailView: View {
                 TextField("URL", text: $url)
                     .font(.carbonMono(.body))
                     .foregroundStyle(Color.carbonText)
+                    #if canImport(UIKit)
                     .textInputAutocapitalization(.never)
                     .keyboardType(.URL)
+                    #endif
                 Toggle("Enabled", isOn: $isEnabled)
                     .tint(Color.carbonAccent)
             } header: {
@@ -1069,7 +1132,9 @@ struct MCPServerDetailView: View {
                     .font(.carbonMono(.body))
                     .foregroundStyle(Color.carbonText)
                     .frame(minHeight: 80)
+                    #if canImport(UIKit)
                     .textInputAutocapitalization(.never)
+                    #endif
                     .scrollContentBackground(.hidden)
             } header: {
                 CarbonSectionHeader(title: "Headers")
@@ -1132,7 +1197,7 @@ struct MCPServerDetailView: View {
         .scrollContentBackground(.hidden)
         .background(Color.carbonBlack)
         .navigationTitle(server.name)
-        .toolbarColorScheme(.dark, for: .navigationBar)
+        .carbonNavigationBarStyle()
     }
 
     static func headersToText(_ headers: [String: String]) -> String {
@@ -1177,8 +1242,10 @@ struct MCPServerEditView: View {
                     TextField("URL", text: $url)
                         .font(.carbonMono(.body))
                         .foregroundStyle(Color.carbonText)
+                        #if canImport(UIKit)
                         .textInputAutocapitalization(.never)
                         .keyboardType(.URL)
+                        #endif
                     Toggle("Enabled", isOn: $isEnabled)
                         .tint(Color.carbonAccent)
                 } header: {
@@ -1191,7 +1258,9 @@ struct MCPServerEditView: View {
                         .font(.carbonMono(.body))
                         .foregroundStyle(Color.carbonText)
                         .frame(minHeight: 80)
+                        #if canImport(UIKit)
                         .textInputAutocapitalization(.never)
+                        #endif
                         .scrollContentBackground(.hidden)
                 } header: {
                     CarbonSectionHeader(title: "Headers")
@@ -1204,9 +1273,7 @@ struct MCPServerEditView: View {
             }
             .scrollContentBackground(.hidden)
             .background(Color.carbonBlack)
-            .toolbarBackground(Color.carbonSurface, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .carbonNavigationBarStyle()
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     Text("ADD SERVER")
@@ -1277,10 +1344,7 @@ struct ProviderPickerView: View {
         .scrollContentBackground(.hidden)
         .background(Color.carbonBlack)
         .navigationTitle("")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(Color.carbonSurface, for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
-        .toolbarColorScheme(.dark, for: .navigationBar)
+        .carbonNavigationBar()
         .toolbar {
             ToolbarItem(placement: .principal) {
                 Text(selectedProvider != nil ? "CONNECT" : "PROVIDERS")
@@ -1291,7 +1355,7 @@ struct ProviderPickerView: View {
         }
         .navigationBarBackButtonHidden(selectedProvider != nil)
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
+            ToolbarItem(placement: .carbonLeading) {
                 if selectedProvider != nil {
                     Button {
                         withAnimation(.easeInOut(duration: 0.2)) {
@@ -1454,7 +1518,9 @@ struct ProviderPickerView: View {
                             .font(.carbonMono(.subheadline))
                             .foregroundStyle(Color.carbonText)
                             .autocorrectionDisabled()
+                            #if canImport(UIKit)
                             .textInputAutocapitalization(.never)
+                            #endif
 
                             Button {
                                 isKeyVisible.toggle()
@@ -1537,7 +1603,9 @@ struct ProviderPickerView: View {
                         .font(.carbonMono(.subheadline))
                         .foregroundStyle(Color.carbonText)
                         .autocorrectionDisabled()
+                        #if canImport(UIKit)
                         .textInputAutocapitalization(.never)
+                        #endif
 
                         Button {
                             isKeyVisible.toggle()
@@ -1741,7 +1809,9 @@ struct ProviderKeyEditView: View {
                     .font(.carbonMono(.subheadline))
                     .foregroundStyle(Color.carbonText)
                     .autocorrectionDisabled()
+                    #if canImport(UIKit)
                     .textInputAutocapitalization(.never)
+                    #endif
 
                     Button {
                         isKeyVisible.toggle()
@@ -1781,10 +1851,7 @@ struct ProviderKeyEditView: View {
         .scrollContentBackground(.hidden)
         .background(Color.carbonBlack)
         .navigationTitle("")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(Color.carbonSurface, for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
-        .toolbarColorScheme(.dark, for: .navigationBar)
+        .carbonNavigationBar()
         .toolbar {
             ToolbarItem(placement: .principal) {
                 Text("EDIT KEY")

@@ -1,5 +1,9 @@
 import Foundation
+#if canImport(UIKit)
 import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 import WebKit
 
 /// Built-in web fetching service that allows the agent to browse web pages.
@@ -14,7 +18,6 @@ enum WebFetchService {
         "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1"
 
     private static var sharedWebView: WKWebView?
-    private static var offscreenWindow: UIWindow?
 
     private static func getSharedWebView() -> WKWebView {
         if let existing = sharedWebView { return existing }
@@ -23,6 +26,7 @@ enum WebFetchService {
         let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 390, height: 844), configuration: config)
         webView.customUserAgent = mobileUserAgent
 
+        #if canImport(UIKit)
         let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
         window.addSubview(webView)
         window.isOpaque = false
@@ -30,11 +34,16 @@ enum WebFetchService {
         window.rootViewController = UIViewController()
         window.rootViewController?.view = webView
         window.makeKeyAndVisible()
-        offscreenWindow = window
+        offscreenWindowUIKit = window
+        #endif
 
         sharedWebView = webView
         return webView
     }
+
+    #if canImport(UIKit)
+    private static var offscreenWindowUIKit: UIWindow?
+    #endif
 
     // MARK: - Public API
 
@@ -66,9 +75,20 @@ enum WebFetchService {
         let snapshotConfig = WKSnapshotConfiguration()
         let image = try await webView.takeSnapshot(configuration: snapshotConfig)
 
-        guard let jpegData = image.jpegData(compressionQuality: 0.65) else {
+        let jpegData: Data
+        #if canImport(UIKit)
+        guard let data = image.jpegData(compressionQuality: 0.65) else {
             throw WebFetchError.screenshotFailed
         }
+        jpegData = data
+        #elseif canImport(AppKit)
+        guard let tiff = image.tiffRepresentation,
+              let rep = NSBitmapImageRep(data: tiff),
+              let data = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.65]) else {
+            throw WebFetchError.screenshotFailed
+        }
+        jpegData = data
+        #endif
 
         let desc = title.isEmpty
             ? "Screenshot captured (\(Int(image.size.width))x\(Int(image.size.height)))"

@@ -1,5 +1,9 @@
 import Foundation
+#if canImport(UIKit)
 import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 import UniformTypeIdentifiers
 
 // MARK: - FileSystemPlugin
@@ -256,12 +260,30 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
         restoreWorkspace()
     }
 
+    #if canImport(UIKit)
     func selectWorkspace(from viewController: UIViewController) {
         let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.folder])
         picker.allowsMultipleSelection = false
         picker.delegate = self
         viewController.present(picker, animated: true)
     }
+    #elseif canImport(AppKit)
+    func selectWorkspace(from viewController: NSViewController) {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            Task { @MainActor in
+                do {
+                    try self.saveBookmark(for: url)
+                    self.updateWorkspaceState(for: url)
+                } catch {}
+            }
+        }
+    }
+    #endif
 
     func clearWorkspace() {
         if _isAccessing {
@@ -1164,6 +1186,7 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
     }
 }
 
+#if canImport(UIKit)
 // MARK: - UIDocumentPickerDelegate
 
 extension WorkspaceManager: UIDocumentPickerDelegate {
@@ -1186,6 +1209,7 @@ extension WorkspaceManager: UIDocumentPickerDelegate {
     nonisolated func documentPickerWasDismissed(_ controller: UIDocumentPickerViewController) {
     }
 }
+#endif
 
 // MARK: - Plugin Errors
 

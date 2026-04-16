@@ -71,9 +71,9 @@ struct MCPSettingsView: View {
         .scrollContentBackground(.hidden)
         .background(Color.carbonBlack)
         .navigationTitle("MCP Servers")
-        .toolbarColorScheme(.dark, for: .navigationBar)
+        .carbonNavigationBarStyle()
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .carbonTrailing) {
                 Button {
                     showAddServer = true
                 } label: {

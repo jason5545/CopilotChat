@@ -9,14 +9,15 @@ final class ConversationStore {
 
     private let storageDirectory: URL
     private var saveTask: Task<Void, Never>?
+    private let iCloudSync = iCloudSyncManager.shared
 
-    private nonisolated static func makeEncoder() -> JSONEncoder {
+    nonisolated static func makeEncoder() -> JSONEncoder {
         let e = JSONEncoder()
         e.dateEncodingStrategy = .iso8601
         return e
     }
 
-    private nonisolated static func makeDecoder() -> JSONDecoder {
+    nonisolated static func makeDecoder() -> JSONDecoder {
         let d = JSONDecoder()
         d.dateDecodingStrategy = .iso8601
         return d
@@ -31,9 +32,24 @@ final class ConversationStore {
 
     // MARK: - Current Conversation
 
+    static var currentWorkspaceIdentifier: String? {
+        guard WorkspaceManager.shared.hasWorkspace,
+              let url = WorkspaceManager.shared.currentURL else { return nil }
+        return url.absoluteString
+    }
+
     var currentConversation: Conversation? {
         guard let id = currentConversationId else { return nil }
         return conversations.first { $0.id == id }
+    }
+
+    func conversationsForCurrentWorkspace(_ appMode: AppMode) -> [Conversation] {
+        guard appMode == .coding else { return conversations }
+        let wsId = Self.currentWorkspaceIdentifier
+        if let wsId {
+            return conversations.filter { $0.workspaceIdentifier == wsId }
+        }
+        return conversations.filter { $0.workspaceIdentifier == nil }
     }
 
     // MARK: - Create / Switch
@@ -109,7 +125,8 @@ final class ConversationStore {
               let index = conversations.firstIndex(where: { $0.id == id }) else {
             if !messages.isEmpty {
                 var conv = Conversation(messages: messages, summaryMessageId: summaryMessageId,
-                                        reasoningEffort: reasoningEffort, providerId: providerId, modelId: modelId)
+                                        reasoningEffort: reasoningEffort, providerId: providerId, modelId: modelId,
+                                        workspaceIdentifier: Self.currentWorkspaceIdentifier)
                 if let autoTitle, !autoTitle.isEmpty {
                     conv.setTitle(autoTitle)
                 } else {
@@ -166,6 +183,7 @@ final class ConversationStore {
         }
         let url = fileURL(for: id)
         Task.detached { try? FileManager.default.removeItem(at: url) }
+        Task { await iCloudSync.deleteFromCloud(id: id) }
     }
 
     func deleteAllConversations() {
@@ -175,6 +193,23 @@ final class ConversationStore {
         Task.detached {
             try? FileManager.default.removeItem(at: dir)
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+        // Remote cleanup handled lazily; local state is cleared immediately
+    }
+
+    // MARK: - iCloud Sync
+
+    func syncWithCloud() async {
+        guard iCloudSync.isCloudAvailable else { return }
+        await iCloudSync.performInitialSync(store: self)
+    }
+
+    func handleRemoteUpdate() async {
+        guard iCloudSync.isCloudAvailable else { return }
+        let hadCurrentId = currentConversationId
+        await iCloudSync.mergeRemoteConversations(into: self)
+        if let hadCurrentId, conversations.contains(where: { $0.id == hadCurrentId }) {
+            currentConversationId = hadCurrentId
         }
     }
 
@@ -192,6 +227,8 @@ final class ConversationStore {
         } catch {
             // Non-critical
         }
+        // Sync to iCloud
+        await iCloudSync.uploadConversation(conversation)
     }
 
     private func loadMessages(for id: UUID) -> [ChatMessage] {

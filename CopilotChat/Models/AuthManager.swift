@@ -1,6 +1,5 @@
 import Foundation
 import Observation
-import UIKit
 
 @Observable
 @MainActor
@@ -76,9 +75,9 @@ final class AuthManager {
             deviceFlowVerificationURL = deviceCode.verificationUri
 
             // Auto-copy code to clipboard and open browser
-            UIPasteboard.general.string = deviceCode.userCode
+            PlatformHelpers.copyToClipboard(deviceCode.userCode)
             if let url = URL(string: deviceCode.verificationUri) {
-                await UIApplication.shared.open(url)
+                await PlatformHelpers.openURL(url)
             }
 
             let token = try await pollForAccessToken(deviceCode: deviceCode)

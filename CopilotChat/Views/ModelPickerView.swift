@@ -90,9 +90,7 @@ struct ModelPickerView: View {
                 modelList
             }
             .background(Color.carbonBlack)
-            .toolbarBackground(Color.carbonSurface, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .carbonNavigationBarStyle()
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     Text(provider.name.uppercased())
@@ -100,7 +98,7 @@ struct ModelPickerView: View {
                         .kerning(2.5)
                         .foregroundStyle(Color.carbonText)
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .carbonTrailing) {
                     Button { dismiss() } label: {
                         Text("Done")
                             .font(.carbonSans(.subheadline, weight: .medium))
@@ -123,7 +121,9 @@ struct ModelPickerView: View {
                 .font(.carbonSans(.subheadline))
                 .foregroundStyle(Color.carbonText)
                 .autocorrectionDisabled()
+                #if canImport(UIKit)
                 .textInputAutocapitalization(.never)
+                #endif
 
             if !searchText.isEmpty {
                 Button { searchText = "" } label: {

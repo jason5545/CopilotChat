@@ -11,6 +11,7 @@ struct Conversation: Identifiable, Codable {
     var reasoningEffort: ReasoningEffort?
     var providerId: String?
     var modelId: String?
+    var workspaceIdentifier: String?
     let createdAt: Date
     var updatedAt: Date
 
@@ -22,6 +23,7 @@ struct Conversation: Identifiable, Codable {
         reasoningEffort: ReasoningEffort? = nil,
         providerId: String? = nil,
         modelId: String? = nil,
+        workspaceIdentifier: String? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
@@ -33,6 +35,7 @@ struct Conversation: Identifiable, Codable {
         self.reasoningEffort = reasoningEffort
         self.providerId = providerId
         self.modelId = modelId
+        self.workspaceIdentifier = workspaceIdentifier
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
