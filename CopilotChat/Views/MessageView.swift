@@ -506,6 +506,12 @@ struct MessageView: View {
 
     private var toolResultMessage: some View {
         if let toolCallId = message.toolCallId,
+           message.toolName == "bash",
+           TerminalSessionTracker.shared.isTerminalToolResult(toolCallId) {
+            AnyView(
+                TerminalMessageView(toolCallId: toolCallId)
+            )
+        } else if let toolCallId = message.toolCallId,
            message.toolName == "task",
            TaskSessionTracker.shared.isTaskToolResult(toolCallId) {
             AnyView(

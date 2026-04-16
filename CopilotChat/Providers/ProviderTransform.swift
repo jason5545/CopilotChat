@@ -36,6 +36,20 @@ enum ProviderTransform {
         return nil
     }
 
+    /// Resolve the temperature value to send for a request.
+    /// Returns nil when the model should omit temperature entirely.
+    static func requestTemperature(
+        modelId: String,
+        model: ModelsDevModel?,
+        preferred: Double?
+    ) -> Double? {
+        if let transformed = temperature(modelId: modelId) {
+            return transformed
+        }
+        guard model?.temperature == true else { return nil }
+        return preferred
+    }
+
     // MARK: - Top P
 
     static func topP(modelId: String) -> Double? {

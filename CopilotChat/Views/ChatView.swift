@@ -20,6 +20,7 @@ struct ChatView: View {
     @State private var showHistory = false
     @State private var showModePicker = false
     @State private var showWorkspaceSelector = false
+    @State private var terminalSessionTracker = TerminalSessionTracker.shared
     @State private var editingMessageId: UUID?
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var attachedImageData: Data?
@@ -30,6 +31,8 @@ struct ChatView: View {
     @State private var mentionedFiles: [FileMention] = []
 
     var body: some View {
+        @Bindable var terminalTracker = terminalSessionTracker
+
         NavigationStack {
             ZStack {
                 Color.carbonBlack.ignoresSafeArea()
@@ -140,6 +143,11 @@ struct ChatView: View {
             }
             .sheet(isPresented: $showWorkspaceSelector) {
                 WorkspaceSelectorView()
+            }
+            .sheet(isPresented: $terminalTracker.isWindowPresented, onDismiss: {
+                terminalSessionTracker.focusedSessionId = nil
+            }) {
+                TerminalWindowView()
             }
             .onReceive(NotificationCenter.default.publisher(for: .requestWorkspaceSelection)) { _ in
                 showWorkspaceSelector = true

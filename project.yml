@@ -97,10 +97,6 @@ targets:
         com.apple.developer.ubiquity-kvstore-identifier: "$(TeamIdentifierPrefix)com.copilotchat.app"
         keychain-access-groups:
           - "$(AppIdentifierPrefix)com.copilotchat.app"
-        com.apple.security.app-sandbox: true
-        com.apple.security.files.user-selected.read-only: true
-        com.apple.security.files.user-selected.read-write: true
-        com.apple.security.network.client: true
     dependencies:
       - package: swift-markdown
         product: Markdown

@@ -253,6 +253,9 @@ final class PluginRegistry {
             BraveSearchPlugin(),
             FileSystemPlugin(),
         ]
+        #if os(macOS)
+        plugins.append(TerminalPlugin())
+        #endif
         #if canImport(Clibgit2)
         plugins.append(GitHubPlugin())
         #endif

@@ -410,6 +410,11 @@ final class CopilotService {
         "list_files", "read_file", "write_file", "edit_file", "create_file", "delete_file", "move_file"
     ]
 
+    private static let streamingToolNames: Set<String> = [
+        "github_clone",
+        "bash",
+    ]
+
     private func executeSingleToolCall(_ call: ToolCall) async {
         toolCallStatuses[call.id] = .executing
         do {
@@ -450,23 +455,80 @@ final class CopilotService {
                 text = pluginResult.text
                 imageData = pluginResult.imageData
                 TaskSessionTracker.shared.complete(toolCallId: call.id, result: text, messages: [])
-            } else if let pluginResult = try? await executePluginTool(call.function.name, argumentsJSON: call.function.arguments) {
-                text = pluginResult.text
-                imageData = pluginResult.imageData
-            } else if call.function.name == "github_clone" {
-                toolCallStatuses[call.id] = .pending
-                let message = ChatMessage(
-                    role: .tool, content: "Cloning repository…",
-                    toolCallId: call.id, toolName: call.function.name
+            } else if call.function.name == "bash" {
+                let shellCommand = Self.parseShellCommand(call.function.arguments)
+                let workingDirectory = Self.parseShellWorkdir(call.function.arguments)
+                    ?? WorkspaceManager.shared.currentURL?.path
+                    ?? "."
+
+                TerminalSessionTracker.shared.startSession(
+                    toolCallId: call.id,
+                    command: shellCommand ?? "",
+                    workingDirectory: workingDirectory
                 )
-                messages.append(message)
-                let messageId = message.id
+
+                let placeholder = ChatMessage(
+                    role: .tool,
+                    content: shellCommand.map { "$ \($0)" } ?? "Running shell command…",
+                    toolCallId: call.id,
+                    toolName: call.function.name
+                )
+                messages.append(placeholder)
+                let messageId = placeholder.id
+
                 do {
                     let finalResult = try await executePluginToolStreaming(
                         call.function.name,
                         argumentsJSON: call.function.arguments,
                         progressHandler: { [weak self] progress in
-                            guard let self = self else { return }
+                            guard let self else { return }
+                            MainActor.assumeIsolated {
+                                TerminalSessionTracker.shared.appendOutput(progress, forToolCallId: call.id)
+                                TerminalSessionTracker.shared.updateStatus("Running…", forToolCallId: call.id)
+                                if let idx = self.messages.firstIndex(where: { $0.id == messageId }) {
+                                    self.messages[idx].toolProgress = "Streaming terminal output"
+                                    self.contentRevision &+= 1
+                                }
+                            }
+                        }
+                    )
+
+                    if let idx = messages.firstIndex(where: { $0.id == messageId }) {
+                        messages[idx].content = finalResult.text
+                        messages[idx].toolProgress = nil
+                    }
+
+                    let exitCode = Self.parseTerminalExitCode(from: finalResult.text) ?? 0
+                    TerminalSessionTracker.shared.complete(
+                        toolCallId: call.id,
+                        output: finalResult.text,
+                        exitCode: exitCode
+                    )
+                    toolCallStatuses[call.id] = .completed
+                } catch {
+                    let errorMessage = error.localizedDescription
+                    if let idx = messages.firstIndex(where: { $0.id == messageId }) {
+                        messages[idx].content = "Error: \(errorMessage)"
+                        messages[idx].toolProgress = nil
+                    }
+                    TerminalSessionTracker.shared.fail(toolCallId: call.id, error: errorMessage)
+                    toolCallStatuses[call.id] = .failed(errorMessage)
+                }
+                return
+            } else if Self.streamingToolNames.contains(call.function.name) {
+                let placeholder = ChatMessage(
+                    role: .tool, content: "Running \(call.function.name)…",
+                    toolCallId: call.id, toolName: call.function.name
+                )
+                messages.append(placeholder)
+                let messageId = placeholder.id
+
+                do {
+                    let finalResult = try await executePluginToolStreaming(
+                        call.function.name,
+                        argumentsJSON: call.function.arguments,
+                        progressHandler: { [weak self] progress in
+                            guard let self else { return }
                             MainActor.assumeIsolated {
                                 if let idx = self.messages.firstIndex(where: { $0.id == messageId }) {
                                     self.messages[idx].toolProgress = progress
@@ -489,6 +551,9 @@ final class CopilotService {
                     toolCallStatuses[call.id] = .failed(error.localizedDescription)
                 }
                 return
+            } else if let pluginResult = try? await executePluginTool(call.function.name, argumentsJSON: call.function.arguments) {
+                text = pluginResult.text
+                imageData = pluginResult.imageData
             } else {
                 text = try await settingsStore.callTool(
                     name: call.function.name,
@@ -534,6 +599,33 @@ final class CopilotService {
             return nil
         }
         return (agentType, description)
+    }
+
+    private static func parseShellCommand(_ argumentsJSON: String) -> String? {
+        guard let data = argumentsJSON.data(using: .utf8),
+              let args = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        return args["command"] as? String
+    }
+
+    private static func parseShellWorkdir(_ argumentsJSON: String) -> String? {
+        guard let data = argumentsJSON.data(using: .utf8),
+              let args = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        return args["workdir"] as? String
+    }
+
+    private static func parseTerminalExitCode(from output: String) -> Int32? {
+        let pattern = #"Exit code: ([0-9]+)$"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: output, range: NSRange(output.startIndex..., in: output)),
+              let range = Range(match.range(at: 1), in: output),
+              let code = Int32(output[range]) else {
+            return nil
+        }
+        return code
     }
 
     private func executePluginTool(_ name: String, argumentsJSON: String) async throws -> ToolResult {
@@ -678,9 +770,15 @@ final class CopilotService {
                 }
                 return nil
             }()
+            let modelInfo = providerRegistry?.activeModelInfo()
             let request = ResponsesAPIRequest(
                 model: model, instructions: instructions, input: input,
-                stream: true, maxOutputTokens: maxOutputTokens, temperature: 0.7,
+                stream: true, maxOutputTokens: maxOutputTokens,
+                temperature: ProviderTransform.requestTemperature(
+                    modelId: model,
+                    model: modelInfo,
+                    preferred: 0.7
+                ),
                 tools: apiTools, toolChoice: apiTools != nil ? "auto" : nil,
                 reasoning: reasoning
             )
@@ -699,9 +797,16 @@ final class CopilotService {
             let effort = settingsStore.reasoningEffort
             let reasoningValue: String? = (ReasoningEffort.isSupported(model: model) && effort != .off)
                 ? effort.rawValue : nil
+            let modelInfo = providerRegistry?.activeModelInfo()
             let request = ChatCompletionRequest(
                 model: model, messages: apiMessages, stream: true,
-                maxTokens: maxOutputTokens, temperature: 0.7, tools: apiTools,
+                maxTokens: maxOutputTokens,
+                temperature: ProviderTransform.requestTemperature(
+                    modelId: model,
+                    model: modelInfo,
+                    preferred: 0.7
+                ),
+                tools: apiTools,
                 toolChoice: apiTools != nil ? "auto" : nil,
                 streamOptions: .init(includeUsage: true),
                 reasoningEffort: reasoningValue
@@ -891,7 +996,8 @@ final class CopilotService {
                 userMessage: firstUser,
                 assistantPreview: firstAssistant,
                 provider: provider,
-                model: model
+                model: model,
+                modelInfo: providerRegistry?.activeModelInfo()
             ) {
                 self.autoGeneratedTitle = title
             } else {
@@ -1328,10 +1434,16 @@ final class CopilotService {
             let (_, input) = buildResponsesInput()
             var fullInput = input
             fullInput.append(.userMessage(content: Self.summarizerPrompt))
+            let modelInfo = providerRegistry?.activeModelInfo()
             let request = ResponsesAPIRequest(
                 model: model, instructions: Self.summarizerInstructions,
                 input: fullInput, stream: false,
-                maxOutputTokens: 4096, temperature: 0.5,
+                maxOutputTokens: 4096,
+                temperature: ProviderTransform.requestTemperature(
+                    modelId: model,
+                    model: modelInfo,
+                    preferred: AgentConfig.summarizer.temperature
+                ),
                 tools: nil, toolChoice: nil, reasoning: nil
             )
             requestData = try JSONEncoder().encode(request)
@@ -1343,9 +1455,15 @@ final class CopilotService {
             }
             apiMessages.append(APIMessage(role: "user", content: Self.summarizerPrompt))
             let noopTools: [APITool]? = Self.messagesContainToolCalls(apiMessages) ? [Self.noopTool] : nil
+            let modelInfo = providerRegistry?.activeModelInfo()
             let request = ChatCompletionRequest(
                 model: model, messages: apiMessages, stream: false,
-                maxTokens: 4096, temperature: 0.5,
+                maxTokens: 4096,
+                temperature: ProviderTransform.requestTemperature(
+                    modelId: model,
+                    model: modelInfo,
+                    preferred: AgentConfig.summarizer.temperature
+                ),
                 tools: noopTools, toolChoice: nil, streamOptions: nil,
                 reasoningEffort: nil
             )
@@ -1391,9 +1509,14 @@ final class CopilotService {
         }
         apiMessages.append(APIMessage(role: "user", content: AgentConfig.summarizerPrompt))
 
+        let modelInfo = providerRegistry?.activeModelInfo()
         let options = ProviderOptions(
             maxOutputTokens: AgentConfig.summarizer.maxOutputTokens,
-            temperature: AgentConfig.summarizer.temperature,
+            temperature: ProviderTransform.requestTemperature(
+                modelId: model,
+                model: modelInfo,
+                preferred: AgentConfig.summarizer.temperature
+            ),
             systemPrompt: AgentConfig.summarizer.systemPrompt,
             agentInitiated: true
         )

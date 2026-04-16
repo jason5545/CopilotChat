@@ -119,6 +119,7 @@ enum ToolModeAvailability {
         "github_log", "github_diff", "github_branch_list", "github_branch_checkout",
         "github_branch_create", "github_remote_list", "github_tag_list",
         "github_list_repos", "github_create_repo",
+        "bash",
         "curl_request", "wget_download",
         "task",
     ]

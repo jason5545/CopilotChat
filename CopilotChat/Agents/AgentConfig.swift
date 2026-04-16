@@ -195,7 +195,8 @@ enum TitleGenerator {
         userMessage: String,
         assistantPreview: String,
         provider: any LLMProvider,
-        model: String
+        model: String,
+        modelInfo: ModelsDevModel? = nil
     ) async -> String? {
         let messages: [APIMessage] = [
             APIMessage(role: "system", content: AgentConfig.title.systemPrompt),
@@ -204,7 +205,11 @@ enum TitleGenerator {
 
         let options = ProviderOptions(
             maxOutputTokens: AgentConfig.title.maxOutputTokens,
-            temperature: AgentConfig.title.temperature,
+            temperature: ProviderTransform.requestTemperature(
+                modelId: model,
+                model: modelInfo,
+                preferred: AgentConfig.title.temperature
+            ),
             agentInitiated: true
         )
 
