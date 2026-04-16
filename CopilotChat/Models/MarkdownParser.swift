@@ -1,4 +1,5 @@
 import Foundation
+import Markdown
 
 enum TableAlignment: Equatable {
     case left, center, right
@@ -13,6 +14,7 @@ enum MarkdownBlock: Equatable, Identifiable {
     case blockquote(String)
     case horizontalRule
     case table(headers: [String], alignments: [TableAlignment], rows: [[String]])
+    case taskList([(isComplete: Bool, text: String)])
 
     var id: String { debugId }
 
@@ -26,6 +28,7 @@ enum MarkdownBlock: Equatable, Identifiable {
         case .blockquote(let t): "bq-\(t.prefix(50).hashValue)"
         case .horizontalRule: "hr"
         case .table(let h, _, _): "tbl-\(h.joined(separator: "|").hashValue)"
+        case .taskList(let items): "tl-\(items.count)-\(items.first?.text.prefix(20).hashValue ?? 0)"
         }
     }
 
@@ -41,6 +44,8 @@ enum MarkdownBlock: Equatable, Identifiable {
         case (.horizontalRule, .horizontalRule): true
         case (.table(let ha, let aa, let ra), .table(let hb, let ab, let rb)):
             ha == hb && aa == ab && ra == rb
+        case (.taskList(let a), .taskList(let b)):
+            a.count == b.count && zip(a, b).allSatisfy { $0.isComplete == $1.isComplete && $0.text == $1.text }
         default: false
         }
     }
@@ -48,144 +53,41 @@ enum MarkdownBlock: Equatable, Identifiable {
 
 enum MarkdownParser {
     static func parse(_ input: String) -> [MarkdownBlock] {
-        var blocks: [MarkdownBlock] = []
-        let lines = input.components(separatedBy: "\n")
-        var i = 0
-
-        while i < lines.count {
-            let line = lines[i]
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-
-            // Code block
-            if trimmed.hasPrefix("```") {
-                let language = String(trimmed.dropFirst(3)).trimmingCharacters(in: .whitespaces)
-                var codeLines: [String] = []
-                i += 1
-                while i < lines.count && !lines[i].trimmingCharacters(in: .whitespaces).hasPrefix("```") {
-                    codeLines.append(lines[i])
-                    i += 1
-                }
-                if i < lines.count { i += 1 }
-                blocks.append(.codeBlock(
-                    language: language.isEmpty ? nil : language,
-                    code: codeLines.joined(separator: "\n")
-                ))
-                continue
-            }
-
-            // Heading
-            if let heading = parseHeading(trimmed) {
-                blocks.append(.heading(level: heading.0, text: heading.1))
-                i += 1
-                continue
-            }
-
-            // Horizontal rule
-            if isHorizontalRule(trimmed) {
-                blocks.append(.horizontalRule)
-                i += 1
-                continue
-            }
-
-            // Unordered list
-            if isUnorderedListItem(trimmed) {
-                var items: [String] = []
-                while i < lines.count, isUnorderedListItem(lines[i].trimmingCharacters(in: .whitespaces)) {
-                    items.append(stripUnorderedPrefix(lines[i]))
-                    i += 1
-                }
-                blocks.append(.unorderedList(items))
-                continue
-            }
-
-            // Ordered list
-            if isOrderedListItem(trimmed) {
-                var items: [(Int, String)] = []
-                var num = 1
-                while i < lines.count, isOrderedListItem(lines[i].trimmingCharacters(in: .whitespaces)) {
-                    items.append((num, stripOrderedPrefix(lines[i])))
-                    num += 1
-                    i += 1
-                }
-                blocks.append(.orderedList(items))
-                continue
-            }
-
-            // Blockquote
-            if trimmed.hasPrefix(">") {
-                var quoteLines: [String] = []
-                while i < lines.count && lines[i].trimmingCharacters(in: .whitespaces).hasPrefix(">") {
-                    var content = lines[i]
-                    if let idx = content.firstIndex(of: ">") {
-                        content = String(content[content.index(after: idx)...])
-                        if content.hasPrefix(" ") { content = String(content.dropFirst()) }
-                    }
-                    quoteLines.append(content)
-                    i += 1
-                }
-                blocks.append(.blockquote(quoteLines.joined(separator: "\n")))
-                continue
-            }
-
-            // Table
-            if isTableStart(lines, at: i) {
-                let headers = splitTableRow(trimmed)
-                let sepLine = lines[i + 1].trimmingCharacters(in: .whitespaces)
-                let alignments = parseTableSeparator(sepLine)!  // safe: isTableStart validated
-                i += 2
-                var dataRows: [[String]] = []
-                while i < lines.count, lines[i].trimmingCharacters(in: .whitespaces).hasPrefix("|") {
-                    dataRows.append(splitTableRow(lines[i].trimmingCharacters(in: .whitespaces)))
-                    i += 1
-                }
-                blocks.append(.table(headers: headers, alignments: alignments, rows: dataRows))
-                continue
-            }
-
-            // Empty line
-            if trimmed.isEmpty {
-                i += 1
-                continue
-            }
-
-            // Paragraph
-            var paraLines: [String] = []
-            while i < lines.count {
-                let pTrimmed = lines[i].trimmingCharacters(in: .whitespaces)
-                if pTrimmed.isEmpty || pTrimmed.hasPrefix("```") || pTrimmed.hasPrefix("#")
-                    || pTrimmed.hasPrefix(">") || isHorizontalRule(pTrimmed)
-                    || isUnorderedListItem(pTrimmed) || isOrderedListItem(pTrimmed)
-                    || (pTrimmed.hasPrefix("|") && isTableStart(lines, at: i)) {
-                    break
-                }
-                paraLines.append(pTrimmed)
-                i += 1
-            }
-            if !paraLines.isEmpty {
-                blocks.append(.paragraph(paraLines.joined(separator: " ")))
-            }
-        }
-
-        return blocks
+        let document = Document(parsing: input)
+        var walker = BlockWalker()
+        walker.visit(document)
+        return walker.blocks
     }
 
-    // MARK: - Line Classifiers
-
-    static func parseHeading(_ line: String) -> (Int, String)? {
-        var level = 0
-        for ch in line {
-            if ch == "#" { level += 1 } else { break }
-        }
-        guard level >= 1, level <= 6, line.count > level else { return nil }
-        let rest = line[line.index(line.startIndex, offsetBy: level)...]
-        guard rest.hasPrefix(" ") else { return nil }
-        return (level, String(rest.dropFirst()))
+    static func splitTableRow(_ line: String) -> [String] {
+        var result = line.split(separator: Character("|"), omittingEmptySubsequences: false)
+            .map { String($0).trimmingCharacters(in: .whitespaces) }
+        if result.first?.isEmpty == true { result.removeFirst() }
+        if result.last?.isEmpty == true { result.removeLast() }
+        return result
     }
 
-    static func isHorizontalRule(_ line: String) -> Bool {
-        guard line.count >= 3 else { return false }
-        let chars = Set(line)
-        return chars.count == 1 && (chars.contains("-") || chars.contains("*") || chars.contains("_"))
+    static func isTableSeparator(_ line: String) -> Bool {
+        parseTableSeparator(line) != nil
+    }
+
+    static func parseTableSeparator(_ line: String) -> [TableAlignment]? {
+        guard line.hasPrefix("|") else { return nil }
+        let cells = splitTableRow(line)
+        guard !cells.isEmpty else { return nil }
+        var alignments: [TableAlignment] = []
+        for cell in cells {
+            guard !cell.isEmpty else { return nil }
+            let hasLeft = cell.hasPrefix(":")
+            let hasRight = cell.hasSuffix(":")
+            let stripped = hasLeft ? String(cell.dropFirst()) : cell
+            let stripped2 = stripped.hasSuffix(":") ? String(stripped.dropLast()) : stripped
+            guard !stripped2.isEmpty, stripped2.allSatisfy({ $0 == "-" }) else { return nil }
+            if hasLeft && hasRight { alignments.append(.center) }
+            else if hasRight { alignments.append(.right) }
+            else { alignments.append(.left) }
+        }
+        return alignments
     }
 
     static func isUnorderedListItem(_ line: String) -> Bool {
@@ -217,43 +119,190 @@ enum MarkdownParser {
         return String(trimmed[trimmed.index(after: afterDot)...])
     }
 
-    // MARK: - Table Helpers
-
-    static func splitTableRow(_ line: String) -> [String] {
-        var result = line.split(separator: Character("|"), omittingEmptySubsequences: false)
-            .map { String($0).trimmingCharacters(in: .whitespaces) }
-        if result.first?.isEmpty == true { result.removeFirst() }
-        if result.last?.isEmpty == true { result.removeLast() }
-        return result
-    }
-
-    static func isTableSeparator(_ line: String) -> Bool {
-        parseTableSeparator(line) != nil
-    }
-
-    /// Validates separator and returns alignments in one pass (single `splitTableRow`).
-    static func parseTableSeparator(_ line: String) -> [TableAlignment]? {
-        guard line.hasPrefix("|") else { return nil }
-        let cells = splitTableRow(line)
-        guard !cells.isEmpty else { return nil }
-        var alignments: [TableAlignment] = []
-        for cell in cells {
-            guard !cell.isEmpty else { return nil }
-            let hasLeft = cell.hasPrefix(":")
-            let hasRight = cell.hasSuffix(":")
-            let stripped = hasLeft ? String(cell.dropFirst()) : cell
-            let stripped2 = stripped.hasSuffix(":") ? String(stripped.dropLast()) : stripped
-            guard !stripped2.isEmpty, stripped2.allSatisfy({ $0 == "-" }) else { return nil }
-            if hasLeft && hasRight { alignments.append(.center) }
-            else if hasRight { alignments.append(.right) }
-            else { alignments.append(.left) }
+    static func parseHeading(_ line: String) -> (Int, String)? {
+        var level = 0
+        for ch in line {
+            if ch == "#" { level += 1 } else { break }
         }
-        return alignments
+        guard level >= 1, level <= 6, line.count > level else { return nil }
+        let rest = line[line.index(line.startIndex, offsetBy: level)...]
+        guard rest.hasPrefix(" ") else { return nil }
+        return (level, String(rest.dropFirst()))
     }
 
-    static func isTableStart(_ lines: [String], at index: Int) -> Bool {
-        let trimmed = lines[index].trimmingCharacters(in: .whitespaces)
-        guard trimmed.hasPrefix("|"), index + 1 < lines.count else { return false }
-        return parseTableSeparator(lines[index + 1].trimmingCharacters(in: .whitespaces)) != nil
+    static func isHorizontalRule(_ line: String) -> Bool {
+        guard line.count >= 3 else { return false }
+        let chars = Set(line)
+        return chars.count == 1 && (chars.contains("-") || chars.contains("*") || chars.contains("_"))
+    }
+}
+
+private struct BlockWalker: MarkupWalker {
+    var blocks: [MarkdownBlock] = []
+
+    private func plainText(_ markup: some Markup) -> String {
+        var collector = InlineTextCollector()
+        collector.visit(markup)
+        return collector.text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    mutating func visitHeading(_ heading: Heading) {
+        let text = plainText(heading)
+        blocks.append(.heading(level: heading.level, text: text))
+    }
+
+    mutating func visitParagraph(_ paragraph: Paragraph) {
+        if let parent = paragraph.parent,
+           parent is BlockQuote {
+            return
+        }
+        let text = plainText(paragraph)
+        guard !text.isEmpty else { return }
+        blocks.append(.paragraph(text))
+    }
+
+    mutating func visitCodeBlock(_ codeBlock: Markdown.CodeBlock) {
+        let language = codeBlock.language ?? ""
+        let code = String(codeBlock.code).trimmingCharacters(in: CharacterSet(charactersIn: "\n"))
+        blocks.append(.codeBlock(language: language.isEmpty ? nil : language, code: code))
+    }
+
+    mutating func visitUnorderedList(_ unorderedList: Markdown.UnorderedList) {
+        var items: [String] = []
+        for child in unorderedList.listItems {
+            let text = plainText(child)
+            if let checkbox = child.checkbox {
+                let checked = checkbox == .checked
+                blocks.append(.taskList([(isComplete: checked, text: text)]))
+                continue
+            }
+            items.append(text)
+        }
+        if !items.isEmpty {
+            blocks.append(.unorderedList(items))
+        }
+    }
+
+    mutating func visitOrderedList(_ orderedList: Markdown.OrderedList) {
+        var items: [(Int, String)] = []
+        var number = Int(orderedList.startIndex)
+        for child in orderedList.listItems {
+            let text = plainText(child)
+            items.append((number, text))
+            number += 1
+        }
+        blocks.append(.orderedList(items))
+    }
+
+    mutating func visitBlockQuote(_ blockQuote: BlockQuote) {
+        let text = plainText(blockQuote)
+        blocks.append(.blockquote(text))
+    }
+
+    mutating func visitThematicBreak(_ thematicBreak: ThematicBreak) {
+        blocks.append(.horizontalRule)
+    }
+
+    mutating func visitTable(_ table: Markdown.Table) {
+        var headers: [String] = []
+        var alignments: [TableAlignment] = []
+
+        for cell in table.head.cells {
+            headers.append(plainText(cell))
+            if let col = table.columnAlignments[safe: headers.count - 1] {
+                switch col {
+                case .center: alignments.append(.center)
+                case .right: alignments.append(.right)
+                default: alignments.append(.left)
+                }
+            } else {
+                alignments.append(.left)
+            }
+        }
+
+        var rows: [[String]] = []
+        for row in table.body.rows {
+            var cells: [String] = []
+            for cell in row.cells {
+                cells.append(plainText(cell))
+            }
+            rows.append(cells)
+        }
+
+        blocks.append(.table(headers: headers, alignments: alignments, rows: rows))
+    }
+
+    mutating func visitListItem(_ listItem: Markdown.ListItem) {
+        // Skip — list items are handled in visitUnorderedList/visitOrderedList
+    }
+
+    mutating func visitSoftBreak(_ softBreak: SoftBreak) {
+        // handled within plainText
+    }
+
+    mutating func visitLineBreak(_ lineBreak: LineBreak) {
+        // handled within plainText
+    }
+
+    mutating func visitText(_ text: Markdown.Text) {
+        // handled within plainText
+    }
+
+    mutating func visitStrong(_ strong: Strong) {
+        // handled within plainText
+    }
+
+    mutating func visitEmphasis(_ emphasis: Emphasis) {
+        // handled within plainText
+    }
+
+    mutating func visitInlineCode(_ inlineCode: InlineCode) {
+        // handled within plainText
+    }
+
+    mutating func visitLink(_ link: Markdown.Link) {
+        // handled within plainText
+    }
+
+    mutating func visitImage(_ image: Markdown.Image) {
+        // handled within plainText
+    }
+
+    mutating func visitStrikethrough(_ strikethrough: Strikethrough) {
+        // handled within plainText
+    }
+}
+
+private struct InlineTextCollector: MarkupWalker {
+    var text = ""
+
+    mutating func visitText(_ text: Markdown.Text) {
+        self.text += text.string
+    }
+
+    mutating func visitSoftBreak(_ softBreak: SoftBreak) {
+        text += " "
+    }
+
+    mutating func visitLineBreak(_ lineBreak: LineBreak) {
+        text += "\n"
+    }
+
+    mutating func visitInlineCode(_ inlineCode: InlineCode) {
+        text += "`\(inlineCode.code)`"
+    }
+
+    mutating func visitStrikethrough(_ strikethrough: Strikethrough) {
+        text += "~~"
+        for child in strikethrough.children {
+            visit(child)
+        }
+        text += "~~"
+    }
+}
+
+extension Collection {
+    subscript(safe index: Index) -> Element? {
+        indices.contains(index) ? self[index] : nil
     }
 }

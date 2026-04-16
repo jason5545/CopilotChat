@@ -51,44 +51,32 @@ struct MarkdownView: View {
                 .font(.carbonSerif(.body))
 
         case .codeBlock(let language, let code):
-            VStack(alignment: .leading, spacing: 0) {
-                HStack {
-                    if let language {
-                        Text(language.uppercased())
-                            .font(.carbonMono(.caption2, weight: .semibold))
-                            .foregroundStyle(Color.carbonAccent.opacity(0.7))
-                            .kerning(0.6)
-                    }
-                    Spacer()
-                    Button {
-                        Haptics.copyToClipboard(code)
-                    } label: {
-                        Image(systemName: "doc.on.doc")
-                            .font(.caption2)
-                            .foregroundStyle(Color.carbonTextTertiary)
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(.horizontal, 14)
-                .padding(.top, 10)
-                .padding(.bottom, 2)
-
-                ScrollView(.horizontal, showsIndicators: false) {
-                    Text(code)
-                        .font(.carbonMono(.callout))
-                        .foregroundStyle(Color.carbonText.opacity(0.9))
-                        .textSelection(.enabled)
+            if let lang = language?.lowercased(), (lang == "diff" || lang == "patch"), DiffParser.isDiffContent(code) {
+                let changes = DiffParser.parse(code)
+                if !changes.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(changes) { change in
+                                DiffStatLabel(additions: change.additions, deletions: change.deletions)
+                            }
+                            DiffView(changes: changes)
+                        }
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.carbonCodeBg)
+                    .clipShape(RoundedRectangle(cornerRadius: Carbon.radiusSmall))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Carbon.radiusSmall)
+                            .stroke(Color.carbonBorder.opacity(0.3), lineWidth: 0.5)
+                    )
+                } else {
+                    standardCodeBlock(language: language, code: code)
                 }
+            } else {
+                standardCodeBlock(language: language, code: code)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.carbonCodeBg)
-            .clipShape(RoundedRectangle(cornerRadius: Carbon.radiusSmall))
-            .overlay(
-                RoundedRectangle(cornerRadius: Carbon.radiusSmall)
-                    .stroke(Color.carbonBorder.opacity(0.3), lineWidth: 0.5)
-            )
 
         case .heading(let level, let text):
             VStack(alignment: .leading, spacing: 4) {
@@ -160,6 +148,21 @@ struct MarkdownView: View {
                 .fill(Color.carbonBorder.opacity(0.3))
                 .frame(height: 0.5)
                 .padding(.vertical, 4)
+
+        case .taskList(let items):
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: item.isComplete ? "checkmark.square.fill" : "square")
+                            .font(.callout)
+                            .foregroundStyle(item.isComplete ? Color.carbonAccent : Color.carbonTextTertiary)
+                            .padding(.top, 1)
+                        inlineMarkdown(item.text)
+                            .font(.carbonSerif(.body))
+                            .strikethrough(item.isComplete ? true : false)
+                    }
+                }
+            }
 
         case .table(let headers, let alignments, let rows):
             tableBlock(headers: headers, alignments: alignments, rows: rows)
@@ -238,6 +241,47 @@ struct MarkdownView: View {
         return Text(text)
     }
 
+    private func standardCodeBlock(language: String?, code: String) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                if let language {
+                    Text(language.uppercased())
+                        .font(.carbonMono(.caption2, weight: .semibold))
+                        .foregroundStyle(Color.carbonAccent.opacity(0.7))
+                        .kerning(0.6)
+                }
+                Spacer()
+                Button {
+                    Haptics.copyToClipboard(code)
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                        .font(.caption2)
+                        .foregroundStyle(Color.carbonTextTertiary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 14)
+            .padding(.top, 10)
+            .padding(.bottom, 2)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                Text(code)
+                    .font(.carbonMono(.callout))
+                    .foregroundStyle(Color.carbonText.opacity(0.9))
+                    .textSelection(.enabled)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.carbonCodeBg)
+        .clipShape(RoundedRectangle(cornerRadius: Carbon.radiusSmall))
+        .overlay(
+            RoundedRectangle(cornerRadius: Carbon.radiusSmall)
+                .stroke(Color.carbonBorder.opacity(0.3), lineWidth: 0.5)
+        )
+    }
+
     private func headingFont(level: Int) -> Font {
         switch level {
         case 1: .carbonSerif(.title2, weight: .bold)
@@ -285,6 +329,24 @@ struct MarkdownView: View {
         | Gemini 1.5 | 1M | $7/M |
 
         [Link example](https://example.com)
+
+        ```diff
+        diff --git a/foo.swift b/foo.swift
+        --- a/foo.swift
+        +++ b/foo.swift
+        @@ -1,5 +1,6 @@
+         struct Foo {
+             var name: String
+        -    var age: Int
+        +    var age: Int
+        +    var email: String?
+         
+             init(name: String, age: Int) {
+        -        self.name = name
+        +        self.name = name.trimmed()
+                 self.age = age
+             }
+        ```
         """)
         .padding()
     }

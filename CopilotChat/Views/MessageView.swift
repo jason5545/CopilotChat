@@ -533,20 +533,19 @@ struct MessageView: View {
                         .foregroundStyle(Color.carbonAccent.opacity(0.8))
                 }
             }
-            Text(message.content)
-                .font(.carbonMono(.caption2))
-                .foregroundStyle(Color.carbonTextSecondary)
-                .lineLimit(expandedToolResult ? nil : 10)
-                .textSelection(.enabled)
-                .padding(Carbon.spacingRelaxed)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.carbonCodeBg)
-                .clipShape(RoundedRectangle(cornerRadius: Carbon.radiusSmall))
-                .overlay(
-                    RoundedRectangle(cornerRadius: Carbon.radiusSmall)
-                        .stroke(Color.carbonBorder.opacity(0.3), lineWidth: 0.5)
-                )
-            if message.content.filter({ $0 == "\n" }).count >= 10 {
+            if DiffParser.isDiffContent(message.content) {
+                let changes = DiffParser.parse(message.content)
+                if changes.isEmpty {
+                    plainToolResultContent
+                } else {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        DiffView(changes: changes)
+                    }
+                }
+            } else {
+                plainToolResultContent
+            }
+            if message.content.filter({ $0 == "\n" }).count >= 10 && !DiffParser.isDiffContent(message.content) {
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         expandedToolResult.toggle()
@@ -560,6 +559,22 @@ struct MessageView: View {
         }
         .padding(.horizontal, Carbon.messagePaddingH)
         .padding(.vertical, Carbon.spacingTight)
+    }
+
+    private var plainToolResultContent: some View {
+        Text(message.content)
+            .font(.carbonMono(.caption2))
+            .foregroundStyle(Color.carbonTextSecondary)
+            .lineLimit(expandedToolResult ? nil : 10)
+            .textSelection(.enabled)
+            .padding(Carbon.spacingRelaxed)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.carbonCodeBg)
+            .clipShape(RoundedRectangle(cornerRadius: Carbon.radiusSmall))
+            .overlay(
+                RoundedRectangle(cornerRadius: Carbon.radiusSmall)
+                    .stroke(Color.carbonBorder.opacity(0.3), lineWidth: 0.5)
+            )
     }
 
     // MARK: - Helpers

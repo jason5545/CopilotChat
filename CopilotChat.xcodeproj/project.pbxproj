@@ -10,6 +10,7 @@
 		03CBBD0AF52DA3259CCA59D2 /* WebFetchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B5F057E1594CDDB8C4D0293 /* WebFetchService.swift */; };
 		1024A26EC417D71BDF9632EE /* FileSystemPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D840D2EA9136B089B1E2903 /* FileSystemPlugin.swift */; };
 		157BFBF72A2B850E6A5D832E /* APIMessageEncodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC320742E69744CF3BEC9972 /* APIMessageEncodingTests.swift */; };
+		1626C87C9A08F98D2B0B6FE9 /* Markdown in Frameworks */ = {isa = PBXBuildFile; productRef = 3442EF43E3CEC54F2791FFAB /* Markdown */; };
 		1642E88F49621293AC8EC307 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F8C8F50D0B29A8A7443C454 /* SettingsStore.swift */; };
 		179D0FFC87BE441AAC14AFFD /* CExtPluginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87F036A16CF5AE6B700305D3 /* CExtPluginManager.swift */; };
 		17E6FDC95EBBCC13F2106A07 /* MCPSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAEE40518E4F65DA4E50E674 /* MCPSettingsView.swift */; };
@@ -25,6 +26,7 @@
 		3A7CBD6D5069979F87F90198 /* ModelsDev.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7889ED90D905FCAACE8C8B63 /* ModelsDev.swift */; };
 		4098B84317D4DD4B68603389 /* Pointers.swift in Sources */ = {isa = PBXBuildFile; fileRef = C62A4EE563BA063727BD3358 /* Pointers.swift */; };
 		42CA95BDD38E711D68B09C26 /* CExtPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1779C9901FB3A2DA63DE4C80 /* CExtPlugin.swift */; };
+		4AC2A981301B04923F45F3B4 /* DiffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 821C74FD08E030C5C0308E16 /* DiffView.swift */; };
 		5308035D2EF7B4053EEFE38C /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E4C54DF2D9B605822055885 /* DesignSystem.swift */; };
 		5F9CD7CB0B08475879A1EF5C /* PluginSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96FBE408B7A6CF04BC50D1A0 /* PluginSystem.swift */; };
 		618203C783472CF073B70DBA /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDE8D6B39D4CE3CC02F64DC5 /* ChatView.swift */; };
@@ -121,6 +123,7 @@
 		78FE0F4446B914463ED0FC30 /* ProviderTransform.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderTransform.swift; sourceTree = "<group>"; };
 		7FD38A96474027CB84715BBB /* ChatModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatModelsTests.swift; sourceTree = "<group>"; };
 		80321460D59EA7CCC12B17C1 /* Conversation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Conversation.swift; sourceTree = "<group>"; };
+		821C74FD08E030C5C0308E16 /* DiffView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiffView.swift; sourceTree = "<group>"; };
 		85E7A0731D3332AC0E687019 /* LLMProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMProvider.swift; sourceTree = "<group>"; };
 		86E94735DB084C36F9B3178D /* ToolCallStatusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolCallStatusTests.swift; sourceTree = "<group>"; };
 		87F036A16CF5AE6B700305D3 /* CExtPluginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CExtPluginManager.swift; sourceTree = "<group>"; };
@@ -164,6 +167,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				D65AF1D9753361A5FB690673 /* Clibgit2.xcframework in Frameworks */,
+				1626C87C9A08F98D2B0B6FE9 /* Markdown in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -295,6 +299,7 @@
 				9DBB39AB40216F734E2CA921 /* CExtPluginsView.swift */,
 				EDE8D6B39D4CE3CC02F64DC5 /* ChatView.swift */,
 				095D95CCFBFE3A4CB52AED3A /* ConversationHistoryView.swift */,
+				821C74FD08E030C5C0308E16 /* DiffView.swift */,
 				6BCA1ABF6355F286581ED29D /* InlineMarkdownText.swift */,
 				209BCAEE6572124412782E61 /* MarkdownView.swift */,
 				DAEE40518E4F65DA4E50E674 /* MCPSettingsView.swift */,
@@ -326,7 +331,7 @@
 			);
 			sourceTree = "<group>";
 		};
-		"TEMP_D5AEBC2D-1397-4508-9A78-D5C7B816F469" /* Theme */ = {
+		"TEMP_C656362B-D3F3-45B3-B777-22671DC727F8" /* Theme */ = {
 			isa = PBXGroup;
 			children = (
 			);
@@ -350,6 +355,7 @@
 			);
 			name = CopilotChat;
 			packageProductDependencies = (
+				3442EF43E3CEC54F2791FFAB /* Markdown */,
 			);
 			productName = CopilotChat;
 			productReference = B2ABD5318D1C1FEAD11AFD93 /* CopilotChat.app */;
@@ -401,6 +407,9 @@
 			);
 			mainGroup = FDC7BAA69FF0273BD4A68BEF;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				8A56865A50DF29DF46025BD1 /* XCRemoteSwiftPackageReference "swift-markdown" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 33350B4628AD5990F3764401 /* Products */;
 			projectDirPath = "";
@@ -462,6 +471,7 @@
 				780C1E6B6A3D696CB6882F87 /* CopilotService.swift in Sources */,
 				7F60716EF05D8ECC845214A9 /* Credentials.swift in Sources */,
 				5308035D2EF7B4053EEFE38C /* DesignSystem.swift in Sources */,
+				4AC2A981301B04923F45F3B4 /* DiffView.swift in Sources */,
 				BDE2ED665348FE70F1164F8A /* Diffs.swift in Sources */,
 				FCCD3159C874432F9A388E2A /* Errors.swift in Sources */,
 				1024A26EC417D71BDF9632EE /* FileSystemPlugin.swift in Sources */,
@@ -775,6 +785,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		8A56865A50DF29DF46025BD1 /* XCRemoteSwiftPackageReference "swift-markdown" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/swiftlang/swift-markdown";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.5.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		3442EF43E3CEC54F2791FFAB /* Markdown */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8A56865A50DF29DF46025BD1 /* XCRemoteSwiftPackageReference "swift-markdown" */;
+			productName = Markdown;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = DB271B040BE3207C810189B0 /* Project object */;
 }

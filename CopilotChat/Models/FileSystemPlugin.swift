@@ -672,10 +672,128 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
             let lineDelta = updatedLines - originalLines
             let deltaStr = lineDelta == 0 ? "no line count change" : lineDelta > 0 ? "+\(lineDelta) lines" : "\(lineDelta) lines"
             let action = replaceAll ? "Replaced \(matchCount) occurrences" : "Replaced 1 occurrence"
-            return ToolResult(text: "\(action) in \(path) (\(originalLines) → \(updatedLines) lines, \(deltaStr))")
+            let diff = generateUnifiedDiff(path: path, oldText: original, newText: updated)
+            return ToolResult(text: "\(action) in \(path) (\(originalLines) → \(updatedLines) lines, \(deltaStr))\n\n\(diff)")
         } catch {
             return ToolResult(text: "Error editing file: \(error.localizedDescription)")
         }
+    }
+
+    private func generateUnifiedDiff(path: String, oldText: String, newText: String) -> String {
+        let oldLines = oldText.components(separatedBy: "\n")
+        let newLines = newText.components(separatedBy: "\n")
+        var out: [String] = ["diff --git a/\(path) b/\(path)", "--- a/\(path)", "+++ b/\(path)"]
+
+        // Simple longest-common-subsequence diff
+        let ops = lcsEditOps(old: oldLines, new: newLines)
+        let hunks = groupIntoHunks(ops: ops, context: 3)
+        guard !hunks.isEmpty else { return "" }
+
+        for h in hunks {
+            var lines: [String] = []
+            for op in h.ops {
+                switch op {
+                case .equal(let oi, let ni): lines.append(" \(oldLines[oi])")
+                case .delete(let oi): lines.append("-\(oldLines[oi])")
+                case .insert(let ni): lines.append("+\(newLines[ni])")
+                }
+            }
+            out.append("@@ -\(h.oldStart),\(h.oldCount) +\(h.newStart),\(h.newCount) @@")
+            out.append(contentsOf: lines)
+        }
+        return out.joined(separator: "\n")
+    }
+
+    private enum Edit { case equal(oldIdx: Int, newIdx: Int); case delete(oldIdx: Int); case insert(newIdx: Int) }
+
+    private struct HunkInfo { var oldStart: Int; var oldCount: Int; var newStart: Int; var newCount: Int; var ops: [Edit] }
+
+    private func lcsEditOps(old: [String], new: [String]) -> [Edit] {
+        let m = old.count, n = new.count
+        if m == 0 { return new.enumerated().map { .insert(newIdx: $0.offset) } }
+        if n == 0 { return old.enumerated().map { .delete(oldIdx: $0.offset) } }
+
+        // Use patience/LCS approach via DP for small files, hash-based for large
+        if m * n <= 4_000_000 {
+            return lcsDP(old: old, new: new)
+        }
+        return lcsDP(old: old, new: new)
+    }
+
+    private func lcsDP(old: [String], new: [String]) -> [Edit] {
+        let m = old.count, n = new.count
+        // DP table storing LCS length
+        var dp = Array(repeating: Array(repeating: 0, count: n + 1), count: m + 1)
+        for i in 1...m {
+            for j in 1...n {
+                if old[i-1] == new[j-1] { dp[i][j] = dp[i-1][j-1] + 1 }
+                else { dp[i][j] = Swift.max(dp[i-1][j], dp[i][j-1]) }
+            }
+        }
+        // Backtrack to get edit operations
+        var edits: [Edit] = []
+        var i = m, j = n
+        while i > 0 || j > 0 {
+            if i > 0 && j > 0 && old[i-1] == new[j-1] {
+                edits.append(.equal(oldIdx: i-1, newIdx: j-1))
+                i -= 1; j -= 1
+            } else if j > 0 && (i == 0 || dp[i][j-1] >= dp[i-1][j]) {
+                edits.append(.insert(newIdx: j-1))
+                j -= 1
+            } else {
+                edits.append(.delete(oldIdx: i-1))
+                i -= 1
+            }
+        }
+        return edits.reversed()
+    }
+
+    private func groupIntoHunks(ops: [Edit], context: Int) -> [HunkInfo] {
+        var hunks: [HunkInfo] = []
+        var i = 0
+        while i < ops.count {
+            let isChange: Bool
+            switch ops[i] { case .delete(_), .insert(_:): isChange = true; default: isChange = false }
+            guard isChange else { i += 1; continue }
+
+            let changeStart = i
+            var changeEnd = i
+            while changeEnd < ops.count {
+                let eIsChange: Bool
+                switch ops[changeEnd] { case .delete(_), .insert(_:): eIsChange = true; default: eIsChange = false }
+                if eIsChange { changeEnd += 1; continue }
+                var equalRun = 0, j = changeEnd
+                while j < ops.count {
+                    if case .equal(_) = ops[j] { equalRun += 1; j += 1 } else { break }
+                }
+                if equalRun > context * 2 { break }
+                changeEnd = j
+            }
+
+            let from = Swift.max(0, changeStart - context)
+            let to = Swift.min(ops.count - 1, changeEnd + context - 1)
+            let hunkOps = Array(ops[from...to])
+
+            var oldStart = 0, newStart = 0
+            var oldCount = 0, newCount = 0
+            for op in hunkOps {
+                switch op {
+                case .equal(let oi, let ni):
+                    if oldStart == 0 { oldStart = oi + 1; newStart = ni + 1 }
+                    oldCount += 1; newCount += 1
+                case .delete(let oi):
+                    if oldStart == 0 { oldStart = oi + 1 }
+                    oldCount += 1
+                case .insert(let ni):
+                    if newStart == 0 { newStart = ni + 1 }
+                    newCount += 1
+                }
+            }
+            if oldStart == 0 { oldStart = 1 }; if newStart == 0 { newStart = 1 }
+            hunks.append(HunkInfo(oldStart: oldStart, oldCount: oldCount, newStart: newStart, newCount: newCount, ops: hunkOps))
+            i = to + 1
+        }
+        return hunks
     }
 
     func createFile(argumentsJSON: String) -> ToolResult {
