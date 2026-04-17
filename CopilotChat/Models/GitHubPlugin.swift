@@ -628,30 +628,32 @@ final class GitHubPlugin: Plugin {
             switch Self.validatedOriginRemote(in: repo) {
             case .failure(let error): return ToolResult(text: error.message)
             case .success(let remote):
-                let branchName: String
                 switch repo.HEAD() {
+                case .failure(let e): return ToolResult(text: "HEAD failed: \(e.localizedDescription)")
                 case .success(let head):
-                    branchName = head.shortName ?? "main"
-                case .failure:
-                    branchName = "main"
-                }
-                let refspec = "+refs/heads/\(branchName):refs/remotes/origin/\(branchName)"
-                let fetchResult = repo.fetch(remote, refspecs: [refspec], credentials: creds)
-                switch fetchResult {
-                case .failure(let e): return ToolResult(text: "Fetch failed: \(e.localizedDescription)")
-                case .success:
-                    let remoteRefName = "refs/remotes/origin/\(branchName)"
-                    switch repo.reference(named: remoteRefName) {
-                    case .failure(let e): return ToolResult(text: "Remote ref not found: \(e.localizedDescription)")
-                    case .success(let remoteRef):
-                        switch repo.setHEAD(remoteRef.oid) {
-                        case .failure(let e): return ToolResult(text: "Set HEAD failed: \(e.localizedDescription)")
-                        case .success:
-                            switch repo.checkout(strategy: .Force) {
-                            case .failure(let e): return ToolResult(text: "Checkout failed: \(e.localizedDescription)")
+                    guard let localBranch = head as? Branch, localBranch.isLocal else {
+                        return ToolResult(text: "Pull failed: HEAD is detached. Checkout a local branch and try again.")
+                    }
+                    let branchName = localBranch.name
+
+                    let refspec = "+refs/heads/\(branchName):refs/remotes/origin/\(branchName)"
+                    let fetchResult = repo.fetch(remote, refspecs: [refspec], credentials: creds)
+                    switch fetchResult {
+                    case .failure(let e): return ToolResult(text: "Fetch failed: \(e.localizedDescription)")
+                    case .success:
+                        let remoteRefName = "refs/remotes/origin/\(branchName)"
+                        switch repo.reference(named: remoteRefName) {
+                        case .failure(let e): return ToolResult(text: "Remote ref not found: \(e.localizedDescription)")
+                        case .success(let remoteRef):
+                            switch repo.setTarget(remoteRef.oid, for: localBranch, logMessage: "pull: fast-forward \(branchName)") {
+                            case .failure(let e): return ToolResult(text: "Fast-forward failed: \(e.localizedDescription)")
                             case .success:
-                                let short = String(remoteRef.oid.description.prefix(7))
-                                return ToolResult(text: "Pulled \(short) into \(branchName)")
+                                switch repo.checkout(localBranch, strategy: .Force) {
+                                case .failure(let e): return ToolResult(text: "Checkout failed: \(e.localizedDescription)")
+                                case .success:
+                                    let short = String(remoteRef.oid.description.prefix(7))
+                                    return ToolResult(text: "Pulled \(short) into \(branchName)")
+                                }
                             }
                         }
                     }

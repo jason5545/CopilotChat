@@ -627,6 +627,35 @@ public final class Repository: @unchecked Sendable {
         return .success(())
     }
 
+    /// Update a direct reference to the given oid.
+    public func setTarget(_ oid: OID, for reference: ReferenceType, logMessage: String? = nil) -> Result<(), NSError> {
+        var referencePointer: OpaquePointer?
+        let lookupResult = git_reference_lookup(&referencePointer, self.pointer, reference.longName)
+        guard lookupResult == GIT_OK.rawValue, let referencePointer else {
+            return .failure(NSError(gitError: lookupResult, pointOfFailure: "git_reference_lookup"))
+        }
+        defer { git_reference_free(referencePointer) }
+
+        var updatedReferencePointer: OpaquePointer?
+        var targetOID = oid.oid
+        let setTargetResult: Int32
+        if let logMessage {
+            setTargetResult = logMessage.withCString { messagePointer in
+                git_reference_set_target(&updatedReferencePointer, referencePointer, &targetOID, messagePointer)
+            }
+        } else {
+            setTargetResult = git_reference_set_target(&updatedReferencePointer, referencePointer, &targetOID, nil)
+        }
+        if let updatedReferencePointer {
+            git_reference_free(updatedReferencePointer)
+        }
+
+        guard setTargetResult == GIT_OK.rawValue else {
+            return .failure(NSError(gitError: setTargetResult, pointOfFailure: "git_reference_set_target"))
+        }
+        return .success(())
+    }
+
     /// Check out HEAD.
     public func checkout(strategy: CheckoutStrategy, progress: CheckoutProgressBlock? = nil) -> Result<(), NSError> {
         var options = checkoutOptions(strategy: strategy, progress: progress)
