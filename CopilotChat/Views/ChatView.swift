@@ -49,10 +49,12 @@ struct ChatView: View {
             #endif
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    Text("COPILOT")
-                        .font(.carbonMono(.caption, weight: .bold))
-                        .kerning(2.5)
-                        .foregroundStyle(Color.carbonText)
+                    if !usesCompactPhoneToolbar {
+                        Text("COPILOT")
+                            .font(.carbonMono(.caption, weight: .bold))
+                            .kerning(2.5)
+                            .foregroundStyle(Color.carbonText)
+                    }
                 }
                 ToolbarItem(placement: .carbonLeading) {
                     HStack(spacing: 14) {
@@ -72,25 +74,29 @@ struct ChatView: View {
                                 .font(.subheadline)
                                 .foregroundStyle(Color.carbonTextSecondary)
                         }
-                        Button {
-                            showHistory = true
-                        } label: {
-                            Image(systemName: "clock.arrow.circlepath")
-                                .font(.subheadline)
-                                .foregroundStyle(Color.carbonTextSecondary)
-                        }
-                        Button {
-                            startNewConversation()
-                        } label: {
-                            Image(systemName: "square.and.pencil")
-                                .font(.subheadline)
-                                .foregroundStyle(Color.carbonTextSecondary)
+                        if !usesCompactPhoneToolbar {
+                            Button {
+                                showHistory = true
+                            } label: {
+                                Image(systemName: "clock.arrow.circlepath")
+                                    .font(.subheadline)
+                                    .foregroundStyle(Color.carbonTextSecondary)
+                            }
+                            Button {
+                                startNewConversation()
+                            } label: {
+                                Image(systemName: "square.and.pencil")
+                                    .font(.subheadline)
+                                    .foregroundStyle(Color.carbonTextSecondary)
+                            }
                         }
                     }
                 }
                 ToolbarItem(placement: .carbonTrailing) {
                     HStack(spacing: 12) {
-                        if let usage = copilotService.tokenUsage, copilotService.contextWindow > 0 {
+                        if !usesCompactPhoneToolbar,
+                           let usage = copilotService.tokenUsage,
+                           copilotService.contextWindow > 0 {
                             ContextRing(
                                 promptTokens: usage.promptTokens,
                                 contextWindow: copilotService.contextWindow
@@ -110,23 +116,49 @@ struct ChatView: View {
                         }
 
                         Menu {
-                            Button {
-                                settingsStore.toolAccessMode = .alwaysLoaded
-                            } label: {
-                                Label("Supervised", systemImage: "lock")
+                            if usesCompactPhoneToolbar {
+                                Button {
+                                    startNewConversation()
+                                } label: {
+                                    Label("New Conversation", systemImage: "square.and.pencil")
+                                }
+                                Button {
+                                    showHistory = true
+                                } label: {
+                                    Label("History", systemImage: "clock.arrow.circlepath")
+                                }
+                                Divider()
                             }
-                            Button {
-                                settingsStore.toolAccessMode = .autoApprove
-                            } label: {
-                                Label("Auto-accept edits", systemImage: "pencil.line")
-                            }
-                            Button {
-                                settingsStore.toolAccessMode = .fullAccess
-                            } label: {
-                                Label("Full access", systemImage: "lock.open")
+                            if settingsStore.appMode == .coding {
+                                Button {
+                                    settingsStore.toolAccessMode = .supervised
+                                } label: {
+                                    Label("Supervised", systemImage: "lock")
+                                }
+                                Button {
+                                    settingsStore.toolAccessMode = .autoApprove
+                                } label: {
+                                    Label("Auto-accept edits", systemImage: "pencil.line")
+                                }
+                                Button {
+                                    settingsStore.toolAccessMode = .fullAccess
+                                } label: {
+                                    Label("Full access", systemImage: "lock.open")
+                                }
+                            } else {
+                                Button {
+                                    settingsStore.toolAccessMode = .alwaysLoaded
+                                } label: {
+                                    Label("Tools always loaded", systemImage: "wrench.and.screwdriver.fill")
+                                }
+                                Button {
+                                    settingsStore.toolAccessMode = .loadWhenNeeded
+                                } label: {
+                                    Label("Load tools when needed", systemImage: "magnifyingglass")
+                                }
                             }
                         } label: {
-                            Image(systemName: settingsStore.toolAccessMode.icon)
+                            Image(systemName: toolAccessMenuIcon)
                                 .font(.subheadline)
                                 .foregroundStyle(Color.carbonTextSecondary)
                                 .frame(width: 28, height: 28)
@@ -652,11 +684,11 @@ struct ChatView: View {
                 #endif
             }
 
-            if !mentionedFiles.isEmpty {
+            if allowsFileMentions, !mentionedFiles.isEmpty {
                 fileChipsBar
             }
 
-            if mentionQuery != nil {
+            if allowsFileMentions, mentionQuery != nil {
                 FileMentionPicker(
                     files: mentionManager.filteredFiles,
                     onSelect: { file in insertMention(file) },
@@ -715,7 +747,7 @@ struct ChatView: View {
                     }
                 }
 
-                TextField("Message (@ to mention file)", text: $inputText, axis: .vertical)
+                TextField(inputPlaceholder, text: $inputText, axis: .vertical)
                     .textFieldStyle(.plain)
                     .font(.carbonSans(.body))
                     .foregroundStyle(Color.carbonText)
@@ -724,7 +756,11 @@ struct ChatView: View {
                     .onSubmit { sendCurrentMessage() }
                     .tint(Color.carbonAccent)
                     .onChange(of: inputText) { _, newText in
-                        detectMentionTrigger(newText)
+                        if allowsFileMentions {
+                            detectMentionTrigger(newText)
+                        } else if mentionQuery != nil {
+                            mentionQuery = nil
+                        }
                     }
 
                 if copilotService.isStreaming {
@@ -928,10 +964,19 @@ struct ChatView: View {
 
     private func onInputChange(_ newText: String) {
         inputText = newText
-        detectMentionTrigger(newText)
+        if allowsFileMentions {
+            detectMentionTrigger(newText)
+        } else {
+            mentionQuery = nil
+        }
     }
 
     private func detectMentionTrigger(_ text: String) {
+        guard allowsFileMentions else {
+            mentionQuery = nil
+            return
+        }
+
         guard text.contains("@") else {
             mentionQuery = nil
             return
@@ -954,6 +999,7 @@ struct ChatView: View {
     }
 
     private func insertMention(_ file: FileMention) {
+        guard allowsFileMentions else { return }
         guard let query = mentionQuery else { return }
 
         if let atRange = inputText.range(of: "@\(query)", options: .backwards) {
@@ -969,10 +1015,12 @@ struct ChatView: View {
     }
 
     private func removeMention(_ file: FileMention) {
+        guard allowsFileMentions else { return }
         mentionedFiles.removeAll { $0.id == file.id }
     }
 
     private func buildFileContext() -> String {
+        guard allowsFileMentions else { return "" }
         guard !mentionedFiles.isEmpty else { return "" }
 
         var parts: [String] = []
@@ -1000,12 +1048,32 @@ struct ChatView: View {
         settingsStore.appMode == .coding ? ConversationStore.currentWorkspaceIdentifier : nil
     }
 
-    private var showsMobileProjectSwitcher: Bool {
+    private var allowsFileMentions: Bool {
+        settingsStore.appMode == .coding
+    }
+
+    private var inputPlaceholder: String {
+        allowsFileMentions ? "Message (@ to mention file)" : "Message"
+    }
+
+    private var toolAccessMenuIcon: String {
+        if settingsStore.appMode == .coding {
+            return settingsStore.toolAccessMode.icon
+        }
+
+        return settingsStore.toolAccessMode == .loadWhenNeeded ? ToolAccessMode.loadWhenNeeded.icon : ToolAccessMode.alwaysLoaded.icon
+    }
+
+    private var usesCompactPhoneToolbar: Bool {
         #if canImport(UIKit)
-        UIDevice.current.userInterfaceIdiom == .phone && settingsStore.appMode == .coding
+        UIDevice.current.userInterfaceIdiom == .phone
         #else
         false
         #endif
+    }
+
+    private var showsMobileProjectSwitcher: Bool {
+        usesCompactPhoneToolbar && settingsStore.appMode == .coding
     }
 
     private func sendCurrentMessage() {

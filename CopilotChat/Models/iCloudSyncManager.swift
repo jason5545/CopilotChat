@@ -158,17 +158,7 @@ final class iCloudSyncManager {
         syncStatus = .syncing
 
         do {
-            let files = try FileManager.default.contentsOfDirectory(at: cloudDir,
-                                                                      includingPropertiesForKeys: nil)
-            var conversations: [Conversation] = []
-
-            for file in files where file.pathExtension == "json" {
-                guard let data = try? Data(contentsOf: file),
-                      let conv = try? ConversationStore.makeDecoder().decode(Conversation.self, from: data) else {
-                    continue
-                }
-                conversations.append(conv)
-            }
+            let conversations = try await Self.loadRemoteConversations(from: cloudDir)
 
             syncStatus = .synced
             return conversations
@@ -205,6 +195,25 @@ final class iCloudSyncManager {
         for conv in store.storedConversationsForSync() {
             await uploadConversation(conv)
         }
+    }
+
+    private nonisolated static func loadRemoteConversations(from cloudDir: URL) async throws -> [Conversation] {
+        try await Task.detached(priority: .userInitiated) {
+            let files = try FileManager.default.contentsOfDirectory(at: cloudDir,
+                                                                    includingPropertiesForKeys: nil)
+            var conversations: [Conversation] = []
+            let decoder = ConversationStore.makeDecoder()
+
+            for file in files where file.pathExtension == "json" {
+                guard let data = try? Data(contentsOf: file),
+                      let conversation = try? decoder.decode(Conversation.self, from: data) else {
+                    continue
+                }
+                conversations.append(conversation)
+            }
+
+            return conversations
+        }.value
     }
 
     // MARK: - Helpers
