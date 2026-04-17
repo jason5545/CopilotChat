@@ -186,13 +186,10 @@ final class iCloudSyncManager {
             if let localIndex = store.conversations.firstIndex(where: { $0.id == remote.id }) {
                 let local = store.conversations[localIndex]
                 if remote.updatedAt > local.updatedAt {
-                    store.conversations[localIndex] = remote
-                    store.conversations[localIndex].messages = local.messages
+                    await store.upsertConversationFromSync(remote)
                 }
             } else {
-                var newConv = remote
-                newConv.messages = []
-                store.conversations.append(newConv)
+                await store.upsertConversationFromSync(remote)
             }
         }
 
@@ -205,7 +202,7 @@ final class iCloudSyncManager {
         guard isCloudAvailable else { return }
         await mergeRemoteConversations(into: store)
 
-        for conv in store.conversations {
+        for conv in store.storedConversationsForSync() {
             await uploadConversation(conv)
         }
     }

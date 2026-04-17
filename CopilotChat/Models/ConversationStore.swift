@@ -55,16 +55,24 @@ final class ConversationStore {
     // MARK: - Create / Switch
 
     @discardableResult
-    func createConversation() -> UUID {
-        let conversation = Conversation()
+    func createConversation(workspaceIdentifier: String? = nil) -> UUID {
+        let conversation = Conversation(workspaceIdentifier: workspaceIdentifier)
         conversations.insert(conversation, at: 0)
         currentConversationId = conversation.id
         return conversation.id
     }
 
     /// Save current messages (if any), then switch to another conversation and return its full state.
-    func switchToConversation(_ id: UUID, currentMessages: [ChatMessage], currentSummaryId: UUID? = nil, currentReasoningEffort: ReasoningEffort? = nil) -> (messages: [ChatMessage], summaryMessageId: UUID?, reasoningEffort: ReasoningEffort?, providerId: String?, modelId: String?) {
-        saveCurrentIfNeeded(messages: currentMessages, summaryMessageId: currentSummaryId, reasoningEffort: currentReasoningEffort)
+    func switchToConversation(
+        _ id: UUID,
+        currentMessages: [ChatMessage],
+        currentSummaryId: UUID? = nil,
+        currentReasoningEffort: ReasoningEffort? = nil
+    ) -> (messages: [ChatMessage], summaryMessageId: UUID?, reasoningEffort: ReasoningEffort?, providerId: String?, modelId: String?) {
+        saveCurrentIfNeeded(
+            messages: currentMessages,
+            summaryMessageId: currentSummaryId,
+            reasoningEffort: currentReasoningEffort)
         currentConversationId = id
         let msgs = loadMessages(for: id)
         let conv = conversations.first { $0.id == id }
@@ -72,8 +80,15 @@ final class ConversationStore {
     }
 
     /// Save current messages (if any), then start a fresh conversation.
-    func startNewConversation(currentMessages: [ChatMessage], currentSummaryId: UUID? = nil, currentReasoningEffort: ReasoningEffort? = nil) {
-        saveCurrentIfNeeded(messages: currentMessages, summaryMessageId: currentSummaryId, reasoningEffort: currentReasoningEffort)
+    func startNewConversation(
+        currentMessages: [ChatMessage],
+        currentSummaryId: UUID? = nil,
+        currentReasoningEffort: ReasoningEffort? = nil
+    ) {
+        saveCurrentIfNeeded(
+            messages: currentMessages,
+            summaryMessageId: currentSummaryId,
+            reasoningEffort: currentReasoningEffort)
         currentConversationId = nil
     }
 
@@ -86,11 +101,13 @@ final class ConversationStore {
         reasoningEffort: ReasoningEffort? = nil,
         autoTitle: String? = nil,
         providerId: String? = nil,
-        modelId: String? = nil
+        modelId: String? = nil,
+        workspaceIdentifier: String? = nil
     ) {
         applyMessagesToCurrentConversation(
             messages, summaryMessageId: summaryMessageId, reasoningEffort: reasoningEffort,
-            autoTitle: autoTitle, providerId: providerId, modelId: modelId)
+            autoTitle: autoTitle, providerId: providerId, modelId: modelId,
+            workspaceIdentifier: workspaceIdentifier)
 
         saveTask?.cancel()
         saveTask = Task {
@@ -103,10 +120,17 @@ final class ConversationStore {
     }
 
     /// Save immediately (e.g., before switching conversations).
-    private func saveCurrentIfNeeded(messages: [ChatMessage], summaryMessageId: UUID? = nil, reasoningEffort: ReasoningEffort? = nil) {
+    private func saveCurrentIfNeeded(
+        messages: [ChatMessage],
+        summaryMessageId: UUID? = nil,
+        reasoningEffort: ReasoningEffort? = nil
+    ) {
         guard !messages.isEmpty else { return }
         saveTask?.cancel()
-        applyMessagesToCurrentConversation(messages, summaryMessageId: summaryMessageId, reasoningEffort: reasoningEffort)
+        applyMessagesToCurrentConversation(
+            messages,
+            summaryMessageId: summaryMessageId,
+            reasoningEffort: reasoningEffort)
         if let id = currentConversationId,
            let conv = conversations.first(where: { $0.id == id }) {
             Task { await self.saveToDisk(conv) }
@@ -119,14 +143,15 @@ final class ConversationStore {
         reasoningEffort: ReasoningEffort? = nil,
         autoTitle: String? = nil,
         providerId: String? = nil,
-        modelId: String? = nil
+        modelId: String? = nil,
+        workspaceIdentifier: String? = nil
     ) {
         guard let id = currentConversationId,
               let index = conversations.firstIndex(where: { $0.id == id }) else {
             if !messages.isEmpty {
                 var conv = Conversation(messages: messages, summaryMessageId: summaryMessageId,
-                                        reasoningEffort: reasoningEffort, providerId: providerId, modelId: modelId,
-                                        workspaceIdentifier: Self.currentWorkspaceIdentifier)
+                                         reasoningEffort: reasoningEffort, providerId: providerId, modelId: modelId,
+                                         workspaceIdentifier: workspaceIdentifier)
                 if let autoTitle, !autoTitle.isEmpty {
                     conv.setTitle(autoTitle)
                 } else {
@@ -147,6 +172,9 @@ final class ConversationStore {
         }
         if let providerId { conversations[index].providerId = providerId }
         if let modelId { conversations[index].modelId = modelId }
+        if conversations[index].workspaceIdentifier == nil, let workspaceIdentifier {
+            conversations[index].workspaceIdentifier = workspaceIdentifier
+        }
         conversations[index].updatedAt = Date()
 
         // Use LLM-generated title if available, otherwise fallback to truncation
@@ -219,7 +247,35 @@ final class ConversationStore {
         storageDirectory.appendingPathComponent("\(id.uuidString).json")
     }
 
-    private nonisolated func saveToDisk(_ conversation: Conversation) async {
+    func storedConversation(for id: UUID) -> Conversation? {
+        let url = fileURL(for: id)
+        guard let data = try? Data(contentsOf: url),
+              let conv = try? Self.makeDecoder().decode(Conversation.self, from: data) else {
+            return conversations.first { $0.id == id }
+        }
+        return conv
+    }
+
+    func storedConversationsForSync() -> [Conversation] {
+        conversations.compactMap { storedConversation(for: $0.id) }
+    }
+
+    func upsertConversationFromSync(_ conversation: Conversation) async {
+        await writeToDisk(conversation)
+
+        var metadata = conversation
+        if metadata.id != currentConversationId {
+            metadata.messages = []
+        }
+
+        if let index = conversations.firstIndex(where: { $0.id == metadata.id }) {
+            conversations[index] = metadata
+        } else {
+            conversations.append(metadata)
+        }
+    }
+
+    private nonisolated func writeToDisk(_ conversation: Conversation) async {
         let url = await fileURL(for: conversation.id)
         do {
             let data = try Self.makeEncoder().encode(conversation)
@@ -227,14 +283,16 @@ final class ConversationStore {
         } catch {
             // Non-critical
         }
+    }
+
+    private nonisolated func saveToDisk(_ conversation: Conversation) async {
+        await writeToDisk(conversation)
         // Sync to iCloud
         await iCloudSync.uploadConversation(conversation)
     }
 
     private func loadMessages(for id: UUID) -> [ChatMessage] {
-        let url = fileURL(for: id)
-        guard let data = try? Data(contentsOf: url),
-              let conv = try? Self.makeDecoder().decode(Conversation.self, from: data) else {
+        guard let conv = storedConversation(for: id) else {
             return conversations.first { $0.id == id }?.messages ?? []
         }
         // Update in-memory with full messages
