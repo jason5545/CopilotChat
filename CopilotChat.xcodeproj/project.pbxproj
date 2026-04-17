@@ -114,6 +114,7 @@
 		B9ABB2CF6F8B94253655D35C /* MessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B96E5A9BE12959957495FCCA /* MessageView.swift */; };
 		B9D7CF84A97758484A4E3832 /* TerminalPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD495C14092DE90E842D83FF /* TerminalPlugin.swift */; };
 		BDE2ED665348FE70F1164F8A /* Diffs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 538FEDAA63DF405FF22CE701 /* Diffs.swift */; };
+		BEC775CE2F389A1DA12E9A20 /* ProviderTransformTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A04BF6CF0602F5E9FF9A8D67 /* ProviderTransformTests.swift */; };
 		C0878EAAD11C3B9F60732A9F /* TerminalWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC36F2F2A9120BD87AAB550C /* TerminalWindowView.swift */; };
 		C0EB0BE2107A048AE2457395 /* AgentConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10F4C84C35E01FB46BEE9B08 /* AgentConfig.swift */; };
 		C24AEDC6C6204807C7E4FF35 /* ConversationHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 095D95CCFBFE3A4CB52AED3A /* ConversationHistoryView.swift */; };
@@ -223,6 +224,7 @@
 		9DBB39AB40216F734E2CA921 /* CExtPluginsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CExtPluginsView.swift; sourceTree = "<group>"; };
 		9E64AC70B71CE178071C3EF9 /* QuickSearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickSearchView.swift; sourceTree = "<group>"; };
 		9FE7490261874DF05CB228CF /* ProviderRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderRegistry.swift; sourceTree = "<group>"; };
+		A04BF6CF0602F5E9FF9A8D67 /* ProviderTransformTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderTransformTests.swift; sourceTree = "<group>"; };
 		A349FCA895BE3F90E15E9FC2 /* OID.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OID.swift; sourceTree = "<group>"; };
 		A7B782DFE064DC7FD97C4A83 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A877976EB8149831636E8E06 /* CopilotChatApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CopilotChatApp.swift; sourceTree = "<group>"; };
@@ -383,6 +385,7 @@
 				0E27429D563A6EF3071A17A0 /* BuildAPIMessagesTests.swift */,
 				7FD38A96474027CB84715BBB /* ChatModelsTests.swift */,
 				E727D66DA592BDBB40BFE139 /* MarkdownParserTests.swift */,
+				A04BF6CF0602F5E9FF9A8D67 /* ProviderTransformTests.swift */,
 				86E94735DB084C36F9B3178D /* ToolCallStatusTests.swift */,
 			);
 			path = CopilotChatTests;
@@ -452,7 +455,7 @@
 			);
 			sourceTree = "<group>";
 		};
-		"TEMP_9A6363C1-5FA5-4B31-878D-FB2D754044E2" /* Theme */ = {
+		"TEMP_8A4E8732-72AF-4B6A-B9D0-BF2670FE2FA3" /* Theme */ = {
 			isa = PBXGroup;
 			children = (
 			);
@@ -665,6 +668,7 @@
 				7B21943225C6E8C7382E9DC4 /* BuildAPIMessagesTests.swift in Sources */,
 				950435E7A28E106814422C1A /* ChatModelsTests.swift in Sources */,
 				9594396D7C49C3E8523AA1DC /* MarkdownParserTests.swift in Sources */,
+				BEC775CE2F389A1DA12E9A20 /* ProviderTransformTests.swift in Sources */,
 				D631677E396471A006024665 /* ToolCallStatusTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

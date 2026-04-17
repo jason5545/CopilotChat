@@ -777,6 +777,7 @@ final class CopilotService {
                 temperature: ProviderTransform.requestTemperature(
                     modelId: model,
                     model: modelInfo,
+                    providerId: "github-copilot",
                     preferred: 0.7
                 ),
                 tools: apiTools, toolChoice: apiTools != nil ? "auto" : nil,
@@ -804,6 +805,7 @@ final class CopilotService {
                 temperature: ProviderTransform.requestTemperature(
                     modelId: model,
                     model: modelInfo,
+                    providerId: "github-copilot",
                     preferred: 0.7
                 ),
                 tools: apiTools,
@@ -897,8 +899,12 @@ final class CopilotService {
         // Model-specific temperature (from OpenCode transform.ts)
         // nil = don't send (some models like GPT-5.4 reject temperature param)
         // Only fall back to 0.7 if the model explicitly supports temperature
-        let temp: Double? = ProviderTransform.temperature(modelId: model)
-            ?? (modelInfo?.temperature == true ? 0.7 : nil)
+        let temp = ProviderTransform.requestTemperature(
+            modelId: model,
+            model: modelInfo,
+            providerId: activeId,
+            preferred: 0.7
+        )
 
         // Model-specific max output tokens
         let maxOut = ProviderTransform.maxOutputTokens(model: modelInfo, modelId: model)
@@ -1442,6 +1448,7 @@ final class CopilotService {
                 temperature: ProviderTransform.requestTemperature(
                     modelId: model,
                     model: modelInfo,
+                    providerId: "github-copilot",
                     preferred: AgentConfig.summarizer.temperature
                 ),
                 tools: nil, toolChoice: nil, reasoning: nil
@@ -1462,6 +1469,7 @@ final class CopilotService {
                 temperature: ProviderTransform.requestTemperature(
                     modelId: model,
                     model: modelInfo,
+                    providerId: "github-copilot",
                     preferred: AgentConfig.summarizer.temperature
                 ),
                 tools: noopTools, toolChoice: nil, streamOptions: nil,
@@ -1515,6 +1523,7 @@ final class CopilotService {
             temperature: ProviderTransform.requestTemperature(
                 modelId: model,
                 model: modelInfo,
+                providerId: provider.id,
                 preferred: AgentConfig.summarizer.temperature
             ),
             systemPrompt: AgentConfig.summarizer.systemPrompt,

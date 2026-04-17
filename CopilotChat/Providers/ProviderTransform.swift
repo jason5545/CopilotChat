@@ -37,14 +37,19 @@ enum ProviderTransform {
     }
 
     /// Resolve the temperature value to send for a request.
-    /// Returns nil when the model should omit temperature entirely.
+    /// Returns nil when the model or provider should omit temperature entirely.
     static func requestTemperature(
         modelId: String,
         model: ModelsDevModel?,
+        providerId: String? = nil,
         preferred: Double?
     ) -> Double? {
         if let transformed = temperature(modelId: modelId) {
             return transformed
+        }
+        // Copilot GPT/o models reject temperature even though models.dev reports support.
+        if providerId == "github-copilot" && SSEParser.useResponsesAPI(model: modelId) {
+            return nil
         }
         guard model?.temperature == true else { return nil }
         return preferred
@@ -125,13 +130,9 @@ enum ProviderTransform {
         if isCopilot {
             if id.contains("claude") { return [.low, .medium, .high] }
             if id.contains("gemini") { return [] }
-            if id.contains("gpt-5") {
-                return [.low, .medium, .high]
-            }
-            return [.low, .medium, .high]
         }
 
-        if npmId.contains("openai") || npmId.isEmpty {
+        if npmId.contains("openai") || npmId.isEmpty || isCopilot {
             if id.contains("gpt-5") {
                 if id.contains("gpt-5-pro") { return [] }
                 var efforts: [ReasoningEffort] = []

@@ -196,6 +196,7 @@ final class TaskPlugin: Plugin {
         let temp = ProviderTransform.requestTemperature(
             modelId: model,
             model: modelInfo,
+            providerId: providerRegistry.activeProviderId,
             preferred: definition.temperature ?? 0.7
         )
         let maxOut = definition.maxOutputTokens ?? ProviderTransform.maxOutputTokens(model: nil, modelId: model)

@@ -208,6 +208,7 @@ enum TitleGenerator {
             temperature: ProviderTransform.requestTemperature(
                 modelId: model,
                 model: modelInfo,
+                providerId: provider.id,
                 preferred: AgentConfig.title.temperature
             ),
             agentInitiated: true
