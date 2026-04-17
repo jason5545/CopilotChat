@@ -147,4 +147,25 @@ struct ChatModelsTests {
         let json = try encodeJSON(request)
         #expect(json["store"] == nil)
     }
+
+    @Test("OpenAI Codex request omits max_output_tokens for ChatGPT backend")
+    func openAICodexRequestOmitsMaxOutputTokens() throws {
+        let request = OpenAICodexProvider.buildResponsesRequest(
+            model: "gpt-5.4",
+            input: [.userMessage(content: "hello")],
+            tools: nil,
+            options: ProviderOptions(
+                maxOutputTokens: 4096,
+                temperature: 0.2,
+                reasoningEffort: "high",
+                systemPrompt: "test"
+            ),
+            stream: true
+        )
+
+        let json = try encodeJSON(request)
+        #expect(json["max_output_tokens"] == nil)
+        #expect(json["store"] as? Bool == false)
+        #expect((json["reasoning"] as? [String: Any])?["effort"] as? String == "high")
+    }
 }

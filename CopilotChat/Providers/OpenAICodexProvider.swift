@@ -42,26 +42,12 @@ struct OpenAICodexProvider: LLMProvider, @unchecked Sendable {
                                          description: tool.function.description,
                                          parameters: tool.function.parameters?.mapValues { $0 })
                     }
-                    let reasoning: ResponsesReasoning? = {
-                        if let effort = options.reasoningEffort {
-                            return ResponsesReasoning(effort: effort, summary: "auto")
-                        }
-                        let m = model.lowercased()
-                        if m.hasPrefix("o1") || m.hasPrefix("o3") || m.hasPrefix("o4")
-                            || m.hasPrefix("gpt-5") || m.hasPrefix("gpt-4") {
-                            return ResponsesReasoning(effort: nil, summary: "auto")
-                        }
-                        return nil
-                    }()
-                    let request = ResponsesAPIRequest(
-                        model: model, instructions: options.systemPrompt ?? "",
-                        input: input, stream: true,
-                        store: false,
-                        maxOutputTokens: options.maxOutputTokens,
-                        temperature: options.temperature,
+                    let request = Self.buildResponsesRequest(
+                        model: model,
+                        input: input,
                         tools: apiTools,
-                        toolChoice: apiTools != nil ? (options.toolChoice ?? "auto") : nil,
-                        reasoning: reasoning
+                        options: options,
+                        stream: true
                     )
                     let requestData = try JSONEncoder().encode(request)
 
@@ -101,25 +87,12 @@ struct OpenAICodexProvider: LLMProvider, @unchecked Sendable {
         let token = try await auth.validAccessToken()
 
         let input = Self.convertToResponsesInput(messages: messages, systemPrompt: options.systemPrompt)
-        let reasoning: ResponsesReasoning? = {
-            if let effort = options.reasoningEffort {
-                return ResponsesReasoning(effort: effort, summary: "auto")
-            }
-            let m = model.lowercased()
-            if m.hasPrefix("o1") || m.hasPrefix("o3") || m.hasPrefix("o4")
-                || m.hasPrefix("gpt-5") || m.hasPrefix("gpt-4") {
-                return ResponsesReasoning(effort: nil, summary: "auto")
-            }
-            return nil
-        }()
-        let request = ResponsesAPIRequest(
-            model: model, instructions: options.systemPrompt ?? "",
-            input: input, stream: false,
-            store: false,
-            maxOutputTokens: options.maxOutputTokens,
-            temperature: options.temperature,
-            tools: nil, toolChoice: nil,
-            reasoning: reasoning
+        let request = Self.buildResponsesRequest(
+            model: model,
+            input: input,
+            tools: nil,
+            options: options,
+            stream: false
         )
         let requestData = try JSONEncoder().encode(request)
 
@@ -150,6 +123,40 @@ struct OpenAICodexProvider: LLMProvider, @unchecked Sendable {
         messages: [APIMessage], systemPrompt: String?
     ) -> [ResponsesInputItem] {
         SSEParser.convertToResponsesInput(messages: messages)
+    }
+
+    static func buildResponsesRequest(
+        model: String,
+        input: [ResponsesInputItem],
+        tools: [ResponsesAPITool]?,
+        options: ProviderOptions,
+        stream: Bool
+    ) -> ResponsesAPIRequest {
+        let reasoning: ResponsesReasoning? = {
+            if let effort = options.reasoningEffort {
+                return ResponsesReasoning(effort: effort, summary: "auto")
+            }
+            let m = model.lowercased()
+            if m.hasPrefix("o1") || m.hasPrefix("o3") || m.hasPrefix("o4")
+                || m.hasPrefix("gpt-5") || m.hasPrefix("gpt-4") {
+                return ResponsesReasoning(effort: nil, summary: "auto")
+            }
+            return nil
+        }()
+
+        return ResponsesAPIRequest(
+            model: model,
+            instructions: options.systemPrompt ?? "",
+            input: input,
+            stream: stream,
+            store: false,
+            // ChatGPT's Codex backend rejects max_output_tokens for OAuth-backed requests.
+            maxOutputTokens: nil,
+            temperature: options.temperature,
+            tools: tools,
+            toolChoice: tools != nil ? (options.toolChoice ?? "auto") : nil,
+            reasoning: reasoning
+        )
     }
 }
 
