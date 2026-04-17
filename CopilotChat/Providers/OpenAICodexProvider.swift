@@ -56,6 +56,7 @@ struct OpenAICodexProvider: LLMProvider, @unchecked Sendable {
                     let request = ResponsesAPIRequest(
                         model: model, instructions: options.systemPrompt ?? "",
                         input: input, stream: true,
+                        store: false,
                         maxOutputTokens: options.maxOutputTokens,
                         temperature: options.temperature,
                         tools: apiTools,
@@ -114,6 +115,7 @@ struct OpenAICodexProvider: LLMProvider, @unchecked Sendable {
         let request = ResponsesAPIRequest(
             model: model, instructions: options.systemPrompt ?? "",
             input: input, stream: false,
+            store: false,
             maxOutputTokens: options.maxOutputTokens,
             temperature: options.temperature,
             tools: nil, toolChoice: nil,

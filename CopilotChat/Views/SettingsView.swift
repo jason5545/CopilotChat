@@ -249,6 +249,7 @@ struct SettingsView: View {
                                     if PluginRegistry.shared.codexAuth?.isAuthenticated == true {
                                         Button {
                                             PluginRegistry.shared.codexAuth?.signOut()
+                                            registry.restoreFallbackCodexModels()
                                         } label: {
                                             Image(systemName: "rectangle.portrait.and.arrow.right")
                                                 .font(.caption2)
@@ -1673,6 +1674,7 @@ struct ProviderPickerView: View {
                             Task {
                                 await PluginRegistry.shared.codexAuth?.startDeviceFlow()
                                 if PluginRegistry.shared.codexAuth?.isAuthenticated == true {
+                                    await registry?.refreshCodexModels(force: true)
                                     registry?.activeProviderId = provider.id
                                     dismiss()
                                 }

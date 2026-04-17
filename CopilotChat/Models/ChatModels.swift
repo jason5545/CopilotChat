@@ -645,14 +645,39 @@ struct ResponsesAPIRequest: Encodable {
     let instructions: String?
     let input: [ResponsesInputItem]
     let stream: Bool
+    let store: Bool?
     let maxOutputTokens: Int?
     let temperature: Double?
     let tools: [ResponsesAPITool]?
     let toolChoice: String?
     let reasoning: ResponsesReasoning?
 
+    init(
+        model: String,
+        instructions: String?,
+        input: [ResponsesInputItem],
+        stream: Bool,
+        store: Bool? = nil,
+        maxOutputTokens: Int?,
+        temperature: Double?,
+        tools: [ResponsesAPITool]?,
+        toolChoice: String?,
+        reasoning: ResponsesReasoning?
+    ) {
+        self.model = model
+        self.instructions = instructions
+        self.input = input
+        self.stream = stream
+        self.store = store
+        self.maxOutputTokens = maxOutputTokens
+        self.temperature = temperature
+        self.tools = tools
+        self.toolChoice = toolChoice
+        self.reasoning = reasoning
+    }
+
     enum CodingKeys: String, CodingKey {
-        case model, instructions, input, stream, temperature, tools, reasoning
+        case model, instructions, input, stream, store, temperature, tools, reasoning
         case maxOutputTokens = "max_output_tokens"
         case toolChoice = "tool_choice"
     }

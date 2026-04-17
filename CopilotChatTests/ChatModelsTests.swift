@@ -5,6 +5,11 @@ import Foundation
 @Suite("ChatModels")
 struct ChatModelsTests {
 
+    private func encodeJSON<T: Encodable>(_ value: T) throws -> [String: Any] {
+        let data = try JSONEncoder().encode(value)
+        return try JSONSerialization.jsonObject(with: data) as! [String: Any]
+    }
+
     // MARK: - ChatMessage
 
     @Test("ChatMessage equality is based on id and content")
@@ -104,5 +109,42 @@ struct ChatModelsTests {
         let decoded = try JSONDecoder().decode(AnyCodable.self, from: data)
         let dict = decoded.value as? [String: Any]
         #expect(dict?["key"] as? String == "value")
+    }
+
+    @Test("ResponsesAPIRequest encodes store when explicitly set")
+    func responsesRequestEncodesStore() throws {
+        let request = ResponsesAPIRequest(
+            model: "gpt-5.3-codex",
+            instructions: "test",
+            input: [.userMessage(content: "hello")],
+            stream: true,
+            store: false,
+            maxOutputTokens: 256,
+            temperature: 0.2,
+            tools: nil,
+            toolChoice: nil,
+            reasoning: nil
+        )
+
+        let json = try encodeJSON(request)
+        #expect(json["store"] as? Bool == false)
+    }
+
+    @Test("ResponsesAPIRequest omits store when unset")
+    func responsesRequestOmitsStoreWhenUnset() throws {
+        let request = ResponsesAPIRequest(
+            model: "gpt-5.3-codex",
+            instructions: nil,
+            input: [.userMessage(content: "hello")],
+            stream: false,
+            maxOutputTokens: nil,
+            temperature: nil,
+            tools: nil,
+            toolChoice: nil,
+            reasoning: nil
+        )
+
+        let json = try encodeJSON(request)
+        #expect(json["store"] == nil)
     }
 }

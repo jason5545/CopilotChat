@@ -46,6 +46,8 @@ struct CopilotChatApp: App {
                         providerRegistry: registry
                     )
 
+                    await registry.refreshCodexModels()
+
                     // iCloud sync
                     settingsStore.startObservingKVStoreChanges()
                     await conversationStore.syncWithCloud()

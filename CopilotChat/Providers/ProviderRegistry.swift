@@ -8,6 +8,12 @@ import Observation
 @Observable
 @MainActor
 final class ProviderRegistry {
+    private static let codexModelsEndpoint = "https://chatgpt.com/backend-api/codex/models"
+    private static let codexClientVersion = "1.0.0"
+    private static let codexUserAgent = "opencode/\(codexClientVersion)"
+    private static let codexModelsCacheTTL: TimeInterval = 5 * 60
+    private static var codexModelsCache: (models: [CodexCatalogModel], fetchedAt: Date)?
+
     /// All provider data from models.dev
     var modelsDevProviders: [String: ModelsDevProvider] = [:]
 
@@ -25,13 +31,7 @@ final class ProviderRegistry {
                    modelsDevProviders[activeProviderId]?.models[normalizedRemembered] != nil {
                     activeModelId = normalizedRemembered
                 } else {
-                    let firstModel = modelsDevProviders[activeProviderId]?.models.values
-                        .max { a, b in
-                            a.limit.context != b.limit.context
-                                ? a.limit.context < b.limit.context
-                                : a.name > b.name
-                        }?.id ?? ""
-                    activeModelId = firstModel
+                    activeModelId = defaultModelId(for: activeProviderId)
                 }
             }
         }
@@ -70,6 +70,8 @@ final class ProviderRegistry {
         modelsDevProviders = await ModelsDev.shared.providers()
         modelsDevProviders.merge(Self.hardcodedProviders) { $1 }
         loadConfiguredProviders()
+        await refreshCodexModels()
+        validateActiveModelSelection()
         isLoadingProviders = false
     }
 
@@ -78,6 +80,8 @@ final class ProviderRegistry {
         var fresh = await ModelsDev.shared.refresh()
         fresh.merge(Self.hardcodedProviders) { $1 }
         modelsDevProviders = fresh
+        await refreshCodexModels(force: true)
+        validateActiveModelSelection()
         isLoadingProviders = false
     }
 
@@ -85,6 +89,8 @@ final class ProviderRegistry {
 
     /// Provider entries not available from models.dev API.
     private static let hardcodedProviders: [String: ModelsDevProvider] = {
+        // Codex OAuth model availability depends on the ChatGPT account entitlement.
+        // Keep this conservative until we fetch the live catalog from the backend.
         let codexModels: [String: ModelsDevModel] = [
             "codex-mini-latest": ModelsDevModel(
                 id: "codex-mini-latest", name: "Codex Mini",
@@ -109,15 +115,6 @@ final class ProviderRegistry {
                 reasoning: true, attachment: true, toolCall: true, structuredOutput: false, temperature: false,
                 cost: ModelsDevCost(input: 1.75, output: 14, cacheRead: 0.175, cacheWrite: nil),
                 limit: ModelsDevLimit(context: 400_000, output: 128_000, input: 272_000),
-                releaseDate: "2026-02-05", status: nil,
-                family: "gpt-codex", knowledge: nil, modalities: nil, openWeights: nil, lastUpdated: nil,
-                isSubscriptonPlan: false
-            ),
-            "gpt-5.3-codex-spark": ModelsDevModel(
-                id: "gpt-5.3-codex-spark", name: "GPT-5.3 Codex Spark",
-                reasoning: true, attachment: true, toolCall: true, structuredOutput: false, temperature: false,
-                cost: ModelsDevCost(input: 1.75, output: 14, cacheRead: 0.175, cacheWrite: nil),
-                limit: ModelsDevLimit(context: 128_000, output: 32_000, input: 100_000),
                 releaseDate: "2026-02-05", status: nil,
                 family: "gpt-codex", knowledge: nil, modalities: nil, openWeights: nil, lastUpdated: nil,
                 isSubscriptonPlan: false
@@ -321,6 +318,8 @@ final class ProviderRegistry {
                     family: mdModel.family, knowledge: mdModel.knowledge,
                     modalities: mdModel.modalities, openWeights: mdModel.openWeights,
                     lastUpdated: mdModel.lastUpdated,
+                    showInPicker: mdModel.showInPicker,
+                    priority: mdModel.priority,
                     isSubscriptonPlan: false
                 )
             }
@@ -478,6 +477,43 @@ final class ProviderRegistry {
         KeychainHelper.loadString(key: Self.augmentTenantURLKey)
     }
 
+    @discardableResult
+    func refreshCodexModels(force: Bool = false) async -> Bool {
+        guard let auth = PluginRegistry.shared.codexAuth, auth.isAuthenticated else {
+            restoreFallbackCodexModels()
+            return false
+        }
+
+        if !force,
+           let cache = Self.codexModelsCache,
+           Date().timeIntervalSince(cache.fetchedAt) < Self.codexModelsCacheTTL {
+            applyCodexCatalogModels(cache.models)
+            return true
+        }
+
+        do {
+            let token = try await auth.validAccessToken()
+            let models = try await fetchCodexCatalogModels(
+                token: token,
+                accountId: auth.accountId
+            )
+            guard !models.isEmpty else { return false }
+            Self.codexModelsCache = (models: models, fetchedAt: Date())
+            applyCodexCatalogModels(models)
+            return true
+        } catch {
+            print("[ProviderRegistry] Codex models refresh failed: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    func restoreFallbackCodexModels() {
+        guard let fallback = Self.hardcodedProviders["openai-codex"] else { return }
+        Self.codexModelsCache = nil
+        modelsDevProviders["openai-codex"] = fallback
+        validateActiveModelSelection()
+    }
+
     // MARK: - Persistence
 
     private func saveConfiguredProviders() {
@@ -492,5 +528,170 @@ final class ProviderRegistry {
         if authManager.isAuthenticated {
             configuredProviderIds.insert("github-copilot")
         }
+    }
+
+    private func validateActiveModelSelection() {
+        guard modelsDevProviders[activeProviderId] != nil else { return }
+
+        let normalized = Self.normalizeModelId(activeModelId, providerId: activeProviderId)
+        if normalized != activeModelId {
+            activeModelId = normalized
+            return
+        }
+
+        guard modelsDevProviders[activeProviderId]?.models[activeModelId] == nil else { return }
+        activeModelId = defaultModelId(for: activeProviderId)
+    }
+
+    private func defaultModelId(for providerId: String) -> String {
+        let allModels = modelsDevProviders[providerId].map { Array($0.models.values) } ?? []
+        let visibleModels = allModels.filter(\.showInPicker)
+        let candidates = visibleModels.isEmpty ? allModels : visibleModels
+
+        return candidates.sorted { a, b in
+            if (a.priority ?? Int.max) != (b.priority ?? Int.max) {
+                return (a.priority ?? Int.max) < (b.priority ?? Int.max)
+            }
+            if a.limit.context != b.limit.context {
+                return a.limit.context > b.limit.context
+            }
+            return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
+        }.first?.id ?? ""
+    }
+
+    private func fetchCodexCatalogModels(
+        token: String,
+        accountId: String?
+    ) async throws -> [CodexCatalogModel] {
+        guard var components = URLComponents(string: Self.codexModelsEndpoint) else {
+            throw ProviderError.invalidResponse(statusCode: 0, body: "Invalid Codex models URL")
+        }
+        components.queryItems = [
+            URLQueryItem(name: "client_version", value: Self.codexClientVersion)
+        ]
+
+        guard let url = components.url else {
+            throw ProviderError.invalidResponse(statusCode: 0, body: "Invalid Codex models URL")
+        }
+
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 30
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue(Self.codexUserAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue("opencode", forHTTPHeaderField: "originator")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let accountId {
+            request.setValue(accountId, forHTTPHeaderField: "ChatGPT-Account-Id")
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            let body = String(data: data, encoding: .utf8) ?? ""
+            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+            throw ProviderError.invalidResponse(statusCode: code, body: body)
+        }
+
+        let decoded = try JSONDecoder().decode(CodexCatalogResponse.self, from: data)
+        return decoded.models
+    }
+
+    private func applyCodexCatalogModels(_ remoteModels: [CodexCatalogModel]) {
+        guard let existing = modelsDevProviders["openai-codex"] else { return }
+
+        let mapped = Dictionary(uniqueKeysWithValues: remoteModels.map { model in
+            (model.slug, model.toModelsDevModel())
+        })
+        guard !mapped.isEmpty else { return }
+
+        modelsDevProviders["openai-codex"] = ModelsDevProvider(
+            id: existing.id,
+            name: existing.name,
+            env: existing.env,
+            npm: existing.npm,
+            api: existing.api,
+            doc: existing.doc,
+            models: mapped
+        )
+        validateActiveModelSelection()
+    }
+}
+
+private struct CodexCatalogResponse: Decodable {
+    let models: [CodexCatalogModel]
+}
+
+private struct CodexCatalogModel: Decodable {
+    enum Visibility: String, Decodable {
+        case list
+        case hide
+    }
+
+    struct ReasoningPreset: Decodable {
+        let effort: String
+    }
+
+    let slug: String
+    let displayName: String
+    let description: String?
+    let defaultReasoningLevel: String?
+    let supportedReasoningLevels: [ReasoningPreset]
+    let visibility: Visibility
+    let supportedInAPI: Bool
+    let priority: Int?
+    let contextWindow: Int?
+    let inputModalities: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case slug, description, visibility, priority
+        case displayName = "display_name"
+        case defaultReasoningLevel = "default_reasoning_level"
+        case supportedReasoningLevels = "supported_reasoning_levels"
+        case supportedInAPI = "supported_in_api"
+        case contextWindow = "context_window"
+        case inputModalities = "input_modalities"
+    }
+
+    func toModelsDevModel() -> ModelsDevModel {
+        let context = contextWindow ?? 272_000
+        let output = min(32_000, max(context / 8, 8_192))
+        let input = max(context - output, 0)
+        let name = Self.displayName(displayName: displayName, slug: slug)
+        let family = slug.contains("codex") ? "gpt-codex" : "gpt-5"
+        let modalities = inputModalities.isEmpty ? nil : ModelsDevModalities(input: inputModalities, output: nil)
+        let supportsReasoning = defaultReasoningLevel != nil || !supportedReasoningLevels.isEmpty
+
+        return ModelsDevModel(
+            id: slug,
+            name: name,
+            reasoning: supportsReasoning,
+            attachment: true,
+            toolCall: true,
+            structuredOutput: false,
+            temperature: false,
+            cost: ModelsDevCost(input: -1, output: -1, cacheRead: nil, cacheWrite: nil),
+            limit: ModelsDevLimit(context: context, output: output, input: input),
+            releaseDate: nil,
+            status: supportedInAPI ? nil : "chatgpt-only",
+            family: family,
+            knowledge: nil,
+            modalities: modalities,
+            openWeights: nil,
+            lastUpdated: nil,
+            showInPicker: visibility == .list,
+            priority: priority,
+            isSubscriptonPlan: false
+        )
+    }
+
+    private static func displayName(displayName: String, slug: String) -> String {
+        guard displayName == slug else { return displayName }
+
+        return slug
+            .replacingOccurrences(of: "gpt", with: "GPT")
+            .replacingOccurrences(of: "oss", with: "OSS")
+            .replacingOccurrences(of: "codex", with: "Codex")
+            .replacingOccurrences(of: "mini", with: "Mini")
+            .replacingOccurrences(of: "max", with: "Max")
     }
 }

@@ -112,8 +112,12 @@ struct ModelsDevProvider: Codable, Sendable, Identifiable, Hashable {
     }
 
     var sortedModels: [ModelsDevModel] {
-        models.values.sorted { a, b in
-            // Sort by context window desc, then name
+        let visible = models.values.filter(\.showInPicker)
+        let source = visible.isEmpty ? Array(models.values) : visible
+        return source.sorted { a, b in
+            if (a.priority ?? Int.max) != (b.priority ?? Int.max) {
+                return (a.priority ?? Int.max) < (b.priority ?? Int.max)
+            }
             if a.limit.context != b.limit.context {
                 return a.limit.context > b.limit.context
             }
@@ -144,6 +148,8 @@ struct ModelsDevModel: Codable, Sendable, Identifiable {
     let modalities: ModelsDevModalities?
     let openWeights: Bool?
     let lastUpdated: String?
+    var showInPicker: Bool = true
+    var priority: Int? = nil
     let isSubscriptonPlan: Bool
 
     var contextWindow: Int { limit.context }
@@ -188,6 +194,44 @@ struct ModelsDevLimit: Codable, Sendable {
     let context: Int
     let output: Int
     let input: Int?
+}
+
+extension ModelsDevModel {
+    enum CodingKeys: String, CodingKey {
+        case id, name, reasoning, attachment, temperature, cost, limit, status
+        case toolCall = "toolCall"
+        case structuredOutput = "structuredOutput"
+        case releaseDate = "releaseDate"
+        case family, knowledge, modalities
+        case openWeights = "openWeights"
+        case lastUpdated = "lastUpdated"
+        case showInPicker
+        case priority
+        case isSubscriptonPlan
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        reasoning = try container.decode(Bool.self, forKey: .reasoning)
+        attachment = try container.decode(Bool.self, forKey: .attachment)
+        toolCall = try container.decode(Bool.self, forKey: .toolCall)
+        structuredOutput = try container.decode(Bool.self, forKey: .structuredOutput)
+        temperature = try container.decode(Bool.self, forKey: .temperature)
+        cost = try container.decodeIfPresent(ModelsDevCost.self, forKey: .cost)
+        limit = try container.decode(ModelsDevLimit.self, forKey: .limit)
+        releaseDate = try container.decodeIfPresent(String.self, forKey: .releaseDate)
+        status = try container.decodeIfPresent(String.self, forKey: .status)
+        family = try container.decodeIfPresent(String.self, forKey: .family)
+        knowledge = try container.decodeIfPresent(String.self, forKey: .knowledge)
+        modalities = try container.decodeIfPresent(ModelsDevModalities.self, forKey: .modalities)
+        openWeights = try container.decodeIfPresent(Bool.self, forKey: .openWeights)
+        lastUpdated = try container.decodeIfPresent(String.self, forKey: .lastUpdated)
+        showInPicker = try container.decodeIfPresent(Bool.self, forKey: .showInPicker) ?? true
+        priority = try container.decodeIfPresent(Int.self, forKey: .priority)
+        isSubscriptonPlan = try container.decode(Bool.self, forKey: .isSubscriptonPlan)
+    }
 }
 
 // MARK: - Raw API Response (for decoding)
@@ -274,6 +318,8 @@ private struct ModelsDevRawModel: Codable {
             modalities: modalities,
             openWeights: openWeights,
             lastUpdated: lastUpdated,
+            showInPicker: true,
+            priority: nil,
             isSubscriptonPlan: providerIsSubscriptionPlan
         )
     }

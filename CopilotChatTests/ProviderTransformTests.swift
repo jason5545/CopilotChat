@@ -5,19 +5,24 @@ import Testing
 struct ProviderTransformTests {
 
     private func makeModel(
+        id: String = "test-model",
+        name: String = "Test Model",
         temperature: Bool = true,
-        releaseDate: String? = nil
+        releaseDate: String? = nil,
+        context: Int = 128_000,
+        showInPicker: Bool = true,
+        priority: Int? = nil
     ) -> ModelsDevModel {
         ModelsDevModel(
-            id: "test-model",
-            name: "Test Model",
+            id: id,
+            name: name,
             reasoning: true,
             attachment: true,
             toolCall: true,
             structuredOutput: false,
             temperature: temperature,
             cost: nil,
-            limit: ModelsDevLimit(context: 128_000, output: 16_384, input: nil),
+            limit: ModelsDevLimit(context: context, output: 16_384, input: nil),
             releaseDate: releaseDate,
             status: nil,
             family: nil,
@@ -25,6 +30,8 @@ struct ProviderTransformTests {
             modalities: nil,
             openWeights: nil,
             lastUpdated: nil,
+            showInPicker: showInPicker,
+            priority: priority,
             isSubscriptonPlan: false
         )
     }
@@ -76,5 +83,75 @@ struct ProviderTransformTests {
 
         #expect(efforts.contains(.minimal))
         #expect(efforts.contains(.xhigh))
+    }
+
+    @Test("Provider model sorting hides hidden entries and respects priority")
+    func providerSortingUsesPickerVisibilityAndPriority() {
+        let provider = ModelsDevProvider(
+            id: "openai-codex",
+            name: "OpenAI Codex",
+            env: [],
+            npm: nil,
+            api: "https://chatgpt.com/backend-api/codex",
+            doc: nil,
+            models: [
+                "hidden": makeModel(
+                    id: "hidden",
+                    name: "Hidden",
+                    showInPicker: false,
+                    priority: 0
+                ),
+                "slow": makeModel(
+                    id: "slow",
+                    name: "Slow",
+                    priority: 9
+                ),
+                "fast": makeModel(
+                    id: "fast",
+                    name: "Fast",
+                    priority: 1
+                ),
+            ]
+        )
+
+        #expect(provider.sortedModels.map(\.id) == ["fast", "slow"])
+    }
+
+    @MainActor
+    @Test("Provider registry picks highest-priority visible model by default")
+    func providerRegistryDefaultSelectionUsesPriority() {
+        let registry = ProviderRegistry(authManager: AuthManager())
+        registry.modelsDevProviders = [
+            "test-provider": ModelsDevProvider(
+                id: "test-provider",
+                name: "Test Provider",
+                env: [],
+                npm: nil,
+                api: nil,
+                doc: nil,
+                models: [
+                    "hidden-default": makeModel(
+                        id: "hidden-default",
+                        name: "Hidden",
+                        showInPicker: false,
+                        priority: 0
+                    ),
+                    "visible-secondary": makeModel(
+                        id: "visible-secondary",
+                        name: "Visible Secondary",
+                        priority: 5
+                    ),
+                    "visible-primary": makeModel(
+                        id: "visible-primary",
+                        name: "Visible Primary",
+                        priority: 1
+                    ),
+                ]
+            )
+        ]
+
+        registry.activeProviderId = "test-provider"
+
+        #expect(registry.activeModelId == "visible-primary")
     }
 }
