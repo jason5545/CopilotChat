@@ -1,4 +1,4 @@
-# CopilotChat for iOS
+# CopilotChat for Apple Platforms
 
 <p align="center">
   <img src="docs/images/app-icon.webp" alt="CopilotChat" width="128">
@@ -6,9 +6,9 @@
 
 [中文](./README-TW.md)
 
-A native iOS multi-provider LLM chat client. Pure SwiftUI, zero third-party dependencies.
+A native Apple-platform multi-provider LLM chat client for iPhone, iPad, and macOS. Pure SwiftUI, zero third-party dependencies.
 
-Combines GitHub Copilot, 120+ providers, MCP tool auto-execution, and an on-device workspace coding mode in a single native app.
+Combines GitHub Copilot, 120+ providers, MCP tool auto-execution, workspace-aware coding mode, and macOS terminal workflows in a single native app.
 
 ## Features
 
@@ -50,14 +50,17 @@ Each provider has its own auth flow, streaming protocol (SSE / NDJSON), and thin
   - `copy_file` — copy file or directory, auto-creates parent directories
   - `move_file` — move/rename file or directory, supports move-into-directory semantics
   - `grep_files` — regex content search with context lines, file filtering, binary detection, match summary
+- `bash` — macOS-only terminal tool for running zsh commands inside the selected workspace with streamed output
 
 ### Coding Mode
 
-- Dual chat / coding mode UI
+- Dual chat / coding mode UI across iPhone, iPad, and macOS
 - Coding mode uses a coordinator flow: the model calls `switch_mode` first, then uses file tools
-- Select project folder via iOS Folder Picker
-- Security-scoped bookmarks persist workspace access across app launches
-- Mode-aware tool filtering: chat mode doesn't expose coding-only tools
+- Quick Search opens actions, conversations, and saved projects (`Cmd + K` on macOS)
+- Coding conversations are workspace-scoped and grouped by project in the sidebar on iPad/macOS
+- Select project folders via the system picker; saved security-scoped bookmarks let you reopen and switch previously approved folders on the same device
+- Resuming a coding conversation automatically restores its workspace when the bookmark is available
+- Mode-aware filtering hides coding-only tools and project/workspace quick-search items outside coding mode
 
 ### Community Plugins (.cex)
 
@@ -74,6 +77,7 @@ Each provider has its own auth flow, streaming protocol (SSE / NDJSON), and thin
 - Context window ring indicator (token usage in nav bar)
 - Auto-naming conversations
 - Edit messages / regenerate responses
+- Coding histories stay attached to their workspace so project threads can be reopened reliably
 
 ### Design
 
@@ -92,6 +96,7 @@ Each provider has its own auth flow, streaming protocol (SSE / NDJSON), and thin
 ## Requirements
 
 - iOS 26+
+- macOS 26+
 - Xcode 26+
 - A GitHub account (with Copilot subscription) or any supported provider API key
 
@@ -105,17 +110,17 @@ open CopilotChat.xcodeproj
 
 ### 2. Configure signing
 
-1. Select the **CopilotChat** target in Xcode
+1. Select the **CopilotChat** target for iPhone/iPad or **CopilotChatMac** for macOS
 2. Go to **Signing & Capabilities**
 3. Choose your **Development Team** (Personal Team works)
 4. If the Bundle Identifier conflicts, change it to something unique (e.g. `com.yourname.copilotchat`)
 
-### 3. Install to device
+### 3. Run the app
 
-1. Connect your iPhone/iPad via USB
-2. Select your device in Xcode's toolbar
-3. Press **Cmd + R** to build and install
-4. On first install, go to: **Settings → General → VPN & Device Management** → trust the developer
+1. For iPhone/iPad, connect your device via USB and select the **CopilotChat** scheme
+2. For macOS, select **My Mac** and the **CopilotChatMac** scheme
+3. Press **Cmd + R** to build and run
+4. On first iPhone/iPad install, go to: **Settings → General → VPN & Device Management** → trust the developer
 
 ## Usage
 
@@ -141,13 +146,21 @@ Select a provider in Settings and enter your API key. All providers from models.
 
 After signing in, type in the input field and press send. The default model is `claude-sonnet-4-6`, changeable in Settings.
 
+### Quick Search
+
+1. Open Quick Search from the magnifying glass button, or press **Cmd + K** on macOS
+2. In chat mode it shows actions and chat conversations only
+3. In coding mode it also shows projects, coding conversations, and `/project` search for switching workspaces
+
 ### Coding Mode / Workspace
 
 1. Tap the mode icon in the nav bar to switch to coding mode
 2. On the empty state, tap **Choose Folder** to select a project folder
-3. The model can discover available tools via `tool_search`
-4. File edits prefer `edit_file` (precise replace / patch-style editing)
-5. To switch projects, return to the coding mode empty state and tap **Change Folder**
+3. Use Quick Search to reopen project chats or `/project` switch workspaces; on iPhone, the folder button opens project search directly
+4. On iPad and macOS, the sidebar groups coding conversations by project; on iPhone, the workspace sheet lists **Saved Projects**
+5. The model can discover available tools via `tool_search`
+6. File edits prefer `edit_file` (precise replace / patch-style editing)
+7. On macOS, coding mode also exposes the `bash` tool for local CLI workflows inside the selected workspace
 
 ![Coding mode workspace picker](docs/images/coding-mode-workspace.webp)
 
@@ -188,10 +201,12 @@ Built-in file tools don't go through MCP servers; they execute directly within t
 - **Keychain** for all credential storage
 - **MCP Streamable HTTP** transport (JSON-RPC over HTTP)
 - **JavaScriptCore** sandbox for community plugins
-- **XcodeGen** for project structure management
+- **XcodeGen** for project structure management (`project.yml` is the source of truth)
 - **Zero third-party dependencies**
 
 ## Project Structure
+
+Selected files:
 
 ```
 CopilotChat/
@@ -206,13 +221,17 @@ CopilotChat/
 │   ├── Conversation.swift            # Conversation model
 │   ├── ConversationStore.swift       # Conversation history persistence
 │   ├── CopilotService.swift          # Chat Completions API + SSE
+│   ├── FileMentionManager.swift      # @file indexing and filtering
 │   ├── FileSystemPlugin.swift        # Coding mode file tools + workspace access
 │   ├── GitHubPlugin.swift            # Built-in GitHub tools
 │   ├── JavaScriptCorePluginLoader.swift # JSContext sandbox loader
 │   ├── MCPClient.swift               # MCP JSON-RPC client
 │   ├── MarkdownParser.swift          # Markdown parser
 │   ├── PluginSystem.swift            # Built-in plugin / tool registry
+│   ├── QuickSearchStore.swift        # Global quick-search presentation state
 │   ├── SettingsStore.swift           # Settings persistence
+│   ├── TerminalPlugin.swift          # macOS bash tool
+│   ├── TerminalSessionTracker.swift  # Terminal window/session state
 │   └── WebFetchService.swift         # Web fetch service
 ├── Providers/
 │   ├── LLMProvider.swift             # Provider protocol
@@ -230,16 +249,24 @@ CopilotChat/
 │   ├── CExtPluginsView.swift         # Community plugin management UI
 │   ├── ChatView.swift                # Chat interface
 │   ├── ConversationHistoryView.swift # Conversation history
+│   ├── FileMentionPicker.swift       # @file suggestion UI
 │   ├── MessageView.swift             # Message rendering
 │   ├── MarkdownView.swift            # Markdown renderer
 │   ├── MCPSettingsView.swift         # MCP server management
 │   ├── ModelPickerView.swift         # Model picker
+│   ├── QuickSearchView.swift         # Command-palette style search UI
 │   ├── SettingsView.swift            # Settings page
+│   ├── SidebarView.swift             # Workspace/project tree sidebar
+│   ├── TerminalMessageView.swift     # Terminal tool message rendering
+│   ├── TerminalWindowView.swift      # macOS terminal output window
 │   └── WorkspaceSelectorView.swift   # Project folder picker UI
 ├── Agents/
 │   └── AgentConfig.swift             # Agent configuration
 ├── Utilities/
-│   └── KeychainHelper.swift          # Keychain wrapper
+│   ├── ConversationNavigator.swift   # Shared conversation/workspace switching
+│   ├── KeychainHelper.swift          # Keychain wrapper
+│   ├── PlatformHelpers.swift         # Cross-platform compatibility helpers
+│   └── SecureStorage.swift           # Secure token persistence helpers
 └── plugins/
     └── github-cex/                   # Sample .cex plugin (GitHub API)
 ```
@@ -250,12 +277,14 @@ CopilotChat/
 
 ## Regenerating the Xcode Project
 
-If you modify `project.yml`:
+If you modify `project.yml` or add/remove source files:
 
 ```bash
 brew install xcodegen  # Install XcodeGen if needed
 xcodegen generate
 ```
+
+`project.yml` is the source of truth for project structure. Avoid hand-editing `CopilotChat.xcodeproj`.
 
 ## Acknowledgments
 

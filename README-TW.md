@@ -1,4 +1,4 @@
-# CopilotChat for iOS
+# CopilotChat for Apple 平台
 
 <p align="center">
   <img src="docs/images/app-icon.webp" alt="CopilotChat" width="128">
@@ -6,9 +6,9 @@
 
 [English](./README.md)
 
-iOS 原生的多 Provider LLM 聊天客戶端。純 SwiftUI，零第三方依賴。
+支援 iPhone、iPad 與 macOS 的 Apple 平台原生多 Provider LLM 聊天客戶端。純 SwiftUI，零第三方依賴。
 
-把 GitHub Copilot、多 Provider、MCP tool call 自動執行，以及 iOS 本機 workspace coding mode 整合在同一個原生 app 裡。
+把 GitHub Copilot、多 Provider、MCP tool call 自動執行、workspace-aware coding mode，以及 macOS 終端工作流整合在同一個原生 app 裡。
 
 ## 功能
 
@@ -50,14 +50,17 @@ iOS 原生的多 Provider LLM 聊天客戶端。純 SwiftUI，零第三方依賴
   - `copy_file` — 複製檔案或目錄，自動建立上層目錄
   - `move_file` — 搬移/重新命名檔案或目錄，支援搬入目錄語義
   - `grep_files` — 正則表達式內容搜尋，支援上下文行、檔案過濾、二進位偵測、匹配摘要
+- `bash` — 僅限 macOS 的終端工具，可在選定 workspace 中執行 zsh 指令並串流顯示輸出
 
 ### Coding Mode
 
-- chat / coding 雙模式 UI
+- 橫跨 iPhone、iPad 與 macOS 的 chat / coding 雙模式 UI
 - coding mode 採 coordinator flow：模型先呼叫 `switch_mode`，再使用檔案工具
-- 透過 iOS Folder Picker 選擇專案資料夾
-- 使用 security-scoped bookmark 持久化 workspace 存取權限
-- mode-aware tool filtering：chat mode 不暴露 coding-only tools
+- Quick Search 可搜尋動作、對話與已儲存專案（macOS 支援 `Cmd + K`）
+- coding 對話會綁定 workspace，並在 iPad/macOS 側邊欄以專案樹分組顯示
+- 透過系統資料夾選擇器選擇專案；security-scoped bookmark 讓同裝置上已授權的資料夾可重開與快速切換
+- 恢復 coding 對話時，只要 bookmark 還在，就會自動切回對應 workspace
+- mode-aware filtering：chat mode 不暴露 coding-only tools，也不顯示 project/workspace quick-search 項目
 
 ### Community Plugins（.cex）
 
@@ -74,6 +77,7 @@ iOS 原生的多 Provider LLM 聊天客戶端。純 SwiftUI，零第三方依賴
 - Context window 圓形指示器（nav bar 顯示 token 用量）
 - 對話自動命名
 - 編輯訊息 / 重新生成
+- coding 歷史會保留 workspace 關聯，方便可靠地重開各專案對話
 
 ### 設計
 
@@ -92,6 +96,7 @@ iOS 原生的多 Provider LLM 聊天客戶端。純 SwiftUI，零第三方依賴
 ## 需求
 
 - iOS 26+
+- macOS 26+
 - Xcode 26+
 - GitHub 帳號（有 Copilot 訂閱）或任何支援的 provider API key
 
@@ -105,17 +110,17 @@ open CopilotChat.xcodeproj
 
 ### 2. 設定簽名
 
-1. 在 Xcode 中選擇 **CopilotChat** target
+1. 在 Xcode 中選擇 iPhone/iPad 用的 **CopilotChat** target，或 macOS 用的 **CopilotChatMac** target
 2. 到 **Signing & Capabilities**
 3. 選擇你的 **Development Team**（Personal Team 即可）
 4. 如果 Bundle Identifier 衝突，改成唯一的（例如 `com.yourname.copilotchat`）
 
-### 3. 安裝到裝置
+### 3. 執行 App
 
-1. 用 USB 連接 iPhone/iPad
-2. 在 Xcode 上方選擇你的裝置
-3. 按 **Cmd + R** 編譯並安裝
-4. 首次安裝需要到裝置上：**設定 → 一般 → VPN 與裝置管理** → 信任開發者
+1. 若要跑 iPhone/iPad，使用 USB 連接裝置並選擇 **CopilotChat** scheme
+2. 若要跑 macOS，選擇 **My Mac** 和 **CopilotChatMac** scheme
+3. 按 **Cmd + R** 編譯並執行
+4. iPhone/iPad 首次安裝後，需要到裝置上：**設定 → 一般 → VPN 與裝置管理** → 信任開發者
 
 ## 使用方式
 
@@ -141,13 +146,21 @@ open CopilotChat.xcodeproj
 
 登入後直接在輸入框打字，按送出即可。預設模型為 `claude-sonnet-4-6`，可在設定中更改。
 
+### Quick Search
+
+1. 點放大鏡按鈕開啟 Quick Search；在 macOS 也可按 **Cmd + K**
+2. chat mode 只會顯示動作與聊天對話
+3. coding mode 會額外顯示專案、coding 對話，以及 `/project` workspace 切換搜尋
+
 ### Coding Mode / Workspace
 
 1. 點 nav bar 右上角的 mode 圖示切到 coding mode
 2. 在 empty state 點 **Choose Folder** 選擇專案資料夾
-3. 模型可透過 `tool_search` 找到目前 mode 可用的工具
-4. 檔案修改優先使用 `edit_file`（精準 replace / patch-style 編輯）
-5. 若要更換專案，回到 coding mode empty state 點 **Change Folder**
+3. 可用 Quick Search 重開專案對話或用 `/project` 切換 workspace；在 iPhone 上資料夾按鈕會直接進入專案搜尋
+4. 在 iPad 與 macOS 上，側邊欄會依專案分組 coding 對話；在 iPhone 上，workspace 視窗會顯示 **Saved Projects**
+5. 模型可透過 `tool_search` 找到目前 mode 可用的工具
+6. 檔案修改優先使用 `edit_file`（精準 replace / patch-style 編輯）
+7. 在 macOS 上，coding mode 也會暴露 `bash` 工具，方便在選定 workspace 中跑本機 CLI 工作流
 
 ![Coding mode workspace picker](docs/images/coding-mode-workspace.webp)
 
@@ -163,6 +176,13 @@ open CopilotChat.xcodeproj
 MCP tools 會自動注入到 API 的 `tools` 參數中。當 AI 回應包含 tool call 時，App 會自動透過 MCP server 執行並回傳結果，整個過程不需要手動介入。
 
 內建 file tools 不走 MCP server，而是直接在 app 內透過 workspace 權限執行。
+
+### Community Plugins
+
+1. 下載 `.cex` plugin bundle（包含 `manifest.json` 和 `index.js` 的資料夾）
+2. 到 **Settings → Plugins → Community Plugins → Import from Files...**
+3. 選擇 plugin 資料夾
+4. 載入後，這些工具可在 chat 與 coding mode 中使用
 
 ## 認證流程
 
@@ -180,10 +200,13 @@ MCP tools 會自動注入到 API 的 `tools` 參數中。當 AI 回應包含 too
 - **URLSession async/await** + `bytes(for:)` SSE / NDJSON streaming
 - **Keychain** 安全儲存所有 credentials
 - **MCP Streamable HTTP** transport（JSON-RPC over HTTP）
-- **XcodeGen** 管理專案結構
+- **JavaScriptCore** sandbox 執行社群外掛
+- **XcodeGen** 管理專案結構（`project.yml` 為唯一真實來源）
 - **零第三方依賴**
 
 ## 專案結構
+
+以下列出主要檔案：
 
 ```
 CopilotChat/
@@ -198,13 +221,17 @@ CopilotChat/
 │   ├── Conversation.swift            # 對話模型
 │   ├── ConversationStore.swift       # 對話歷史持久化
 │   ├── CopilotService.swift          # Chat Completions API + SSE
+│   ├── FileMentionManager.swift      # @file 索引與過濾
 │   ├── FileSystemPlugin.swift        # coding mode 檔案工具 + workspace 存取
 │   ├── GitHubPlugin.swift            # 內建 GitHub 工具
 │   ├── JavaScriptCorePluginLoader.swift # JSContext sandbox 載入器
 │   ├── MCPClient.swift               # MCP JSON-RPC client
 │   ├── MarkdownParser.swift          # Markdown 解析
 │   ├── PluginSystem.swift            # 內建 plugin / tool registry
+│   ├── QuickSearchStore.swift        # 全域 quick-search 狀態
 │   ├── SettingsStore.swift           # 設定持久化
+│   ├── TerminalPlugin.swift          # macOS bash 工具
+│   ├── TerminalSessionTracker.swift  # 終端視窗/工作階段狀態
 │   └── WebFetchService.swift         # 網頁抓取服務
 ├── Providers/
 │   ├── LLMProvider.swift             # Provider 協定
@@ -222,16 +249,24 @@ CopilotChat/
 │   ├── CExtPluginsView.swift         # 社群外掛管理 UI
 │   ├── ChatView.swift                # 聊天介面
 │   ├── ConversationHistoryView.swift # 對話歷史
+│   ├── FileMentionPicker.swift       # @file 建議 UI
 │   ├── MessageView.swift             # 訊息渲染
 │   ├── MarkdownView.swift            # Markdown 渲染器
 │   ├── MCPSettingsView.swift         # MCP server 管理
 │   ├── ModelPickerView.swift         # 模型選擇
+│   ├── QuickSearchView.swift         # 命令面板式搜尋 UI
 │   ├── SettingsView.swift            # 設定頁
+│   ├── SidebarView.swift             # Workspace/專案樹側邊欄
+│   ├── TerminalMessageView.swift     # 終端工具訊息渲染
+│   ├── TerminalWindowView.swift      # macOS 終端輸出視窗
 │   └── WorkspaceSelectorView.swift   # 專案資料夾選擇 UI
 ├── Agents/
 │   └── AgentConfig.swift             # Agent 設定
 ├── Utilities/
-│   └── KeychainHelper.swift          # Keychain 封裝
+│   ├── ConversationNavigator.swift   # 共用對話/workspace 切換邏輯
+│   ├── KeychainHelper.swift          # Keychain 封裝
+│   ├── PlatformHelpers.swift         # 跨平台相容輔助
+│   └── SecureStorage.swift           # 安全 token 儲存輔助
 └── plugins/
     └── github-cex/                   # 範例 .cex plugin（GitHub API）
 ```
@@ -242,14 +277,14 @@ CopilotChat/
 
 ## 重新產生 Xcode 專案
 
-如果修改了 `project.yml`：
+如果修改了 `project.yml`，或新增/移除了 source files：
 
 ```bash
 brew install xcodegen  # 安裝 XcodeGen（如果沒有）
 xcodegen generate
 ```
 
-## License
+`project.yml` 是專案結構的唯一真實來源。避免手動編輯 `CopilotChat.xcodeproj`。
 
 ## 致謝
 
