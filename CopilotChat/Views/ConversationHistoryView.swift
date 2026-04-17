@@ -126,24 +126,12 @@ struct ConversationHistoryView: View {
     }
 
     private func resumeConversation(_ conversation: Conversation) {
-        copilotService.stopStreaming()
-        let result = store.switchToConversation(
-            conversation.id,
-            currentMessages: copilotService.messages,
-            currentSummaryId: copilotService.summaryMessageId,
-            currentReasoningEffort: settingsStore.reasoningEffort
+        ConversationNavigator.resumeConversation(
+            id: conversation.id,
+            store: store,
+            copilotService: copilotService,
+            settingsStore: settingsStore
         )
-        copilotService.loadMessages(result.messages, summaryMessageId: result.summaryMessageId)
-        if let effort = result.reasoningEffort {
-            settingsStore.reasoningEffort = effort
-        }
-        // Restore provider/model if conversation has them
-        if let providerId = result.providerId, let registry = copilotService.providerRegistry {
-            registry.activeProviderId = providerId
-        }
-        if let modelId = result.modelId, let registry = copilotService.providerRegistry {
-            registry.activeModelId = modelId
-        }
         dismiss()
     }
 }

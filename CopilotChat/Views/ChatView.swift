@@ -11,6 +11,7 @@ struct ChatView: View {
     @Environment(CopilotService.self) private var copilotService
     @Environment(SettingsStore.self) private var settingsStore
     @Environment(ConversationStore.self) private var conversationStore
+    @Environment(QuickSearchStore.self) private var quickSearchStore
 
     var showToolbar: Bool = true
 
@@ -55,6 +56,22 @@ struct ChatView: View {
                 }
                 ToolbarItem(placement: .carbonLeading) {
                     HStack(spacing: 14) {
+                        if showsMobileProjectSwitcher {
+                            Button {
+                                quickSearchStore.present(.addProject)
+                            } label: {
+                                Image(systemName: "folder")
+                                    .font(.subheadline)
+                                    .foregroundStyle(Color.carbonTextSecondary)
+                            }
+                        }
+                        Button {
+                            quickSearchStore.present()
+                        } label: {
+                            Image(systemName: "magnifyingglass")
+                                .font(.subheadline)
+                                .foregroundStyle(Color.carbonTextSecondary)
+                        }
                         Button {
                             showHistory = true
                         } label: {
@@ -151,6 +168,14 @@ struct ChatView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: .requestWorkspaceSelection)) { _ in
                 showWorkspaceSelector = true
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .requestQuickSearch)) { _ in
+                quickSearchStore.present()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .workspaceDidChange)) { _ in
+                mentionedFiles.removeAll()
+                mentionQuery = nil
+                mentionManager.refreshWorkspaceIndexIfNeeded(force: true)
             }
         }
     }
@@ -735,9 +760,7 @@ struct ChatView: View {
             .background(Color.carbonSurface)
             .onAppear {
                 checkClipboard()
-                if WorkspaceManager.shared.hasWorkspace, mentionManager.allFiles.isEmpty {
-                    mentionManager.indexWorkspace()
-                }
+                mentionManager.refreshWorkspaceIndexIfNeeded()
             }
             #if canImport(UIKit)
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
@@ -922,9 +945,6 @@ struct ChatView: View {
             if !afterAt.contains(" ") && !afterAt.contains("\n") {
                 mentionQuery = afterAt.isEmpty ? "" : afterAt
                 if mentionQuery != nil {
-                    if mentionManager.allFiles.isEmpty && WorkspaceManager.shared.hasWorkspace {
-                        mentionManager.indexWorkspace()
-                    }
                     mentionManager.search(query: mentionQuery ?? "")
                 }
                 return
@@ -980,6 +1000,14 @@ struct ChatView: View {
         settingsStore.appMode == .coding ? ConversationStore.currentWorkspaceIdentifier : nil
     }
 
+    private var showsMobileProjectSwitcher: Bool {
+        #if canImport(UIKit)
+        UIDevice.current.userInterfaceIdiom == .phone && settingsStore.appMode == .coding
+        #else
+        false
+        #endif
+    }
+
     private func sendCurrentMessage() {
         var text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         let imageData = attachedImageData
@@ -1017,7 +1045,8 @@ struct ChatView: View {
         conversationStore.startNewConversation(
             currentMessages: copilotService.messages,
             currentSummaryId: copilotService.summaryMessageId,
-            currentReasoningEffort: settingsStore.reasoningEffort
+            currentReasoningEffort: settingsStore.reasoningEffort,
+            currentWorkspaceIdentifier: activeWorkspaceIdentifier
         )
         copilotService.newConversation()
     }

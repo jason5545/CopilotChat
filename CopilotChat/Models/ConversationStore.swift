@@ -67,12 +67,14 @@ final class ConversationStore {
         _ id: UUID,
         currentMessages: [ChatMessage],
         currentSummaryId: UUID? = nil,
-        currentReasoningEffort: ReasoningEffort? = nil
+        currentReasoningEffort: ReasoningEffort? = nil,
+        currentWorkspaceIdentifier: String? = nil
     ) -> (messages: [ChatMessage], summaryMessageId: UUID?, reasoningEffort: ReasoningEffort?, providerId: String?, modelId: String?) {
         saveCurrentIfNeeded(
             messages: currentMessages,
             summaryMessageId: currentSummaryId,
-            reasoningEffort: currentReasoningEffort)
+            reasoningEffort: currentReasoningEffort,
+            workspaceIdentifier: currentWorkspaceIdentifier)
         currentConversationId = id
         let msgs = loadMessages(for: id)
         let conv = conversations.first { $0.id == id }
@@ -83,12 +85,14 @@ final class ConversationStore {
     func startNewConversation(
         currentMessages: [ChatMessage],
         currentSummaryId: UUID? = nil,
-        currentReasoningEffort: ReasoningEffort? = nil
+        currentReasoningEffort: ReasoningEffort? = nil,
+        currentWorkspaceIdentifier: String? = nil
     ) {
         saveCurrentIfNeeded(
             messages: currentMessages,
             summaryMessageId: currentSummaryId,
-            reasoningEffort: currentReasoningEffort)
+            reasoningEffort: currentReasoningEffort,
+            workspaceIdentifier: currentWorkspaceIdentifier)
         currentConversationId = nil
     }
 
@@ -123,14 +127,16 @@ final class ConversationStore {
     private func saveCurrentIfNeeded(
         messages: [ChatMessage],
         summaryMessageId: UUID? = nil,
-        reasoningEffort: ReasoningEffort? = nil
+        reasoningEffort: ReasoningEffort? = nil,
+        workspaceIdentifier: String? = nil
     ) {
         guard !messages.isEmpty else { return }
         saveTask?.cancel()
         applyMessagesToCurrentConversation(
             messages,
             summaryMessageId: summaryMessageId,
-            reasoningEffort: reasoningEffort)
+            reasoningEffort: reasoningEffort,
+            workspaceIdentifier: workspaceIdentifier)
         if let id = currentConversationId,
            let conv = conversations.first(where: { $0.id == id }) {
             Task { await self.saveToDisk(conv) }

@@ -8,6 +8,11 @@ import AppKit
 struct WorkspaceSelectorView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var workspaceManager = WorkspaceManager.shared
+    @State private var refreshID = UUID()
+
+    private var savedWorkspaces: [WorkspaceManager.SavedWorkspace] {
+        workspaceManager.savedWorkspaces.filter { !$0.isCurrent }
+    }
 
     var body: some View {
         NavigationStack {
@@ -25,7 +30,30 @@ struct WorkspaceSelectorView: View {
                         .font(.carbonSans(.caption))
                         .foregroundStyle(Color.carbonTextSecondary)
                 }
+
+                if !savedWorkspaces.isEmpty {
+                    Section {
+                        ForEach(savedWorkspaces) { workspace in
+                            Button {
+                                if workspaceManager.switchWorkspace(to: workspace.id) {
+                                    dismiss()
+                                }
+                            } label: {
+                                savedWorkspaceRow(workspace)
+                            }
+                            .buttonStyle(.plain)
+                            .listRowBackground(Color.carbonSurface)
+                        }
+                    } header: {
+                        CarbonSectionHeader(title: "Saved Projects")
+                    } footer: {
+                        Text("Projects appear here after you choose them once on this device.")
+                            .font(.carbonSans(.caption))
+                            .foregroundStyle(Color.carbonTextSecondary)
+                    }
+                }
             }
+            .id(refreshID)
             .scrollContentBackground(.hidden)
             .background(Color.carbonBlack)
             .navigationTitle("Workspace")
@@ -45,6 +73,9 @@ struct WorkspaceSelectorView: View {
                     .foregroundStyle(Color.carbonAccent)
                 }
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .workspaceDidChange)) { _ in
+            refreshID = UUID()
         }
 #if os(macOS)
         .frame(minWidth: 720, minHeight: 520)
@@ -134,6 +165,35 @@ struct WorkspaceSelectorView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, Carbon.spacingWide)
+    }
+
+    private func savedWorkspaceRow(_ workspace: WorkspaceManager.SavedWorkspace) -> some View {
+        HStack(spacing: Carbon.spacingRelaxed) {
+            Image(systemName: "folder")
+                .font(.subheadline)
+                .foregroundStyle(Color.carbonTextSecondary)
+
+            VStack(alignment: .leading, spacing: Carbon.spacingTight) {
+                Text(workspace.title)
+                    .font(.carbonSans(.subheadline, weight: .semibold))
+                    .foregroundStyle(Color.carbonText)
+
+                if let subtitle = workspace.subtitle {
+                    Text(subtitle)
+                        .font(.carbonMono(.caption))
+                        .foregroundStyle(Color.carbonTextTertiary)
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer()
+
+            Image(systemName: "arrow.up.left.and.arrow.down.right")
+                .font(.caption)
+                .foregroundStyle(Color.carbonTextTertiary)
+        }
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
     }
 
     private func openFolderPicker() {

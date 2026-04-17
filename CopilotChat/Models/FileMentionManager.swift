@@ -75,6 +75,9 @@ final class FileMentionManager: ObservableObject {
     @Published var filteredFiles: [FileMention] = []
     @Published var isIndexing = false
 
+    private var indexedWorkspaceIdentifier: String?
+    private var currentQuery = ""
+
     private let maxResults = 30
     private let ignoredExtensions: Set<String> = [
         "png", "jpg", "jpeg", "gif", "ico", "webp", "svg", "mp4", "mov",
@@ -90,21 +93,52 @@ final class FileMentionManager: ObservableObject {
     ]
 
     func indexWorkspace() {
-        guard let workspaceURL = WorkspaceManager.shared.currentURL else { return }
+        refreshWorkspaceIndexIfNeeded(force: true)
+    }
+
+    func refreshWorkspaceIndexIfNeeded(force: Bool = false) {
+        guard let workspaceURL = WorkspaceManager.shared.currentURL else {
+            indexedWorkspaceIdentifier = nil
+            allFiles = []
+            filteredFiles = []
+            isIndexing = false
+            return
+        }
+
+        let workspaceIdentifier = workspaceURL.absoluteString
+        guard force || indexedWorkspaceIdentifier != workspaceIdentifier || allFiles.isEmpty else { return }
+
+        indexedWorkspaceIdentifier = workspaceIdentifier
+        allFiles = []
+        filteredFiles = []
         isIndexing = true
+        let ignoredDirectories = ignoredDirectories
+        let ignoredExtensions = ignoredExtensions
 
         Task.detached(priority: .utility) {
-            let files = Self.scanDirectory(workspaceURL, rootURL: workspaceURL, ignoredDirs: self.ignoredDirectories, ignoredExts: self.ignoredExtensions)
+            let files = Self.scanDirectory(
+                workspaceURL,
+                rootURL: workspaceURL,
+                ignoredDirs: ignoredDirectories,
+                ignoredExts: ignoredExtensions
+            )
 
             await MainActor.run {
+                guard self.indexedWorkspaceIdentifier == workspaceIdentifier else { return }
                 self.allFiles = files
                 self.isIndexing = false
-                self.filteredFiles = Array(files.prefix(self.maxResults))
+                self.applySearch(query: self.currentQuery)
             }
         }
     }
 
     func search(query: String) {
+        currentQuery = query
+        refreshWorkspaceIndexIfNeeded()
+        applySearch(query: query)
+    }
+
+    private func applySearch(query: String) {
         guard !query.isEmpty else {
             filteredFiles = Array(allFiles.prefix(maxResults))
             return

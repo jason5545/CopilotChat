@@ -189,24 +189,12 @@ struct SidebarView: View {
     }
 
     private func resumeConversation(_ id: UUID) {
-        guard let conversation = store.conversations.first(where: { $0.id == id }) else { return }
-        copilotService.stopStreaming()
-        let result = store.switchToConversation(
-            conversation.id,
-            currentMessages: copilotService.messages,
-            currentSummaryId: copilotService.summaryMessageId,
-            currentReasoningEffort: settingsStore.reasoningEffort
+        ConversationNavigator.resumeConversation(
+            id: id,
+            store: store,
+            copilotService: copilotService,
+            settingsStore: settingsStore
         )
-        copilotService.loadMessages(result.messages, summaryMessageId: result.summaryMessageId)
-        if let effort = result.reasoningEffort {
-            settingsStore.reasoningEffort = effort
-        }
-        if let providerId = result.providerId, let registry = copilotService.providerRegistry {
-            registry.activeProviderId = providerId
-        }
-        if let modelId = result.modelId, let registry = copilotService.providerRegistry {
-            registry.activeModelId = modelId
-        }
     }
 
     private var conversationList: some View {

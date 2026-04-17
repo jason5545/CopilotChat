@@ -230,6 +230,22 @@ final class FileSystemPlugin: Plugin {
 
 @MainActor
 final class WorkspaceManager: NSObject, @unchecked Sendable {
+    struct SavedWorkspace: Identifiable, Hashable {
+        let url: URL
+        let isCurrent: Bool
+
+        var id: String { url.absoluteString }
+
+        var title: String {
+            url.lastPathComponent.isEmpty ? url.path : url.lastPathComponent
+        }
+
+        var subtitle: String? {
+            let abbreviatedPath = (url.path as NSString).abbreviatingWithTildeInPath
+            return abbreviatedPath == title ? nil : abbreviatedPath
+        }
+    }
+
     static let shared = WorkspaceManager()
 
     var hasWorkspace: Bool { _currentURL != nil }
@@ -237,6 +253,18 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
     var workspaceName: String? { _workspaceName }
     var isAccessing: Bool { _isAccessing }
     var isICloudWorkspace: Bool { _isICloudWorkspace }
+    var savedWorkspaces: [SavedWorkspace] {
+        storedWorkspaceBookmarks()
+            .keys
+            .compactMap(URL.init(string:))
+            .map { SavedWorkspace(url: $0, isCurrent: $0 == _currentURL) }
+            .sorted { lhs, rhs in
+                if lhs.isCurrent != rhs.isCurrent {
+                    return lhs.isCurrent
+                }
+                return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+            }
+    }
 
     private var _currentURL: URL?
     private var _workspaceName: String?
@@ -254,6 +282,7 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
     }
 
     private let bookmarkKey = "FileSystemPlugin.workspaceBookmark"
+    private let workspaceBookmarksKey = "FileSystemPlugin.workspaceBookmarks"
 
     private override init() {
         super.init()
@@ -276,16 +305,16 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
         panel.begin { response in
             guard response == .OK, let url = panel.url else { return }
             Task { @MainActor in
-                do {
-                    try self.saveBookmark(for: url)
-                    self.updateWorkspaceState(for: url)
-                } catch {}
+                try? self.activateWorkspace(url)
             }
         }
     }
     #endif
 
     func clearWorkspace() {
+        if let currentURL = _currentURL {
+            removeBookmark(for: currentURL)
+        }
         if _isAccessing {
             _currentURL?.stopAccessingSecurityScopedResource()
         }
@@ -296,6 +325,81 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
         _trackedHasWorkspace = false
         _trackedWorkspaceName = nil
         UserDefaults.standard.removeObject(forKey: bookmarkKey)
+        NotificationCenter.default.post(name: .workspaceDidChange, object: nil)
+    }
+
+    func switchWorkspace(to workspaceIdentifier: String) -> Bool {
+        if _currentURL?.absoluteString == workspaceIdentifier {
+            return true
+        }
+
+        guard let bookmarkData = storedWorkspaceBookmarks()[workspaceIdentifier] else {
+            return false
+        }
+
+        var isStale = false
+        do {
+            let url = try URL(
+                resolvingBookmarkData: bookmarkData,
+                options: [],
+                relativeTo: nil,
+                bookmarkDataIsStale: &isStale
+            )
+
+            if isStale {
+                try activateWorkspace(url)
+            } else {
+                try activateWorkspace(url, bookmarkData: bookmarkData)
+            }
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    private func activateWorkspace(
+        _ url: URL,
+        bookmarkData: Data? = nil,
+        securityScopeAlreadyStarted: Bool = false
+    ) throws {
+        let isSameWorkspace = _isAccessing && _currentURL == url
+        let startedNewSecurityScope: Bool
+
+        if isSameWorkspace {
+            startedNewSecurityScope = false
+            if securityScopeAlreadyStarted {
+                url.stopAccessingSecurityScopedResource()
+            }
+        } else if securityScopeAlreadyStarted {
+            startedNewSecurityScope = true
+        } else {
+            guard url.startAccessingSecurityScopedResource() else {
+                throw FileSystemPluginError.accessDenied
+            }
+            startedNewSecurityScope = true
+        }
+
+        let previousURL = _currentURL
+        let wasAccessing = _isAccessing
+
+        do {
+            if let bookmarkData {
+                storeBookmarkData(bookmarkData, for: url)
+            } else {
+                try saveBookmark(for: url)
+            }
+
+            if wasAccessing, previousURL != url {
+                previousURL?.stopAccessingSecurityScopedResource()
+            }
+
+            updateWorkspaceState(for: url)
+        } catch {
+            if startedNewSecurityScope {
+                url.stopAccessingSecurityScopedResource()
+            }
+            throw error
+        }
     }
 
     private func saveBookmark(for url: URL) throws {
@@ -304,7 +408,7 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
             includingResourceValuesForKeys: nil,
             relativeTo: nil
         )
-        UserDefaults.standard.set(bookmarkData, forKey: bookmarkKey)
+        storeBookmarkData(bookmarkData, for: url)
     }
 
     private func restoreWorkspace() {
@@ -320,11 +424,9 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
             )
 
             if isStale {
-                try? saveBookmark(for: url)
-            }
-
-            if url.startAccessingSecurityScopedResource() {
-                updateWorkspaceState(for: url)
+                try? activateWorkspace(url)
+            } else {
+                try? activateWorkspace(url, bookmarkData: bookmarkData)
             }
         } catch {
             UserDefaults.standard.removeObject(forKey: bookmarkKey)
@@ -338,6 +440,24 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
         _isICloudWorkspace = isICloudDirectory(url)
         _trackedHasWorkspace = true
         _trackedWorkspaceName = url.lastPathComponent
+        NotificationCenter.default.post(name: .workspaceDidChange, object: nil)
+    }
+
+    private func storedWorkspaceBookmarks() -> [String: Data] {
+        UserDefaults.standard.object(forKey: workspaceBookmarksKey) as? [String: Data] ?? [:]
+    }
+
+    private func storeBookmarkData(_ bookmarkData: Data, for url: URL) {
+        UserDefaults.standard.set(bookmarkData, forKey: bookmarkKey)
+        var bookmarks = storedWorkspaceBookmarks()
+        bookmarks[url.absoluteString] = bookmarkData
+        UserDefaults.standard.set(bookmarks, forKey: workspaceBookmarksKey)
+    }
+
+    private func removeBookmark(for url: URL) {
+        var bookmarks = storedWorkspaceBookmarks()
+        bookmarks.removeValue(forKey: url.absoluteString)
+        UserDefaults.standard.set(bookmarks, forKey: workspaceBookmarksKey)
     }
 
     private func isICloudDirectory(_ url: URL) -> Bool {
@@ -1198,8 +1318,7 @@ extension WorkspaceManager: UIDocumentPickerDelegate {
 
         Task { @MainActor in
             do {
-                try saveBookmark(for: url)
-                updateWorkspaceState(for: url)
+                try activateWorkspace(url, securityScopeAlreadyStarted: true)
             } catch {
                 url.stopAccessingSecurityScopedResource()
             }

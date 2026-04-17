@@ -5,6 +5,7 @@ struct CopilotChatApp: App {
     @State private var authManager = AuthManager()
     @State private var settingsStore = SettingsStore()
     @State private var conversationStore = ConversationStore()
+    @State private var quickSearchStore = QuickSearchStore()
     @State private var copilotService: CopilotService?
     @State private var providerRegistry: ProviderRegistry?
 
@@ -16,6 +17,7 @@ struct CopilotChatApp: App {
                         .environment(authManager)
                         .environment(settingsStore)
                         .environment(conversationStore)
+                        .environment(quickSearchStore)
                         .environment(copilotService)
                 } else {
                     ZStack {
@@ -51,5 +53,15 @@ struct CopilotChatApp: App {
             }
             .preferredColorScheme(.dark)
         }
+#if os(macOS)
+        .commands {
+            CommandMenu("Navigate") {
+                Button("Quick Search") {
+                    quickSearchStore.present()
+                }
+                .keyboardShortcut("k", modifiers: [.command])
+            }
+        }
+#endif
     }
 }

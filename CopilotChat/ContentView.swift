@@ -5,11 +5,37 @@ struct ContentView: View {
     @Environment(SettingsStore.self) private var settingsStore
     @Environment(CopilotService.self) private var copilotService
     @Environment(ConversationStore.self) private var conversationStore
+    @Environment(QuickSearchStore.self) private var quickSearchStore
 
     @State private var showSettings = false
 
-    @ViewBuilder
     var body: some View {
+        rootContent
+            .sheet(isPresented: $showSettings) {
+                SettingsView()
+            }
+            .sheet(isPresented: Binding(
+                get: { quickSearchStore.isPresented },
+                set: { isPresented in
+                    if isPresented {
+                        quickSearchStore.present(quickSearchStore.openIntent)
+                    } else {
+                        quickSearchStore.dismiss()
+                    }
+                }
+            )) {
+                QuickSearchView()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .requestSettings)) { _ in
+                showSettings = true
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .requestQuickSearch)) { _ in
+                quickSearchStore.present()
+            }
+    }
+
+    @ViewBuilder
+    private var rootContent: some View {
         #if os(macOS)
         splitLayout
         #else
@@ -46,9 +72,6 @@ struct ContentView: View {
                 }
         }
         .navigationSplitViewStyle(.balanced)
-        .sheet(isPresented: $showSettings) {
-            SettingsView()
-        }
     }
 
     private var sidebar: some View {
@@ -60,10 +83,21 @@ struct ContentView: View {
 
             HStack(spacing: Carbon.spacingRelaxed) {
                 Button {
+                    quickSearchStore.present()
+                } label: {
+                    Image(systemName: "magnifyingglass")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.carbonTextSecondary)
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut("k", modifiers: [.command])
+
+                Button {
                     conversationStore.startNewConversation(
                         currentMessages: copilotService.messages,
                         currentSummaryId: copilotService.summaryMessageId,
-                        currentReasoningEffort: settingsStore.reasoningEffort
+                        currentReasoningEffort: settingsStore.reasoningEffort,
+                        currentWorkspaceIdentifier: settingsStore.appMode == .coding ? ConversationStore.currentWorkspaceIdentifier : nil
                     )
                     copilotService.newConversation()
                 } label: {
