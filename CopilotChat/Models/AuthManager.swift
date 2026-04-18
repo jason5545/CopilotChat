@@ -6,10 +6,13 @@ import Observation
 final class AuthManager {
     // App OAuth client ID
     static let clientID = "Ov23li8tweQw6odWQebz"
-    static let scope = "read:user"
+    static let scope = "read:user,repo"
     static let keychainKey = "github_token"
     static let legacyKeychainKey = "github_token_vscode"
     static let userAgent = "GitHubCopilotChat/0.26.7"
+    // Bump when GitHub OAuth scopes or app identity change so stale tokens get discarded.
+    private static let authConfigVersion = 2
+    private static let authConfigVersionKey = "github_auth_config_version"
 
     var isAuthenticated = false
     var username: String?
@@ -31,12 +34,23 @@ final class AuthManager {
     }()
 
     init() {
+        invalidateStoredTokenIfNeeded()
         // The old token was minted under a different OAuth app identity, so force re-auth.
         KeychainHelper.delete(key: Self.legacyKeychainKey)
         loadSavedToken()
     }
 
     // MARK: - Token Management
+
+    private func invalidateStoredTokenIfNeeded() {
+        let defaults = UserDefaults.standard
+        let storedVersion = defaults.integer(forKey: Self.authConfigVersionKey)
+        guard storedVersion != Self.authConfigVersion else { return }
+
+        KeychainHelper.delete(key: Self.keychainKey)
+        KeychainHelper.delete(key: Self.legacyKeychainKey)
+        defaults.set(Self.authConfigVersion, forKey: Self.authConfigVersionKey)
+    }
 
     private func loadSavedToken() {
         if let saved = KeychainHelper.loadString(key: Self.keychainKey) {

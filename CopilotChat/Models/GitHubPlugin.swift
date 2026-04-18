@@ -510,6 +510,27 @@ final class GitHubPlugin: Plugin {
         return components.string ?? string
     }
 
+    nonisolated private static func pushFailureMessage(_ error: NSError) -> String {
+        let description = error.localizedDescription
+        let lower = description.lowercased()
+        let looksLikePermissionIssue =
+            lower.contains("403") ||
+            lower.contains("forbidden") ||
+            lower.contains("authentication") ||
+            lower.contains("authorization") ||
+            lower.contains("permission denied") ||
+            lower.contains("access denied")
+
+        guard looksLikePermissionIssue else {
+            return "Push failed: \(description)"
+        }
+
+        return """
+        Push failed: \(description)
+        GitHub login may be missing repo write permission. Sign out and sign in again to refresh the token.
+        """
+    }
+
     private func withRepo(subpath: String? = nil, _ body: @Sendable @escaping (Repository) -> ToolResult) async -> ToolResult {
         guard let repoURL = findGitRepoURL(subpath: subpath) else {
             return ToolResult(text: "Current workspace is not a git repository.")
@@ -610,7 +631,7 @@ final class GitHubPlugin: Plugin {
                     }
                     switch repo.push(credentials: creds, branch: branch) {
                     case .failure(let e):
-                        continuation.resume(returning: ToolResult(text: "Push failed: \(e.localizedDescription)"))
+                        continuation.resume(returning: ToolResult(text: Self.pushFailureMessage(e)))
                     case .success:
                         let branchName = branch ?? "current branch"
                         continuation.resume(returning: ToolResult(text: "Pushed to origin/\(branchName)"))
