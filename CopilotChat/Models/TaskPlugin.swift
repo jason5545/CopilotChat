@@ -219,7 +219,7 @@ final class TaskPlugin: Plugin {
             do {
                 let (content, newMessages) = try await streamSubagent(provider: provider, model: model, messages: session.messages, tools: apiTools, options: options, definition: definition)
                 session.messages.append(contentsOf: newMessages)
-                if let lastAssistant = newMessages.last, lastAssistant.role == "assistant", let toolCalls = lastAssistant.toolCalls, !toolCalls.isEmpty {
+                if let assistantMsg = newMessages.first(where: { $0.role == "assistant" }), let toolCalls = assistantMsg.toolCalls, !toolCalls.isEmpty {
                     session.messages.append(APIMessage(role: "user", content: "Continue if there is more work to do, otherwise return your final answer."))
                     allContent = content
                     continue
