@@ -339,6 +339,16 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
     private let bookmarkKey = "FileSystemPlugin.workspaceBookmark"
     private let workspaceBookmarksKey = "FileSystemPlugin.workspaceBookmarks"
 
+    #if os(macOS)
+    private let bookmarkCreationOptions: URL.BookmarkCreationOptions = [.withSecurityScope]
+    private let bookmarkResolutionOptions: URL.BookmarkResolutionOptions = [.withSecurityScope]
+    #else
+    // UIDocumentPicker already hands iOS a security-scoped URL; persist it as a
+    // minimal bookmark so it can resolve back into a security-scoped URL later.
+    private let bookmarkCreationOptions: URL.BookmarkCreationOptions = [.minimalBookmark]
+    private let bookmarkResolutionOptions: URL.BookmarkResolutionOptions = []
+    #endif
+
     private override init() {
         super.init()
         restoreWorkspace()
@@ -401,7 +411,7 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
         do {
             let url = try URL(
                 resolvingBookmarkData: bookmarkData,
-                options: [.withSecurityScope],
+                options: bookmarkResolutionOptions,
                 relativeTo: nil,
                 bookmarkDataIsStale: &isStale
             )
@@ -532,7 +542,7 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
 
     private func saveBookmark(for url: URL) throws {
         let bookmarkData = try url.bookmarkData(
-            options: [.withSecurityScope],
+            options: bookmarkCreationOptions,
             includingResourceValuesForKeys: nil,
             relativeTo: nil
         )
@@ -546,7 +556,7 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
         do {
             let url = try URL(
                 resolvingBookmarkData: bookmarkData,
-                options: [.withSecurityScope],
+                options: bookmarkResolutionOptions,
                 relativeTo: nil,
                 bookmarkDataIsStale: &isStale
             )
