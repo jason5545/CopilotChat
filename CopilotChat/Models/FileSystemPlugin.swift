@@ -169,7 +169,7 @@ final class FileSystemPlugin: Plugin {
                         ] as [String: Any],
                         "path": [
                             "type": "string",
-                            "description": "The directory path to search in. Use \".\" for the workspace root.",
+                            "description": "The file or directory path to search in. Use \".\" for the workspace root.",
                         ] as [String: Any],
                         "include": [
                             "type": "string",
@@ -182,6 +182,14 @@ final class FileSystemPlugin: Plugin {
                         "context_lines": [
                             "type": "integer",
                             "description": "Number of context lines to show before and after each match. Default: 0.",
+                        ] as [String: Any],
+                        "offset": [
+                            "type": "integer",
+                            "description": "Number of matching results to skip before returning rows. Use this for pagination. Default: 0.",
+                        ] as [String: Any],
+                        "limit": [
+                            "type": "integer",
+                            "description": "Maximum number of matching results to return. Default: 50.",
                         ] as [String: Any],
                     ] as [String: Any]),
                     "required": AnyCodable(["pattern"]),
@@ -1229,12 +1237,16 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
         let include: String?
         let caseInsensitive: Bool
         let contextLines: Int
+        let offset: Int
+        let limit: Int
         do {
             pattern = try parseArgument(argumentsJSON, key: "pattern")
             path = try parseArgument(argumentsJSON, key: "path", defaultValue: ".")
             include = try? parseArgument(argumentsJSON, key: "include", defaultValue: nil)
             caseInsensitive = parseBoolArgument(argumentsJSON, key: "case_insensitive", defaultValue: false)
-            contextLines = parseIntArgument(argumentsJSON, key: "context_lines", defaultValue: 0)
+            contextLines = max(0, parseIntArgument(argumentsJSON, key: "context_lines", defaultValue: 0))
+            offset = max(0, parseIntArgument(argumentsJSON, key: "offset", defaultValue: 0))
+            limit = min(200, max(1, parseIntArgument(argumentsJSON, key: "limit", defaultValue: 50)))
         } catch {
             return ToolResult(text: "Error parsing arguments: \(error.localizedDescription)")
         }
@@ -1261,107 +1273,141 @@ final class WorkspaceManager: NSObject, @unchecked Sendable {
             "__pycache__", ".venv", "venv",
             ".next", ".nuxt", "dist", "out",
         ]
-        let maxOutputLines = 200
-        let maxMatchesPerFile = 20
+        let maxOutputLines = min(1_000, max(limit, limit * max(1, (contextLines * 2) + 1)))
 
         var outputLines: [String] = []
-        var totalMatches = 0
-        var matchedFiles = 0
-        var truncatedFiles = 0
+        var matchedFiles: Set<String> = []
+        var returnedMatches = 0
+        var skippedMatches = 0
+        var hasMoreResults = false
+        var lineBudgetExceeded = false
+        var foundAnyMatches = false
 
-        func searchDirectory(_ dirURL: URL) {
+        func relativePath(for fileURL: URL) -> String {
+            if let root = _currentURL, fileURL.path.hasPrefix(root.path + "/") {
+                return String(fileURL.path.dropFirst(root.path.count + 1))
+            }
+            return fileURL.lastPathComponent
+        }
+
+        func searchFile(_ fileURL: URL) -> Bool {
+            if !matchesFileFilter(fileURL.lastPathComponent, filter: fileFilter) {
+                return true
+            }
+
+            guard let data = try? Data(contentsOf: fileURL),
+                  !isLikelyBinary(data),
+                  let content = String(data: data, encoding: .utf8) else { return true }
+
+            let nsContent = content as NSString
+            let fullRange = NSRange(location: 0, length: nsContent.length)
+            let matches = regex.matches(in: content as String, options: [], range: fullRange)
+            guard !matches.isEmpty else { return true }
+
+            foundAnyMatches = true
+            let relativePath = relativePath(for: fileURL)
+            let allLines = contextLines > 0 ? content.components(separatedBy: .newlines) : []
+
+            for match in matches {
+                if skippedMatches < offset {
+                    skippedMatches += 1
+                    continue
+                }
+
+                if returnedMatches >= limit {
+                    hasMoreResults = true
+                    return false
+                }
+
+                if outputLines.count >= maxOutputLines {
+                    hasMoreResults = true
+                    lineBudgetExceeded = true
+                    return false
+                }
+
+                matchedFiles.insert(relativePath)
+
+                let lineRange = nsContent.lineRange(for: match.range)
+                let lineNumber = nsContent.substring(with: NSRange(location: 0, length: lineRange.lowerBound))
+                    .components(separatedBy: .newlines).count
+                let lineText = nsContent.substring(with: lineRange).trimmingCharacters(in: .newlines)
+                outputLines.append("\(relativePath):\(lineNumber): \(lineText)")
+                returnedMatches += 1
+
+                if contextLines > 0 {
+                    let contextStart = max(1, lineNumber - contextLines)
+                    let contextEnd = min(allLines.count, lineNumber + contextLines)
+                    for ctxLineNum in contextStart...contextEnd where ctxLineNum != lineNumber {
+                        if outputLines.count >= maxOutputLines {
+                            hasMoreResults = true
+                            lineBudgetExceeded = true
+                            return false
+                        }
+                        let ctxText = allLines[ctxLineNum - 1]
+                        outputLines.append("\(relativePath):\(ctxLineNum)- \(ctxText)")
+                    }
+                }
+            }
+
+            return true
+        }
+
+        func searchPath(_ targetURL: URL) {
+            var isDir: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: targetURL.path, isDirectory: &isDir) else { return }
+
+            if !isDir.boolValue {
+                _ = searchFile(targetURL)
+                return
+            }
+
             guard let enumerator = FileManager.default.enumerator(
-                at: dirURL,
+                at: targetURL,
                 includingPropertiesForKeys: [.isDirectoryKey],
                 options: [.skipsHiddenFiles]
             ) else { return }
 
             for case let fileURL as URL in enumerator {
-                var isDir: ObjCBool = false
-                guard FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDir) else { continue }
+                var childIsDir: ObjCBool = false
+                guard FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &childIsDir) else { continue }
 
-                if isDir.boolValue {
+                if childIsDir.boolValue {
                     if skipDirs.contains(fileURL.lastPathComponent) {
                         enumerator.skipDescendants()
                     }
                     continue
                 }
 
-                if !matchesFileFilter(fileURL.lastPathComponent, filter: fileFilter) {
-                    continue
+                if !searchFile(fileURL) {
+                    break
                 }
-
-                guard let data = try? Data(contentsOf: fileURL),
-                      !isLikelyBinary(data),
-                      let content = String(data: data, encoding: .utf8) else { continue }
-
-                let nsContent = content as NSString
-                let fullRange = NSRange(location: 0, length: nsContent.length)
-                let matches = regex.matches(in: content as String, options: [], range: fullRange)
-                guard !matches.isEmpty else { continue }
-
-                matchedFiles += 1
-                let totalFileMatches = matches.count
-                totalMatches += totalFileMatches
-
-                let relativePath: String
-                if let root = _currentURL {
-                    relativePath = String(fileURL.path.dropFirst(root.path.count + 1))
-                } else {
-                    relativePath = fileURL.lastPathComponent
-                }
-
-                let limitedMatches = Array(matches.prefix(maxMatchesPerFile))
-                if totalFileMatches > maxMatchesPerFile {
-                    truncatedFiles += 1
-                }
-
-                let allLines = content.components(separatedBy: .newlines)
-
-                for match in limitedMatches {
-                    guard outputLines.count < maxOutputLines else { break }
-
-                    let lineRange = nsContent.lineRange(for: match.range)
-                    let lineNumber = nsContent.substring(with: NSRange(location: 0, length: lineRange.lowerBound))
-                        .components(separatedBy: .newlines).count
-                    let lineText = nsContent.substring(with: lineRange).trimmingCharacters(in: .newlines)
-                    outputLines.append("\(relativePath):\(lineNumber): \(lineText)")
-
-                    if contextLines > 0 {
-                        let contextStart = max(1, lineNumber - contextLines)
-                        let contextEnd = min(allLines.count, lineNumber + contextLines)
-                        for ctxLineNum in contextStart...contextEnd where ctxLineNum != lineNumber {
-                            guard outputLines.count < maxOutputLines else { break }
-                            let ctxText = allLines[ctxLineNum - 1]
-                            outputLines.append("\(relativePath):\(ctxLineNum)- \(ctxText)")
-                        }
-                    }
-                }
-
-                if outputLines.count >= maxOutputLines { break }
             }
         }
 
         try? coordinatedRead(at: searchURL) { coordinatedURL in
-            searchDirectory(coordinatedURL)
+            searchPath(coordinatedURL)
         }
 
         if outputLines.isEmpty {
+            if foundAnyMatches && offset > 0 {
+                return ToolResult(text: "No matches remaining after offset \(offset).")
+            }
             return ToolResult(text: "No matches found for pattern: \(pattern)")
         }
 
-        var footer = ""
-        if totalMatches > outputLines.filter({ $0.contains(":") && !$0.contains("- ") }).count || matchedFiles > 1 {
-            footer += "\n\n\(totalMatches) matches across \(matchedFiles) files"
+        let shownStart = offset + 1
+        let shownEnd = offset + returnedMatches
+
+        var footerParts: [String] = []
+        footerParts.append("Showing matches \(shownStart)-\(shownEnd) across \(matchedFiles.count) files")
+        if hasMoreResults {
+            footerParts.append("more results available; rerun with offset \(shownEnd)")
         }
-        if outputLines.count >= maxOutputLines {
-            footer += " (output truncated at \(maxOutputLines) lines)"
-        }
-        if truncatedFiles > 0 {
-            footer += " (\(truncatedFiles) files had additional matches not shown)"
+        if lineBudgetExceeded {
+            footerParts.append("context output capped at \(maxOutputLines) lines; reduce context_lines or limit for cleaner paging")
         }
 
-        return ToolResult(text: outputLines.joined(separator: "\n") + footer)
+        return ToolResult(text: outputLines.joined(separator: "\n") + "\n\n" + footerParts.joined(separator: " · "))
     }
 
     private func isLikelyBinary(_ data: Data) -> Bool {
