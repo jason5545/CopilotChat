@@ -8,6 +8,7 @@ struct SidebarView: View {
 
     @State private var searchText = ""
     @State private var expandedProjectIDs: Set<String> = []
+    @State private var projectPendingDeletion: SidebarProjectGroup?
 
     private var isCodingMode: Bool {
         settingsStore.appMode == .coding
@@ -26,6 +27,13 @@ struct SidebarView: View {
 
     private var filteredProjectGroups: [SidebarProjectGroup] {
         buildProjectGroups(query: searchText)
+    }
+
+    private var currentProjectIdentifier: String? {
+        if settingsStore.appMode == .coding {
+            return store.currentConversation?.workspaceIdentifier ?? ConversationStore.currentWorkspaceIdentifier
+        }
+        return store.currentConversation?.workspaceIdentifier
     }
 
     var body: some View {
@@ -49,6 +57,30 @@ struct SidebarView: View {
             }
         }
         .background(Color.carbonBlack)
+        .confirmationDialog(
+            "Delete project from CopilotChat?",
+            isPresented: Binding(
+                get: { projectPendingDeletion != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        projectPendingDeletion = nil
+                    }
+                }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Delete Project", role: .destructive) {
+                if let group = projectPendingDeletion {
+                    deleteProject(group)
+                }
+                projectPendingDeletion = nil
+            }
+            Button("Cancel", role: .cancel) {
+                projectPendingDeletion = nil
+            }
+        } message: {
+            Text("This only removes the project from CopilotChat, including its conversations and saved folder access. The actual folder on disk is not deleted.")
+        }
         .onAppear {
             syncExpandedProjectIDs()
         }
@@ -84,7 +116,8 @@ struct SidebarView: View {
                     group: group,
                     isExpanded: isProjectExpanded(group.id),
                     onToggle: { toggleProject(group.id) },
-                    onNewConversation: group.isUnassigned ? nil : { startNewConversation(in: group) }
+                    onNewConversation: group.isUnassigned ? nil : { startNewConversation(in: group) },
+                    onDeleteProject: group.isUnassigned ? nil : { projectPendingDeletion = group }
                 )
                 .listRowBackground(group.isCurrentWorkspace ? Color.carbonElevated : Color.carbonSurface)
 
@@ -123,14 +156,16 @@ struct SidebarView: View {
 
     private func buildProjectGroups(query: String?) -> [SidebarProjectGroup] {
         let normalizedQuery = query?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let grouped = Dictionary(grouping: store.conversations) { $0.workspaceIdentifier }
+        let grouped = Dictionary(grouping: store.conversations) {
+            WorkspaceManager.normalizedWorkspaceIdentifier($0.workspaceIdentifier)
+        }
 
         return grouped.compactMap { workspaceIdentifier, conversations in
             let sortedConversations = conversations.sorted { $0.updatedAt > $1.updatedAt }
             let group = SidebarProjectGroup(
                 workspaceIdentifier: workspaceIdentifier,
                 conversations: sortedConversations,
-                currentWorkspaceIdentifier: ConversationStore.currentWorkspaceIdentifier
+                currentWorkspaceIdentifier: currentProjectIdentifier
             )
 
             guard let normalizedQuery, !normalizedQuery.isEmpty else {
@@ -150,7 +185,7 @@ struct SidebarView: View {
             return SidebarProjectGroup(
                 workspaceIdentifier: workspaceIdentifier,
                 conversations: matchingConversations,
-                currentWorkspaceIdentifier: ConversationStore.currentWorkspaceIdentifier
+                currentWorkspaceIdentifier: currentProjectIdentifier
             )
         }
         .sorted { lhs, rhs in
@@ -199,7 +234,7 @@ struct SidebarView: View {
 
     private func startNewConversation(in group: SidebarProjectGroup) {
         guard let workspaceIdentifier = group.workspaceIdentifier else { return }
-        guard ConversationNavigator.startNewConversation(
+        guard ConversationNavigator.startNewProjectConversation(
             workspaceIdentifier: workspaceIdentifier,
             store: store,
             copilotService: copilotService,
@@ -207,8 +242,25 @@ struct SidebarView: View {
         ) else {
             return
         }
-
         expandedProjectIDs.insert(group.id)
+    }
+
+    private func deleteProject(_ group: SidebarProjectGroup) {
+        guard let workspaceIdentifier = group.workspaceIdentifier else { return }
+
+        let isCurrentProject = WorkspaceManager.matchesWorkspaceIdentifiers(
+            currentProjectIdentifier,
+            workspaceIdentifier
+        )
+
+        store.deleteProjectConversations(matching: workspaceIdentifier)
+        WorkspaceManager.shared.removeWorkspaceReference(matching: workspaceIdentifier)
+        expandedProjectIDs.remove(group.id)
+
+        if isCurrentProject {
+            copilotService.stopStreaming()
+            copilotService.newConversation()
+        }
     }
 
     private var conversationList: some View {
@@ -273,7 +325,10 @@ private struct SidebarProjectGroup: Identifiable {
     init(workspaceIdentifier: String?, conversations: [Conversation], currentWorkspaceIdentifier: String?) {
         self.workspaceIdentifier = workspaceIdentifier
         self.conversations = conversations
-        self.isCurrentWorkspace = workspaceIdentifier == currentWorkspaceIdentifier
+        self.isCurrentWorkspace = WorkspaceManager.matchesWorkspaceIdentifiers(
+            workspaceIdentifier,
+            currentWorkspaceIdentifier
+        )
 
         guard let workspaceIdentifier,
               let url = URL(string: workspaceIdentifier) else {
@@ -293,6 +348,11 @@ private struct SidebarProjectRow: View {
     let isExpanded: Bool
     let onToggle: () -> Void
     let onNewConversation: (() -> Void)?
+    let onDeleteProject: (() -> Void)?
+
+    #if os(macOS)
+    @State private var isHovered = false
+    #endif
 
     var body: some View {
         HStack(spacing: Carbon.spacingTight) {
@@ -345,6 +405,10 @@ private struct SidebarProjectRow: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                #if os(macOS)
+                .opacity(isHovered || group.isCurrentWorkspace ? 1 : 0)
+                .allowsHitTesting(isHovered || group.isCurrentWorkspace)
+                #endif
                 .accessibilityLabel("New conversation in \(group.title)")
             } else {
                 Color.clear
@@ -352,6 +416,18 @@ private struct SidebarProjectRow: View {
             }
         }
         .padding(.vertical, 4)
+        .contextMenu {
+            if let onDeleteProject {
+                Button(role: .destructive, action: onDeleteProject) {
+                    Label("Delete Project", systemImage: "trash")
+                }
+            }
+        }
+        #if os(macOS)
+        .onHover { hovering in
+            isHovered = hovering
+        }
+        #endif
     }
 }
 

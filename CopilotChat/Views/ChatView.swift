@@ -205,6 +205,12 @@ struct ChatView: View {
                 quickSearchStore.present()
             }
             .onReceive(NotificationCenter.default.publisher(for: .workspaceDidChange)) { _ in
+                ConversationNavigator.completePendingWorkspaceSelection(
+                    store: conversationStore,
+                    copilotService: copilotService,
+                    settingsStore: settingsStore
+                )
+                alignConversationWithCurrentWorkspaceIfNeeded()
                 mentionedFiles.removeAll()
                 mentionQuery = nil
                 mentionManager.refreshWorkspaceIndexIfNeeded(force: true)
@@ -447,6 +453,7 @@ struct ChatView: View {
                 }
 
                 Button {
+                    WorkspaceManager.shared.prepareForNewProjectSelection()
                     showWorkspaceSelector = true
                 } label: {
                     HStack(spacing: 6) {
@@ -1127,6 +1134,39 @@ struct ChatView: View {
             providerId: copilotService.providerRegistry?.activeProviderId,
             modelId: copilotService.providerRegistry?.activeModelId,
             workspaceIdentifier: activeWorkspaceIdentifier
+        )
+    }
+
+    private func alignConversationWithCurrentWorkspaceIfNeeded() {
+        guard settingsStore.appMode == .coding else { return }
+
+        let currentWorkspaceIdentifier = ConversationStore.currentWorkspaceIdentifier
+        let currentConversationWorkspace = conversationStore.currentConversation?.workspaceIdentifier
+
+        guard !WorkspaceManager.matchesWorkspaceIdentifiers(currentConversationWorkspace, currentWorkspaceIdentifier) else {
+            return
+        }
+
+        guard let currentWorkspaceIdentifier else {
+            conversationStore.currentConversationId = nil
+            copilotService.newConversation()
+            return
+        }
+
+        guard let targetConversation = conversationStore.conversations
+            .filter({ WorkspaceManager.matchesWorkspaceIdentifiers($0.workspaceIdentifier, currentWorkspaceIdentifier) })
+            .sorted(by: { $0.updatedAt > $1.updatedAt })
+            .first else {
+            conversationStore.currentConversationId = nil
+            copilotService.newConversation()
+            return
+        }
+
+        _ = ConversationNavigator.resumeConversation(
+            id: targetConversation.id,
+            store: conversationStore,
+            copilotService: copilotService,
+            settingsStore: settingsStore
         )
     }
 }

@@ -76,6 +76,7 @@ struct WorkspaceSelectorView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .workspaceDidChange)) { _ in
             refreshID = UUID()
+            dismiss()
         }
 #if os(macOS)
         .frame(minWidth: 720, minHeight: 520)

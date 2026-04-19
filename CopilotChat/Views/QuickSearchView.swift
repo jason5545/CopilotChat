@@ -164,6 +164,13 @@ struct QuickSearchView: View {
         isCodingMode ? projectResults : []
     }
 
+    private var currentProjectIdentifier: String? {
+        if settingsStore.appMode == .coding {
+            return conversationStore.currentConversation?.workspaceIdentifier ?? ConversationStore.currentWorkspaceIdentifier
+        }
+        return conversationStore.currentConversation?.workspaceIdentifier
+    }
+
     private var groupedResults: [QuickSearchSection] {
         var sections: [QuickSearchSection] = []
 
@@ -226,6 +233,12 @@ struct QuickSearchView: View {
                 systemImage: WorkspaceManager.shared.hasWorkspace ? "folder.badge.gearshape" : "folder.badge.plus",
                 searchableText: "project folder workspace change select choose /project switch folder",
                 action: {
+                    let isAddProjectFlow = quickSearchStore.openIntent == .addProject || searchMode.isProjectMode
+                    if isAddProjectFlow {
+                        WorkspaceManager.shared.prepareForNewProjectSelection()
+                    } else {
+                        WorkspaceManager.shared.clearPendingWorkspaceSelection()
+                    }
                     NotificationCenter.default.post(name: .requestWorkspaceSelection, object: nil)
                 }
             )
@@ -248,13 +261,15 @@ struct QuickSearchView: View {
     }
 
     private var conversationProjectResults: [QuickSearchResult] {
-        let grouped = Dictionary(grouping: conversationStore.conversations) { $0.workspaceIdentifier }
+        let grouped = Dictionary(grouping: conversationStore.conversations) {
+            WorkspaceManager.normalizedWorkspaceIdentifier($0.workspaceIdentifier)
+        }
 
         return grouped.compactMap { workspaceIdentifier, conversations in
             let group = QuickSearchProjectGroup(
                 workspaceIdentifier: workspaceIdentifier,
                 conversations: conversations,
-                currentWorkspaceIdentifier: ConversationStore.currentWorkspaceIdentifier
+                currentWorkspaceIdentifier: currentProjectIdentifier
             )
 
             return QuickSearchResult(
@@ -268,7 +283,7 @@ struct QuickSearchView: View {
                 sortDate: group.latestUpdatedAt,
                 action: {
                     if let conversation = conversationStore.conversations
-                        .filter({ $0.workspaceIdentifier == workspaceIdentifier })
+                        .filter({ WorkspaceManager.shared.matchesWorkspaceIdentifiers($0.workspaceIdentifier, workspaceIdentifier) })
                         .sorted(by: { $0.updatedAt > $1.updatedAt })
                         .first {
                         ConversationNavigator.resumeConversation(
@@ -287,7 +302,9 @@ struct QuickSearchView: View {
 
     private var savedWorkspaceProjectResults: [QuickSearchResult] {
         WorkspaceManager.shared.savedWorkspaces.compactMap { workspace in
-            guard !conversationStore.conversations.contains(where: { $0.workspaceIdentifier == workspace.id }) else {
+            guard !conversationStore.conversations.contains(where: {
+                WorkspaceManager.shared.matchesWorkspaceIdentifiers($0.workspaceIdentifier, workspace.id)
+            }) else {
                 return nil
             }
 
@@ -316,7 +333,7 @@ struct QuickSearchView: View {
                 let group = QuickSearchProjectGroup(
                     workspaceIdentifier: conversation.workspaceIdentifier,
                     conversations: [conversation],
-                    currentWorkspaceIdentifier: ConversationStore.currentWorkspaceIdentifier
+                    currentWorkspaceIdentifier: currentProjectIdentifier
                 )
 
                 return QuickSearchResult(
@@ -406,6 +423,15 @@ struct QuickSearchView: View {
 private enum QuickSearchMode {
     case general(String)
     case project(String)
+
+    var isProjectMode: Bool {
+        switch self {
+        case .project:
+            return true
+        case .general:
+            return false
+        }
+    }
 }
 
 private struct QuickSearchSection: Identifiable {
@@ -431,7 +457,10 @@ private struct QuickSearchProjectGroup {
 
     init(workspaceIdentifier: String?, conversations: [Conversation], currentWorkspaceIdentifier: String?) {
         self.workspaceIdentifier = workspaceIdentifier
-        self.isCurrentWorkspace = workspaceIdentifier == currentWorkspaceIdentifier
+        self.isCurrentWorkspace = WorkspaceManager.matchesWorkspaceIdentifiers(
+            workspaceIdentifier,
+            currentWorkspaceIdentifier
+        )
         self.isUnassigned = workspaceIdentifier == nil
         self.latestUpdatedAt = conversations.map(\ .updatedAt).max() ?? .distantPast
 

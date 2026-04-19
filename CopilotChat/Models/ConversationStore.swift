@@ -33,9 +33,7 @@ final class ConversationStore {
     // MARK: - Current Conversation
 
     static var currentWorkspaceIdentifier: String? {
-        guard WorkspaceManager.shared.hasWorkspace,
-              let url = WorkspaceManager.shared.currentURL else { return nil }
-        return url.absoluteString
+        WorkspaceManager.shared.currentWorkspaceIdentifier
     }
 
     var currentConversation: Conversation? {
@@ -47,7 +45,9 @@ final class ConversationStore {
         guard appMode == .coding else { return conversations }
         let wsId = Self.currentWorkspaceIdentifier
         if let wsId {
-            return conversations.filter { $0.workspaceIdentifier == wsId }
+            return conversations.filter {
+                WorkspaceManager.shared.matchesWorkspaceIdentifiers($0.workspaceIdentifier, wsId)
+            }
         }
         return conversations.filter { $0.workspaceIdentifier == nil }
     }
@@ -206,6 +206,44 @@ final class ConversationStore {
         conversations[index].updatedAt = Date()
         let conv = conversations[index]
         Task { await saveToDisk(conv) }
+    }
+
+    func reassignWorkspaceIdentifier(from oldIdentifier: String, to newIdentifier: String) {
+        var updatedConversations: [Conversation] = []
+        for index in conversations.indices {
+            guard WorkspaceManager.shared.matchesWorkspaceIdentifiers(
+                conversations[index].workspaceIdentifier,
+                oldIdentifier
+            ) else {
+                continue
+            }
+            conversations[index].workspaceIdentifier = newIdentifier
+            updatedConversations.append(conversations[index])
+        }
+
+        for conversation in updatedConversations {
+            Task { await saveToDisk(conversation) }
+        }
+    }
+
+    func deleteProjectConversations(matching workspaceIdentifier: String) {
+        let idsToDelete = conversations
+            .filter { WorkspaceManager.shared.matchesWorkspaceIdentifiers($0.workspaceIdentifier, workspaceIdentifier) }
+            .map(\ .id)
+
+        guard !idsToDelete.isEmpty else { return }
+
+        let deletedCurrentConversation = idsToDelete.contains(currentConversationId ?? UUID())
+        conversations.removeAll { idsToDelete.contains($0.id) }
+        if deletedCurrentConversation {
+            currentConversationId = nil
+        }
+
+        for id in idsToDelete {
+            let url = fileURL(for: id)
+            Task.detached { try? FileManager.default.removeItem(at: url) }
+            Task { await iCloudSync.deleteFromCloud(id: id) }
+        }
     }
 
     // MARK: - Delete
