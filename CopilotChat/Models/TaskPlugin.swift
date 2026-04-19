@@ -153,12 +153,62 @@ final class TaskPlugin: Plugin {
         return result
     }
 
-    private func runSubagent(definition: SubagentDefinition, prompt: String, description: String) async throws -> String {
-        guard let provider = resolveProvider() else {
+    func makeInitialSubagentSession(definition: SubagentDefinition, prompt: String) -> SubagentSession {
+        var session = SubagentSession(definition: definition)
+        session.messages.append(APIMessage(role: "user", content: prompt))
+        session.lastActiveAt = Date()
+        return session
+    }
+
+    func buildSubagentOptions(
+        definition: SubagentDefinition,
+        model: String,
+        systemPrompt: String
+    ) -> ProviderOptions {
+        let activeId = providerRegistry.activeProviderId
+        let mdProvider = providerRegistry.modelsDevProviders[activeId]
+        let modelInfo = mdProvider?.models[model]
+        let npm = mdProvider?.npm
+
+        let effort = settingsStore.reasoningEffort
+        let supportsReasoning = ReasoningEffort.isSupported(
+            model: model,
+            modelInfo: modelInfo,
+            npm: npm,
+            providerId: activeId
+        )
+        let reasoningValue: String? = (supportsReasoning && effort != .off) ? effort.rawValue : nil
+
+        return ProviderOptions(
+            maxOutputTokens: definition.maxOutputTokens ?? ProviderTransform.maxOutputTokens(model: modelInfo, modelId: model),
+            temperature: ProviderTransform.requestTemperature(
+                modelId: model,
+                model: modelInfo,
+                providerId: activeId,
+                preferred: definition.temperature ?? 0.7
+            ),
+            topP: ProviderTransform.topP(modelId: model),
+            topK: ProviderTransform.topK(modelId: model),
+            reasoningEffort: reasoningValue,
+            systemPrompt: systemPrompt,
+            toolChoice: "auto",
+            extraFields: ProviderTransform.extraRequestFields(
+                modelId: model,
+                model: modelInfo,
+                npm: npm,
+                providerId: activeId,
+                effort: reasoningValue
+            ),
+            agentInitiated: true
+        )
+    }
+
+    private func runSubagent(definition: SubagentDefinition, prompt: String, description _: String) async throws -> String {
+        guard resolveProvider() != nil else {
             return "Error: No LLM provider available"
         }
 
-        var session = SubagentSession(definition: definition)
+        var session = makeInitialSubagentSession(definition: definition, prompt: prompt)
         sessions[session.id] = session
 
         let result = try await runSubagentSession(&session)
@@ -192,22 +242,14 @@ final class TaskPlugin: Plugin {
                 name: tool.name, description: tool.description, parameters: tool.inputSchema))
         }
 
-        let modelInfo = providerRegistry.modelsDevProviders[providerRegistry.activeProviderId]?.models[model]
-        let temp = ProviderTransform.requestTemperature(
-            modelId: model,
-            model: modelInfo,
-            providerId: providerRegistry.activeProviderId,
-            preferred: definition.temperature ?? 0.7
+        var options = buildSubagentOptions(
+            definition: definition,
+            model: model,
+            systemPrompt: systemPrompt
         )
-        let maxOut = definition.maxOutputTokens ?? ProviderTransform.maxOutputTokens(model: nil, modelId: model)
-
-        let options = ProviderOptions(
-            maxOutputTokens: maxOut,
-            temperature: temp,
-            systemPrompt: systemPrompt,
-            toolChoice: apiTools != nil ? "auto" : nil,
-            agentInitiated: true
-        )
+        if apiTools == nil {
+            options.toolChoice = nil
+        }
 
         var allContent = ""
         var iterations = 0
