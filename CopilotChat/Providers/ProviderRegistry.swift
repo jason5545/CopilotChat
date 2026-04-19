@@ -239,6 +239,13 @@ final class ProviderRegistry {
         ]
     }()
 
+    /// Keychain-backed credentials are the source of truth.
+    /// `configuredProviderIds` is still persisted for quick restore, but it can
+    /// get stale if a key was synced/imported outside the current session.
+    private var detectedConfiguredProviderIds: Set<String> {
+        Set(allProvidersSorted.lazy.map(\.id).filter { self.hasAPIKey(for: $0) })
+    }
+
     // MARK: - Provider Resolution
 
     /// Get the active LLM provider instance.
@@ -353,6 +360,7 @@ final class ProviderRegistry {
     /// Providers the user has configured (has API key).
     var configuredProviders: [ModelsDevProvider] {
         var result: [ModelsDevProvider] = []
+        let specialIds: Set<String> = ["github-copilot", "openai-codex", "augment"]
         // Always show Copilot first if authenticated
         if authManager.isAuthenticated, let copilot = modelsDevProviders["github-copilot"] {
             result.append(copilot)
@@ -367,10 +375,11 @@ final class ProviderRegistry {
            let augment = modelsDevProviders["augment"] {
             result.append(augment)
         }
-        // Then configured providers
-        for id in configuredProviderIds.sorted() {
-            if id == "github-copilot" || id == "openai-codex" || id == "augment" { continue }
-            if let p = modelsDevProviders[id] { result.append(p) }
+        // Then every provider that currently resolves to a usable credential.
+        for provider in allProvidersSorted where !specialIds.contains(provider.id) {
+            if hasAPIKey(for: provider.id) {
+                result.append(provider)
+            }
         }
         return result
     }
@@ -522,11 +531,18 @@ final class ProviderRegistry {
     }
 
     private func loadConfiguredProviders() {
-        let ids = UserDefaults.standard.stringArray(forKey: "configuredProviderIds") ?? []
-        configuredProviderIds = Set(ids)
-        // Also check Copilot
+        let storedIds = Set(UserDefaults.standard.stringArray(forKey: "configuredProviderIds") ?? [])
+        var resolvedIds = storedIds.union(detectedConfiguredProviderIds)
+
         if authManager.isAuthenticated {
-            configuredProviderIds.insert("github-copilot")
+            resolvedIds.insert("github-copilot")
+        }
+
+        resolvedIds = Set(resolvedIds.filter { hasAPIKey(for: $0) })
+        configuredProviderIds = resolvedIds
+
+        if resolvedIds != storedIds {
+            saveConfiguredProviders()
         }
     }
 

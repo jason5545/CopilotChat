@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import CopilotChat
 
@@ -153,5 +154,36 @@ struct ProviderTransformTests {
         registry.activeProviderId = "test-provider"
 
         #expect(registry.activeModelId == "visible-primary")
+    }
+
+    @MainActor
+    @Test("Provider registry derives configured providers from stored credentials")
+    func providerRegistryConfiguredProvidersUseAvailableCredentials() {
+        let registry = ProviderRegistry(authManager: AuthManager())
+        let providerId = "configured-provider-test-\(UUID().uuidString)"
+
+        registry.modelsDevProviders = [
+            providerId: ModelsDevProvider(
+                id: providerId,
+                name: "Configured Provider",
+                env: ["TEST_API_KEY"],
+                npm: "@ai-sdk/openai-compatible",
+                api: "https://example.com/v1",
+                doc: nil,
+                models: [
+                    "test-model": makeModel(id: "test-model", name: "Test Model"),
+                ]
+            )
+        ]
+
+        registry.saveAPIKey("test-key", for: providerId)
+        defer { registry.removeAPIKey(for: providerId) }
+
+        // Simulate stale UserDefaults state: the credential still exists, but the
+        // persisted configured-provider list no longer contains the provider.
+        registry.configuredProviderIds = []
+
+        #expect(registry.hasAPIKey(for: providerId))
+        #expect(registry.configuredProviders.map(\.id).contains(providerId))
     }
 }
