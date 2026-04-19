@@ -94,12 +94,12 @@ struct ChatView: View {
                 }
                 ToolbarItem(placement: .carbonTrailing) {
                     HStack(spacing: 12) {
-                        if !usesCompactPhoneToolbar,
-                           let usage = copilotService.tokenUsage,
+                        if let usage = copilotService.tokenUsage,
                            copilotService.contextWindow > 0 {
                             ContextRing(
                                 promptTokens: usage.promptTokens,
-                                contextWindow: copilotService.contextWindow
+                                contextWindow: copilotService.contextWindow,
+                                style: usesCompactPhoneToolbar ? .compact : .inline
                             )
                         }
 

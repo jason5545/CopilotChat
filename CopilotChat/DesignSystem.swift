@@ -252,16 +252,24 @@ enum Haptics {
 // MARK: - Context Window Ring
 
 struct ContextRing: View {
+    enum Style {
+        case inline
+        case compact
+    }
+
     let promptTokens: Int
     let contextWindow: Int
+    var style: Style = .inline
+
+    private var isCompact: Bool { style == .compact }
 
     private var percent: Double {
         guard contextWindow > 0 else { return 0 }
         return Double(promptTokens) / Double(contextWindow) * 100
     }
 
-    private let size: CGFloat = 20
-    private let lineWidth: CGFloat = 2.5
+    private var size: CGFloat { isCompact ? 28 : 20 }
+    private var lineWidth: CGFloat { isCompact ? 2.75 : 2.5 }
 
     private var arcColor: Color {
         if percent > 90 { return .carbonError }
@@ -270,26 +278,64 @@ struct ContextRing: View {
     }
 
     private var label: String { formatTokenCount(promptTokens) }
+    private var compactFontSize: CGFloat {
+        switch label.count {
+        case 0...2: 9.5
+        case 3: 8.5
+        default: 7.5
+        }
+    }
+
+    private var accessibilityText: String {
+        let usagePercent = Int(percent.rounded())
+        let total = formatTokenCount(contextWindow)
+        return "Context window \(label) of \(total) tokens used, \(usagePercent) percent"
+    }
 
     var body: some View {
-        HStack(spacing: 5) {
-            ZStack {
-                // Track
-                Circle()
-                    .stroke(Color.carbonBorder.opacity(0.4), lineWidth: lineWidth)
-                // Fill arc
-                Circle()
-                    .trim(from: 0, to: min(percent / 100, 1.0))
-                    .stroke(arcColor, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                    .animation(.easeOut(duration: 0.4), value: percent)
-            }
-            .frame(width: size, height: size)
+        Group {
+            if isCompact {
+                ZStack {
+                    Circle()
+                        .fill(Color.carbonSurface)
+                    Circle()
+                        .stroke(Color.carbonBorder.opacity(0.4), lineWidth: lineWidth)
+                    Circle()
+                        .trim(from: 0, to: min(percent / 100, 1.0))
+                        .stroke(arcColor, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                        .animation(.easeOut(duration: 0.4), value: percent)
+                    Text(label)
+                        .font(.system(size: compactFontSize, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(percent > 90 ? Color.carbonError : Color.carbonText)
+                        .minimumScaleFactor(0.75)
+                        .lineLimit(1)
+                        .padding(.horizontal, 3)
+                }
+                .frame(width: size, height: size)
+            } else {
+                HStack(spacing: 5) {
+                    ZStack {
+                        // Track
+                        Circle()
+                            .stroke(Color.carbonBorder.opacity(0.4), lineWidth: lineWidth)
+                        // Fill arc
+                        Circle()
+                            .trim(from: 0, to: min(percent / 100, 1.0))
+                            .stroke(arcColor, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                            .animation(.easeOut(duration: 0.4), value: percent)
+                    }
+                    .frame(width: size, height: size)
 
-            Text(label)
-                .font(.carbonMono(.caption2))
-                .foregroundStyle(percent > 70 ? arcColor : Color.carbonTextSecondary)
+                    Text(label)
+                        .font(.carbonMono(.caption2))
+                        .foregroundStyle(percent > 70 ? arcColor : Color.carbonTextSecondary)
+                }
+            }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityText)
     }
 }
 
