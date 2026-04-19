@@ -3,6 +3,35 @@ import Foundation
 @MainActor
 enum ConversationNavigator {
     @discardableResult
+    static func startNewConversation(
+        workspaceIdentifier: String? = nil,
+        store: ConversationStore,
+        copilotService: CopilotService,
+        settingsStore: SettingsStore
+    ) -> Bool {
+        let currentWorkspaceIdentifier = settingsStore.appMode == .coding
+            ? ConversationStore.currentWorkspaceIdentifier
+            : nil
+
+        if let workspaceIdentifier {
+            guard WorkspaceManager.shared.switchWorkspace(to: workspaceIdentifier) else {
+                NotificationCenter.default.post(name: .requestWorkspaceSelection, object: nil)
+                return false
+            }
+            settingsStore.appMode = .coding
+        }
+
+        store.startNewConversation(
+            currentMessages: copilotService.messages,
+            currentSummaryId: copilotService.summaryMessageId,
+            currentReasoningEffort: settingsStore.reasoningEffort,
+            currentWorkspaceIdentifier: currentWorkspaceIdentifier
+        )
+        copilotService.newConversation()
+        return true
+    }
+
+    @discardableResult
     static func resumeConversation(
         id: UUID,
         store: ConversationStore,

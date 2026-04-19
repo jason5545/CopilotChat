@@ -80,12 +80,12 @@ struct SidebarView: View {
     private var projectTree: some View {
         List {
             ForEach(filteredProjectGroups) { group in
-                Button {
-                    toggleProject(group.id)
-                } label: {
-                    SidebarProjectRow(group: group, isExpanded: isProjectExpanded(group.id))
-                }
-                .buttonStyle(.plain)
+                SidebarProjectRow(
+                    group: group,
+                    isExpanded: isProjectExpanded(group.id),
+                    onToggle: { toggleProject(group.id) },
+                    onNewConversation: group.isUnassigned ? nil : { startNewConversation(in: group) }
+                )
                 .listRowBackground(group.isCurrentWorkspace ? Color.carbonElevated : Color.carbonSurface)
 
                 if isProjectExpanded(group.id) {
@@ -197,6 +197,20 @@ struct SidebarView: View {
         )
     }
 
+    private func startNewConversation(in group: SidebarProjectGroup) {
+        guard let workspaceIdentifier = group.workspaceIdentifier else { return }
+        guard ConversationNavigator.startNewConversation(
+            workspaceIdentifier: workspaceIdentifier,
+            store: store,
+            copilotService: copilotService,
+            settingsStore: settingsStore
+        ) else {
+            return
+        }
+
+        expandedProjectIDs.insert(group.id)
+    }
+
     private var conversationList: some View {
         List(selection: Binding(
             get: { store.currentConversationId },
@@ -277,45 +291,67 @@ private struct SidebarProjectGroup: Identifiable {
 private struct SidebarProjectRow: View {
     let group: SidebarProjectGroup
     let isExpanded: Bool
+    let onToggle: () -> Void
+    let onNewConversation: (() -> Void)?
 
     var body: some View {
-        HStack(spacing: Carbon.spacingRelaxed) {
-            Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(Color.carbonTextTertiary)
-                .frame(width: 10)
+        HStack(spacing: Carbon.spacingTight) {
+            Button(action: onToggle) {
+                HStack(spacing: Carbon.spacingRelaxed) {
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Color.carbonTextTertiary)
+                        .frame(width: 10)
 
-            Image(systemName: group.isUnassigned ? "tray" : (group.isCurrentWorkspace ? "folder.fill" : "folder"))
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(group.isCurrentWorkspace ? Color.carbonAccent : Color.carbonTextSecondary)
+                    Image(systemName: group.isUnassigned ? "tray" : (group.isCurrentWorkspace ? "folder.fill" : "folder"))
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(group.isCurrentWorkspace ? Color.carbonAccent : Color.carbonTextSecondary)
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(group.title)
-                    .font(.carbonSans(.subheadline, weight: .semibold))
-                    .foregroundStyle(Color.carbonText)
-                    .lineLimit(1)
-
-                HStack(spacing: 6) {
-                    if let subtitle = group.subtitle {
-                        Text(subtitle)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(group.title)
+                            .font(.carbonSans(.subheadline, weight: .semibold))
+                            .foregroundStyle(Color.carbonText)
                             .lineLimit(1)
-                        Text("·")
-                    }
-                    Text("\(group.conversations.count) chat\(group.conversations.count == 1 ? "" : "s")")
-                    if group.isCurrentWorkspace {
-                        Text("·")
-                        Text("CURRENT")
-                            .foregroundStyle(Color.carbonAccent)
-                    }
-                }
-                .font(.carbonMono(.caption2))
-                .foregroundStyle(Color.carbonTextTertiary)
-            }
 
-            Spacer()
+                        HStack(spacing: 6) {
+                            if let subtitle = group.subtitle {
+                                Text(subtitle)
+                                    .lineLimit(1)
+                                Text("·")
+                            }
+                            Text("\(group.conversations.count) chat\(group.conversations.count == 1 ? "" : "s")")
+                            if group.isCurrentWorkspace {
+                                Text("·")
+                                Text("CURRENT")
+                                    .foregroundStyle(Color.carbonAccent)
+                            }
+                        }
+                        .font(.carbonMono(.caption2))
+                        .foregroundStyle(Color.carbonTextTertiary)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if let onNewConversation {
+                Button(action: onNewConversation) {
+                    Image(systemName: "square.and.pencil")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.carbonTextSecondary)
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("New conversation in \(group.title)")
+            } else {
+                Color.clear
+                    .frame(width: 28, height: 28)
+            }
         }
         .padding(.vertical, 4)
-        .contentShape(Rectangle())
     }
 }
 

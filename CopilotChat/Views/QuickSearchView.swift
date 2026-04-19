@@ -198,13 +198,11 @@ struct QuickSearchView: View {
                 systemImage: "square.and.pencil",
                 searchableText: "new conversation new chat new coding chat start fresh",
                 action: {
-                    conversationStore.startNewConversation(
-                        currentMessages: copilotService.messages,
-                        currentSummaryId: copilotService.summaryMessageId,
-                        currentReasoningEffort: settingsStore.reasoningEffort,
-                        currentWorkspaceIdentifier: settingsStore.appMode == .coding ? ConversationStore.currentWorkspaceIdentifier : nil
+                    ConversationNavigator.startNewConversation(
+                        store: conversationStore,
+                        copilotService: copilotService,
+                        settingsStore: settingsStore
                     )
-                    copilotService.newConversation()
                 }
             ),
             QuickSearchResult(
@@ -358,23 +356,12 @@ struct QuickSearchView: View {
     }
 
     private func openSavedWorkspace(_ workspace: WorkspaceManager.SavedWorkspace) {
-        let currentWorkspaceIdentifier = settingsStore.appMode == .coding ? ConversationStore.currentWorkspaceIdentifier : nil
-
-        if !workspace.isCurrent {
-            guard WorkspaceManager.shared.switchWorkspace(to: workspace.id) else {
-                NotificationCenter.default.post(name: .requestWorkspaceSelection, object: nil)
-                return
-            }
-        }
-
-        settingsStore.appMode = .coding
-        conversationStore.startNewConversation(
-            currentMessages: copilotService.messages,
-            currentSummaryId: copilotService.summaryMessageId,
-            currentReasoningEffort: settingsStore.reasoningEffort,
-            currentWorkspaceIdentifier: currentWorkspaceIdentifier
+        ConversationNavigator.startNewConversation(
+            workspaceIdentifier: workspace.id,
+            store: conversationStore,
+            copilotService: copilotService,
+            settingsStore: settingsStore
         )
-        copilotService.newConversation()
     }
 
     private var selectedResult: QuickSearchResult? {

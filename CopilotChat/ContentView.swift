@@ -93,13 +93,11 @@ struct ContentView: View {
                 .keyboardShortcut("k", modifiers: [.command])
 
                 Button {
-                    conversationStore.startNewConversation(
-                        currentMessages: copilotService.messages,
-                        currentSummaryId: copilotService.summaryMessageId,
-                        currentReasoningEffort: settingsStore.reasoningEffort,
-                        currentWorkspaceIdentifier: settingsStore.appMode == .coding ? ConversationStore.currentWorkspaceIdentifier : nil
+                    ConversationNavigator.startNewConversation(
+                        store: conversationStore,
+                        copilotService: copilotService,
+                        settingsStore: settingsStore
                     )
-                    copilotService.newConversation()
                 } label: {
                     Image(systemName: "square.and.pencil")
                         .font(.subheadline)

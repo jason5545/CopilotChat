@@ -1110,13 +1110,11 @@ struct ChatView: View {
         inputText = ""
         mentionedFiles.removeAll()
         mentionQuery = nil
-        conversationStore.startNewConversation(
-            currentMessages: copilotService.messages,
-            currentSummaryId: copilotService.summaryMessageId,
-            currentReasoningEffort: settingsStore.reasoningEffort,
-            currentWorkspaceIdentifier: activeWorkspaceIdentifier
+        ConversationNavigator.startNewConversation(
+            store: conversationStore,
+            copilotService: copilotService,
+            settingsStore: settingsStore
         )
-        copilotService.newConversation()
     }
 
     private func autoSaveConversation() {
