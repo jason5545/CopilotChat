@@ -178,7 +178,7 @@ struct ChatView: View {
                 }
             }
             .sheet(isPresented: $showSettings) {
-                SettingsView()
+                SettingsView(initialOpenProviderPicker: false)
             }
             .sheet(isPresented: $showHistory) {
                 ConversationHistoryView()
@@ -385,22 +385,26 @@ struct ChatView: View {
                     .foregroundStyle(Color.carbonText)
 
                 if !authManager.isAuthenticated {
-                    Button {
-                        showSettings = true
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "person.badge.key")
-                                .font(.caption)
-                            Text("Sign in to GitHub")
-                                .font(.carbonMono(.caption, weight: .medium))
+                    if authManager.isDemoMode {
+                        demoModePrompt
+                    } else {
+                        Button {
+                            showSettings = true
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "person.badge.key")
+                                    .font(.caption)
+                                Text("Sign in to GitHub")
+                                    .font(.carbonMono(.caption, weight: .medium))
+                            }
+                            .foregroundStyle(Color.carbonBlack)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 10)
+                            .background(Color.carbonAccent)
+                            .clipShape(Capsule())
                         }
-                        .foregroundStyle(Color.carbonBlack)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 10)
-                        .background(Color.carbonAccent)
-                        .clipShape(Capsule())
+                        .padding(.top, 4)
                     }
-                    .padding(.top, 4)
                 }
 
                 if let providerModelLabel {
@@ -450,6 +454,10 @@ struct ChatView: View {
                     Text(providerModelLabel)
                         .font(.carbonMono(.caption2))
                         .foregroundStyle(Color.carbonTextTertiary)
+                }
+
+                if authManager.isDemoMode {
+                    demoModePrompt
                 }
 
                 Button {
@@ -512,6 +520,50 @@ struct ChatView: View {
         .padding(.horizontal, Carbon.messagePaddingH)
         .padding(.vertical, Carbon.spacingBase)
         .id("streaming-indicator")
+    }
+
+    private var demoModePrompt: some View {
+        VStack(spacing: 10) {
+            Text("Try the app in demo mode now. Add your own key or sign in to unlock the full experience.")
+                .font(.carbonSans(.caption))
+                .foregroundStyle(Color.carbonTextSecondary)
+                .multilineTextAlignment(.center)
+
+            HStack(spacing: 10) {
+                Button {
+                    NotificationCenter.default.post(name: .requestProviderPicker, object: nil)
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "key")
+                            .font(.caption)
+                        Text("Enter API Key")
+                            .font(.carbonMono(.caption, weight: .medium))
+                    }
+                    .foregroundStyle(Color.carbonBlack)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 9)
+                    .background(Color.carbonAccent)
+                    .clipShape(Capsule())
+                }
+
+                Button {
+                    NotificationCenter.default.post(name: .requestSettings, object: nil)
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "person.badge.key")
+                            .font(.caption)
+                        Text("Sign In")
+                            .font(.carbonMono(.caption, weight: .medium))
+                    }
+                    .foregroundStyle(Color.carbonText)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 9)
+                    .background(Color.carbonElevated)
+                    .clipShape(Capsule())
+                }
+            }
+        }
+        .padding(.top, 4)
     }
 
     // MARK: - Error Banner
@@ -964,7 +1016,7 @@ struct ChatView: View {
         let hasMentions = !mentionedFiles.isEmpty
         return (hasText || hasImage || hasMentions)
             && !copilotService.isStreaming
-            && authManager.isAuthenticated
+            && copilotService.providerRegistry?.activeProvider() != nil
     }
 
     // MARK: - @ Mention Detection
@@ -1094,7 +1146,8 @@ struct ChatView: View {
                 text = "\(text)\n\n\(fileContext)"
             }
         }
-        guard (!text.isEmpty || imageData != nil), !copilotService.isStreaming, authManager.isAuthenticated else { return }
+        guard (!text.isEmpty || imageData != nil), !copilotService.isStreaming,
+              copilotService.providerRegistry?.activeProvider() != nil else { return }
         Haptics.impact(.medium)
         inputText = ""
         attachedImageData = nil

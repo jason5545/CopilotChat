@@ -8,11 +8,12 @@ struct ContentView: View {
     @Environment(QuickSearchStore.self) private var quickSearchStore
 
     @State private var showSettings = false
+    @State private var openProviderPickerInSettings = false
 
     var body: some View {
         rootContent
             .sheet(isPresented: $showSettings) {
-                SettingsView()
+                SettingsView(initialOpenProviderPicker: openProviderPickerInSettings)
             }
             .sheet(isPresented: Binding(
                 get: { quickSearchStore.isPresented },
@@ -27,6 +28,11 @@ struct ContentView: View {
                 QuickSearchView()
             }
             .onReceive(NotificationCenter.default.publisher(for: .requestSettings)) { _ in
+                openProviderPickerInSettings = false
+                showSettings = true
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .requestProviderPicker)) { _ in
+                openProviderPickerInSettings = true
                 showSettings = true
             }
             .onReceive(NotificationCenter.default.publisher(for: .requestQuickSearch)) { _ in
@@ -52,8 +58,10 @@ struct ContentView: View {
             .background(Color.carbonBlack)
             .task {
                 await settingsStore.connectAllServers()
-                if authManager.isAuthenticated {
+                if authManager.isAuthenticated || authManager.isDemoMode {
                     await copilotService.fetchModels()
+                } else {
+                    copilotService.availableModels = []
                 }
             }
     }
@@ -66,8 +74,10 @@ struct ContentView: View {
                 .background(Color.carbonBlack)
                 .task {
                     await settingsStore.connectAllServers()
-                    if authManager.isAuthenticated {
+                    if authManager.isAuthenticated || authManager.isDemoMode {
                         await copilotService.fetchModels()
+                    } else {
+                        copilotService.availableModels = []
                     }
                 }
         }

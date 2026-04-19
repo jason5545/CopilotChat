@@ -816,6 +816,7 @@ struct NonStreamingResponsesResponse: Decodable {
 extension Notification.Name {
     static let requestQuickSearch = Notification.Name("requestQuickSearch")
     static let requestSettings = Notification.Name("requestSettings")
+    static let requestProviderPicker = Notification.Name("requestProviderPicker")
     static let requestWorkspaceSelection = Notification.Name("requestWorkspaceSelection")
     static let workspaceDidChange = Notification.Name("workspaceDidChange")
 }

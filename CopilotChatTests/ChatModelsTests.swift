@@ -12,14 +12,16 @@ struct ChatModelsTests {
 
     // MARK: - ChatMessage
 
-    @Test("ChatMessage equality is based on id and content")
+    @Test("ChatMessage equality is based on id")
     func messageEquality() {
         let id = UUID()
         let m1 = ChatMessage(id: id, role: .user, content: "hi")
         let m2 = ChatMessage(id: id, role: .user, content: "hi")
         let m3 = ChatMessage(id: id, role: .user, content: "bye")
+        let m4 = ChatMessage(role: .user, content: "hi")
         #expect(m1 == m2)
-        #expect(m1 != m3)
+        #expect(m1 == m3)
+        #expect(m1 != m4)
     }
 
     @Test("ChatMessage defaults")

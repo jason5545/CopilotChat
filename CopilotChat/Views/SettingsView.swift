@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SettingsView: View {
+    let initialOpenProviderPicker: Bool
     @Environment(AuthManager.self) private var authManager
     @Environment(CopilotService.self) private var copilotService
     @Environment(SettingsStore.self) private var settingsStore
@@ -61,6 +62,11 @@ struct SettingsView: View {
                 MCPServerEditView(server: nil) { server in
                     settingsStore.addServer(server)
                     Task { await settingsStore.connectServer(server) }
+                }
+            }
+            .onAppear {
+                if initialOpenProviderPicker {
+                    showProviderPicker = true
                 }
             }
         }
@@ -124,7 +130,15 @@ struct SettingsView: View {
                 .listRowBackground(Color.carbonSurface)
 
                 Button("Sign Out", role: .destructive) {
-                    authManager.signOut()
+                    Task {
+                        authManager.signOut()
+                        await DemoMode.syncSession(
+                            authManager: authManager,
+                            settingsStore: settingsStore,
+                            conversationStore: conversationStore,
+                            copilotService: copilotService
+                        )
+                    }
                 }
                 .font(.carbonSans(.subheadline))
                 .foregroundStyle(Color.carbonError)
@@ -173,13 +187,49 @@ struct SettingsView: View {
                 .padding(.vertical, 4)
                 .listRowBackground(Color.carbonSurface)
             } else {
+                if authManager.isDemoMode {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Demo mode")
+                            .font(.carbonSans(.body, weight: .semibold))
+                            .foregroundStyle(Color.carbonText)
+                        Text("You're currently using the built-in demo experience. Sign in or add a provider key to unlock your own models, history, and full functionality.")
+                            .font(.carbonSans(.caption))
+                            .foregroundStyle(Color.carbonTextSecondary)
+                    }
+                    .padding(.vertical, 4)
+                    .listRowBackground(Color.carbonSurface)
+                }
+
                 Button {
-                    Task { await authManager.startDeviceFlow() }
+                    Task {
+                        await authManager.startDeviceFlow()
+                        if authManager.isAuthenticated {
+                            await DemoMode.syncSession(
+                                authManager: authManager,
+                                settingsStore: settingsStore,
+                                conversationStore: conversationStore,
+                                copilotService: copilotService
+                            )
+                        }
+                    }
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "person.badge.key")
                             .foregroundStyle(Color.carbonAccent)
                         Text("Sign in with GitHub")
+                            .font(.carbonSans(.subheadline, weight: .medium))
+                            .foregroundStyle(Color.carbonText)
+                    }
+                }
+                .listRowBackground(Color.carbonSurface)
+
+                Button {
+                    showProviderPicker = true
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "key")
+                            .foregroundStyle(Color.carbonAccent)
+                        Text("Enter API Key")
                             .font(.carbonSans(.subheadline, weight: .medium))
                             .foregroundStyle(Color.carbonText)
                     }
@@ -275,6 +325,14 @@ struct SettingsView: View {
 
                                         Button {
                                             registry.removeAPIKey(for: provider.id)
+                                            Task {
+                                                await DemoMode.syncSession(
+                                                    authManager: authManager,
+                                                    settingsStore: settingsStore,
+                                                    conversationStore: conversationStore,
+                                                    copilotService: copilotService
+                                                )
+                                            }
                                         } label: {
                                             Image(systemName: "trash")
                                                 .font(.caption2)
@@ -300,6 +358,14 @@ struct SettingsView: View {
 
                                     Button {
                                         registry.removeAPIKey(for: provider.id)
+                                        Task {
+                                            await DemoMode.syncSession(
+                                                authManager: authManager,
+                                                settingsStore: settingsStore,
+                                                conversationStore: conversationStore,
+                                                copilotService: copilotService
+                                            )
+                                        }
                                     } label: {
                                         Image(systemName: "trash")
                                             .font(.caption2)
@@ -1317,6 +1383,10 @@ struct MCPServerEditView: View {
 
 struct ProviderPickerView: View {
     let registry: ProviderRegistry?
+    @Environment(AuthManager.self) private var authManager
+    @Environment(SettingsStore.self) private var settingsStore
+    @Environment(ConversationStore.self) private var conversationStore
+    @Environment(CopilotService.self) private var copilotService
     @Environment(\.dismiss) private var dismiss
     @State private var searchText = ""
     @State private var apiKeyInput = ""
@@ -1564,7 +1634,15 @@ struct ProviderPickerView: View {
 
                         registry.saveAugmentCredentials(accessToken: accessToken, tenantURL: tenantURL)
                         registry.activeProviderId = provider.id
-                        dismiss()
+                        Task {
+                            await DemoMode.syncSession(
+                                authManager: authManager,
+                                settingsStore: settingsStore,
+                                conversationStore: conversationStore,
+                                copilotService: copilotService
+                            )
+                            dismiss()
+                        }
                     } label: {
                         HStack(spacing: 6) {
                             Spacer()
@@ -1623,7 +1701,15 @@ struct ProviderPickerView: View {
                         guard let registry, !apiKeyInput.isEmpty else { return }
                         registry.saveAPIKey(apiKeyInput, for: provider.id)
                         registry.activeProviderId = provider.id
-                        dismiss()
+                        Task {
+                            await DemoMode.syncSession(
+                                authManager: authManager,
+                                settingsStore: settingsStore,
+                                conversationStore: conversationStore,
+                                copilotService: copilotService
+                            )
+                            dismiss()
+                        }
                     } label: {
                         HStack(spacing: 6) {
                             Spacer()
@@ -1676,6 +1762,12 @@ struct ProviderPickerView: View {
                                 if PluginRegistry.shared.codexAuth?.isAuthenticated == true {
                                     await registry?.refreshCodexModels(force: true)
                                     registry?.activeProviderId = provider.id
+                                    await DemoMode.syncSession(
+                                        authManager: authManager,
+                                        settingsStore: settingsStore,
+                                        conversationStore: conversationStore,
+                                        copilotService: copilotService
+                                    )
                                     dismiss()
                                 }
                             }
@@ -1769,6 +1861,10 @@ struct ProviderPickerView: View {
 struct ProviderKeyEditView: View {
     let provider: ModelsDevProvider
     let registry: ProviderRegistry?
+    @Environment(AuthManager.self) private var authManager
+    @Environment(SettingsStore.self) private var settingsStore
+    @Environment(ConversationStore.self) private var conversationStore
+    @Environment(CopilotService.self) private var copilotService
     @Environment(\.dismiss) private var dismiss
     @State private var apiKeyInput = ""
     @State private var isKeyVisible = false
@@ -1829,7 +1925,15 @@ struct ProviderKeyEditView: View {
                 Button {
                     guard let registry, !apiKeyInput.isEmpty else { return }
                     registry.saveAPIKey(apiKeyInput, for: provider.id)
-                    dismiss()
+                    Task {
+                        await DemoMode.syncSession(
+                            authManager: authManager,
+                            settingsStore: settingsStore,
+                            conversationStore: conversationStore,
+                            copilotService: copilotService
+                        )
+                        dismiss()
+                    }
                 } label: {
                     HStack(spacing: 6) {
                         Spacer()

@@ -52,7 +52,9 @@ final class CopilotService {
     // MARK: - Context Window
 
     private var selectedModelInfo: ModelsResponse.ModelInfo? {
-        availableModels.first { $0.id == settingsStore.selectedModel }
+        let activeProviderId = providerRegistry?.activeProviderId ?? "github-copilot"
+        guard activeProviderId == "github-copilot" else { return nil }
+        return availableModels.first { $0.id == settingsStore.selectedModel }
     }
 
     var contextWindow: Int {
@@ -104,6 +106,9 @@ final class CopilotService {
         let activeId = providerRegistry?.activeProviderId ?? "github-copilot"
         if let registry = providerRegistry, let provider = registry.activeProvider() {
             return provider
+        }
+        if activeId == "github-copilot", authManager.isDemoMode {
+            return DemoCopilotProvider()
         }
         // Only fall back to Copilot if that's what the user selected
         if activeId == "github-copilot", authManager.isAuthenticated {
@@ -1545,6 +1550,11 @@ final class CopilotService {
     // MARK: - Fetch Models
 
     func fetchModels() async {
+        if authManager.isDemoMode {
+            availableModels = DemoMode.makeAvailableModels()
+            return
+        }
+
         if let cache = Self.modelsCache, Date().timeIntervalSince(cache.fetchedAt) < Self.modelsCacheTTL {
             availableModels = cache.data
             return

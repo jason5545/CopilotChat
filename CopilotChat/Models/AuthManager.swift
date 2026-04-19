@@ -21,6 +21,7 @@ final class AuthManager {
     var deviceFlowUserCode: String?
     var deviceFlowVerificationURL: String?
     var authError: String?
+    private(set) var isDemoMode = false
 
     private var githubToken: String?
     var token: String? { githubToken }
@@ -61,6 +62,7 @@ final class AuthManager {
     }
 
     private func saveToken(_ token: String) {
+        disableDemoMode()
         githubToken = token
         KeychainHelper.save(token, for: Self.keychainKey)
         isAuthenticated = true
@@ -73,6 +75,18 @@ final class AuthManager {
         isAuthenticated = false
         KeychainHelper.delete(key: Self.keychainKey)
         KeychainHelper.delete(key: Self.legacyKeychainKey)
+    }
+
+    func enableDemoMode() {
+        isDemoMode = true
+        isAuthenticating = false
+        deviceFlowUserCode = nil
+        deviceFlowVerificationURL = nil
+        authError = nil
+    }
+
+    func disableDemoMode() {
+        isDemoMode = false
     }
 
     // MARK: - Device Flow OAuth

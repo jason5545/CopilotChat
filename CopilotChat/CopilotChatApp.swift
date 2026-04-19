@@ -51,6 +51,13 @@ struct CopilotChatApp: App {
                     // iCloud sync
                     settingsStore.startObservingKVStoreChanges()
                     await conversationStore.syncWithCloud()
+
+                    await DemoMode.syncSession(
+                        authManager: authManager,
+                        settingsStore: settingsStore,
+                        conversationStore: conversationStore,
+                        copilotService: service
+                    )
                 }
             }
             .preferredColorScheme(.dark)

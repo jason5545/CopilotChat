@@ -6,10 +6,12 @@ import Observation
 final class ConversationStore {
     var conversations: [Conversation] = []
     var currentConversationId: UUID?
+    private(set) var isDemoSession = false
 
     private let storageDirectory: URL
     private var saveTask: Task<Void, Never>?
     private let iCloudSync = iCloudSyncManager.shared
+    private var preDemoCurrentConversationId: UUID?
 
     nonisolated static func makeEncoder() -> JSONEncoder {
         let e = JSONEncoder()
@@ -56,7 +58,10 @@ final class ConversationStore {
 
     @discardableResult
     func createConversation(workspaceIdentifier: String? = nil) -> UUID {
-        let conversation = Conversation(workspaceIdentifier: workspaceIdentifier)
+        let conversation = Conversation(
+            workspaceIdentifier: workspaceIdentifier,
+            isDemo: isDemoSession
+        )
         conversations.insert(conversation, at: 0)
         currentConversationId = conversation.id
         return conversation.id
@@ -96,6 +101,58 @@ final class ConversationStore {
         currentConversationId = nil
     }
 
+    func beginDemoSession(with seededConversations: [Conversation]) {
+        guard !isDemoSession || conversations.isEmpty else {
+            if currentConversationId == nil {
+                currentConversationId = conversations.first?.id
+            }
+            return
+        }
+
+        preDemoCurrentConversationId = currentConversationId
+        isDemoSession = true
+
+        let sorted = seededConversations
+            .sorted { $0.updatedAt > $1.updatedAt }
+            .map { conversation in
+                var demoConversation = conversation
+                demoConversation.isDemo = true
+                return demoConversation
+            }
+
+        conversations = sorted
+        currentConversationId = sorted.first?.id
+    }
+
+    func endDemoSession() async {
+        guard isDemoSession else { return }
+
+        isDemoSession = false
+        let restoreId = preDemoCurrentConversationId
+        preDemoCurrentConversationId = nil
+
+        await loadAllConversations()
+
+        if let restoreId,
+           conversations.contains(where: { $0.id == restoreId }) {
+            currentConversationId = restoreId
+        } else {
+            currentConversationId = conversations.first?.id
+        }
+    }
+
+    func currentConversationState() -> (messages: [ChatMessage], summaryMessageId: UUID?, reasoningEffort: ReasoningEffort?, providerId: String?, modelId: String?)? {
+        guard let currentConversation else { return nil }
+        let messages = loadMessages(for: currentConversation.id)
+        return (
+            messages,
+            currentConversation.summaryMessageId,
+            currentConversation.reasoningEffort,
+            currentConversation.providerId,
+            currentConversation.modelId
+        )
+    }
+
     // MARK: - Update
 
     /// Schedule a debounced save of the current conversation's messages.
@@ -119,6 +176,7 @@ final class ConversationStore {
             guard !Task.isCancelled else { return }
             guard let id = self.currentConversationId,
                   let conv = self.conversations.first(where: { $0.id == id }) else { return }
+            guard !conv.isDemo else { return }
             await self.saveToDisk(conv)
         }
     }
@@ -139,6 +197,7 @@ final class ConversationStore {
             workspaceIdentifier: workspaceIdentifier)
         if let id = currentConversationId,
            let conv = conversations.first(where: { $0.id == id }) {
+            guard !conv.isDemo else { return }
             Task { await self.saveToDisk(conv) }
         }
     }
@@ -157,7 +216,7 @@ final class ConversationStore {
             if !messages.isEmpty {
                 var conv = Conversation(messages: messages, summaryMessageId: summaryMessageId,
                                          reasoningEffort: reasoningEffort, providerId: providerId, modelId: modelId,
-                                         workspaceIdentifier: workspaceIdentifier)
+                                         workspaceIdentifier: workspaceIdentifier, isDemo: isDemoSession)
                 if let autoTitle, !autoTitle.isEmpty {
                     conv.setTitle(autoTitle)
                 } else {
@@ -165,7 +224,9 @@ final class ConversationStore {
                 }
                 conversations.insert(conv, at: 0)
                 currentConversationId = conv.id
-                Task { await self.saveToDisk(conv) }
+                if !conv.isDemo {
+                    Task { await self.saveToDisk(conv) }
+                }
             }
             return
         }
@@ -205,6 +266,7 @@ final class ConversationStore {
         conversations[index].title = newTitle
         conversations[index].updatedAt = Date()
         let conv = conversations[index]
+        guard !conv.isDemo else { return }
         Task { await saveToDisk(conv) }
     }
 
@@ -222,6 +284,7 @@ final class ConversationStore {
         }
 
         for conversation in updatedConversations {
+            guard !conversation.isDemo else { continue }
             Task { await saveToDisk(conversation) }
         }
     }
@@ -233,32 +296,42 @@ final class ConversationStore {
 
         guard !idsToDelete.isEmpty else { return }
 
+        let deletedConversations = conversations.filter { idsToDelete.contains($0.id) }
+
         let deletedCurrentConversation = idsToDelete.contains(currentConversationId ?? UUID())
         conversations.removeAll { idsToDelete.contains($0.id) }
         if deletedCurrentConversation {
             currentConversationId = nil
         }
 
-        for id in idsToDelete {
-            let url = fileURL(for: id)
+        for conversation in deletedConversations where !conversation.isDemo {
+            let url = fileURL(for: conversation.id)
             Task.detached { try? FileManager.default.removeItem(at: url) }
-            Task { await iCloudSync.deleteFromCloud(id: id) }
+            Task { await iCloudSync.deleteFromCloud(id: conversation.id) }
         }
     }
 
     // MARK: - Delete
 
     func deleteConversation(_ id: UUID) {
+        let deletedConversation = conversations.first { $0.id == id }
         conversations.removeAll { $0.id == id }
         if currentConversationId == id {
             currentConversationId = nil
         }
+        guard deletedConversation?.isDemo != true else { return }
         let url = fileURL(for: id)
         Task.detached { try? FileManager.default.removeItem(at: url) }
         Task { await iCloudSync.deleteFromCloud(id: id) }
     }
 
     func deleteAllConversations() {
+        if isDemoSession {
+            conversations.removeAll()
+            currentConversationId = nil
+            return
+        }
+
         let dir = storageDirectory
         conversations.removeAll()
         currentConversationId = nil
@@ -272,11 +345,13 @@ final class ConversationStore {
     // MARK: - iCloud Sync
 
     func syncWithCloud() async {
+        guard !isDemoSession else { return }
         guard iCloudSync.isCloudAvailable else { return }
         await iCloudSync.performInitialSync(store: self)
     }
 
     func handleRemoteUpdate() async {
+        guard !isDemoSession else { return }
         guard iCloudSync.isCloudAvailable else { return }
         let hadCurrentId = currentConversationId
         await iCloudSync.mergeRemoteConversations(into: self)
@@ -301,7 +376,9 @@ final class ConversationStore {
     }
 
     func storedConversationsForSync() -> [Conversation] {
-        conversations.compactMap { storedConversation(for: $0.id) }
+        conversations
+            .filter { !$0.isDemo }
+            .compactMap { storedConversation(for: $0.id) }
     }
 
     func upsertConversationFromSync(_ conversation: Conversation) async {
@@ -364,6 +441,7 @@ final class ConversationStore {
             loaded.append(meta)
         }
 
+        guard !isDemoSession else { return }
         conversations = loaded.sorted { $0.updatedAt > $1.updatedAt }
     }
 }

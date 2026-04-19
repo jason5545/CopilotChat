@@ -69,6 +69,9 @@ final class ProviderRegistry {
         isLoadingProviders = true
         modelsDevProviders = await ModelsDev.shared.providers()
         modelsDevProviders.merge(Self.hardcodedProviders) { $1 }
+        if authManager.isDemoMode {
+            modelsDevProviders[DemoMode.defaultProviderId] = DemoMode.copilotProviderMetadata
+        }
         loadConfiguredProviders()
         await refreshCodexModels()
         validateActiveModelSelection()
@@ -79,6 +82,9 @@ final class ProviderRegistry {
         isLoadingProviders = true
         var fresh = await ModelsDev.shared.refresh()
         fresh.merge(Self.hardcodedProviders) { $1 }
+        if authManager.isDemoMode {
+            fresh[DemoMode.defaultProviderId] = DemoMode.copilotProviderMetadata
+        }
         modelsDevProviders = fresh
         await refreshCodexModels(force: true)
         validateActiveModelSelection()
@@ -257,6 +263,9 @@ final class ProviderRegistry {
     func provider(for providerId: String) -> (any LLMProvider)? {
         // Special case: GitHub Copilot
         if providerId == "github-copilot" {
+            if authManager.isDemoMode {
+                return DemoCopilotProvider()
+            }
             guard authManager.isAuthenticated else { return nil }
             return CopilotProvider(tokenProvider: { [weak authManager] in
                 await MainActor.run { authManager?.token }
@@ -362,7 +371,7 @@ final class ProviderRegistry {
         var result: [ModelsDevProvider] = []
         let specialIds: Set<String> = ["github-copilot", "openai-codex", "augment"]
         // Always show Copilot first if authenticated
-        if authManager.isAuthenticated, let copilot = modelsDevProviders["github-copilot"] {
+        if (authManager.isAuthenticated || authManager.isDemoMode), let copilot = modelsDevProviders["github-copilot"] {
             result.append(copilot)
         }
         // Show Codex if authenticated (OAuth or API key)
@@ -436,10 +445,25 @@ final class ProviderRegistry {
     }
 
     func hasAPIKey(for providerId: String) -> Bool {
-        if providerId == "github-copilot" { return authManager.isAuthenticated }
+        if providerId == "github-copilot" { return authManager.isAuthenticated || authManager.isDemoMode }
         if providerId == "openai-codex" { return (PluginRegistry.shared.codexAuth?.isAuthenticated ?? false) || loadAPIKey(for: providerId) != nil }
         if providerId == "augment" { return loadAPIKey(for: providerId) != nil && loadAugmentTenantURL() != nil }
         return loadAPIKey(for: providerId) != nil
+    }
+
+    var hasRealConfiguredProvider: Bool {
+        if authManager.isAuthenticated { return true }
+        if (PluginRegistry.shared.codexAuth?.isAuthenticated ?? false) || loadAPIKey(for: "openai-codex") != nil {
+            return true
+        }
+        if loadAPIKey(for: "augment") != nil && loadAugmentTenantURL() != nil {
+            return true
+        }
+
+        let specialIds: Set<String> = ["github-copilot", "openai-codex", "augment"]
+        return allProvidersSorted.contains { provider in
+            !specialIds.contains(provider.id) && loadAPIKey(for: provider.id) != nil
+        }
     }
 
     // MARK: - Augment Credentials
@@ -534,7 +558,7 @@ final class ProviderRegistry {
         let storedIds = Set(UserDefaults.standard.stringArray(forKey: "configuredProviderIds") ?? [])
         var resolvedIds = storedIds.union(detectedConfiguredProviderIds)
 
-        if authManager.isAuthenticated {
+        if authManager.isAuthenticated || authManager.isDemoMode {
             resolvedIds.insert("github-copilot")
         }
 
